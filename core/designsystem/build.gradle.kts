@@ -21,3 +21,10 @@ dependencies {
     testImplementation(libs.compose.ui.test.junit4)
     debugImplementation(libs.compose.ui.test.manifest)
 }
+
+// Robolectric fetches Android framework jars at test time; allow a mirror (-Probolectric.repo=...).
+tasks.withType<Test>().configureEach {
+    systemProperty("robolectric.dependency.repo.url", providers.gradleProperty("robolectric.repo").getOrElse("https://repo1.maven.org/maven2"))
+    systemProperty("roborazzi.test.record", providers.gradleProperty("roborazzi.test.record").getOrElse("false"))
+    maxHeapSize = "2g"
+}

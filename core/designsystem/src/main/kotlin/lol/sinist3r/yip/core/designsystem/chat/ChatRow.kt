@@ -69,6 +69,9 @@ interface ChatActions {
     fun onLink(url: String) {}
 }
 
+/** Names and mentions are tappable but shouldn't look like web links. */
+private val plainLink = TextLinkStyles(SpanStyle(textDecoration = TextDecoration.None))
+
 private val time24 = DateTimeFormatter.ofPattern("HH:mm")
 private val time24s = DateTimeFormatter.ofPattern("HH:mm:ss")
 private val time12 = DateTimeFormatter.ofPattern("h:mm")
@@ -112,7 +115,7 @@ fun ChatRow(item: ChatItem, options: ChatRenderOptions, actions: ChatActions, al
         when (item) {
             is ChatItem.Message -> MessageText(item, options, actions)
             is ChatItem.Notice -> Column {
-                Text(item.text, style = MaterialTheme.typography.bodySmall.copy(fontSize = (chat.fontSizeSp - 0.5f).sp), fontWeight = FontWeight.Medium)
+                Text(item.text, style = MaterialTheme.typography.bodySmall.copy(fontSize = (chat.fontSizeSp - 0.5f).sp), fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                 item.message?.let { MessageText(it, options, actions) }
             }
             is ChatItem.System -> Text(
@@ -188,7 +191,7 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
             } else {
                 SpanStyle(color = nameColor, fontWeight = FontWeight.Bold)
             }
-            withLink(LinkAnnotation.Clickable("user:${m.user.login}") { actions.onUser(m.user.login, m.user.id) }) {
+            withLink(LinkAnnotation.Clickable("user:${m.user.login}", plainLink) { actions.onUser(m.user.login, m.user.id) }) {
                 withStyle(nameSpan) { append(name) }
             }
             withStyle(SpanStyle(color = if (m.isAction) nameColor else muted)) { append(if (m.isAction) " " else ": ") }
@@ -215,7 +218,7 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
                             }
                             appendInlineContentCompat(key, t.emote.code)
                         }
-                        is ChatToken.Mention -> withLink(LinkAnnotation.Clickable("mention:${t.login}") { actions.onUser(t.login, null) }) {
+                        is ChatToken.Mention -> withLink(LinkAnnotation.Clickable("mention:${t.login}", plainLink) { actions.onUser(t.login, null) }) {
                             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = primary)) { append("@${t.display}") }
                         }
                         is ChatToken.Link -> withLink(
