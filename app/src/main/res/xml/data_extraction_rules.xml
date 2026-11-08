@@ -1,14 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Back up settings only. Accounts and tokens never leave the device. -->
+<!-- Back up settings only. Accounts, tokens, history and caches never leave the device. -->
 <data-extraction-rules>
     <cloud-backup>
         <include domain="file" path="datastore/settings.json" />
-        <exclude domain="file" path="datastore/accounts.json" />
-        <exclude domain="database" path="." />
-        <exclude domain="sharedpref" path="." />
     </cloud-backup>
     <device-transfer>
         <include domain="file" path="datastore/settings.json" />
-        <exclude domain="file" path="datastore/accounts.json" />
     </device-transfer>
 </data-extraction-rules>

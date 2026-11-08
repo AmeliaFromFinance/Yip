@@ -27,6 +27,7 @@ navigation = "2.10.2"
 okhttp = "5.5.1"
 profileinstaller = "1.4.1"
 robolectric = "4.17"
+roborazzi = "1.78.0"
 room = "2.8.5"
 serialization = "1.12.0"
 splashscreen = "1.2.0"
@@ -105,6 +106,8 @@ junit4 = { module = "junit:junit", version.ref = "junit4" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+roborazzi = { module = "io.github.takahirom.roborazzi:roborazzi", version.ref = "roborazzi" }
+roborazzi-compose = { module = "io.github.takahirom.roborazzi:roborazzi-compose", version.ref = "roborazzi" }
 
 # build-logic
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "agp" }
