@@ -87,6 +87,14 @@ internal object GqlQueries {
         }
     """.trimIndent()
 
+    val GLOBAL_BADGES = """
+        query GlobalBadges { badges { setID version title imageURL(size: QUADRUPLE) } }
+    """.trimIndent()
+
+    val CHANNEL_BADGES = """
+        query ChannelBadges(${'$'}id: ID) { user(id: ${'$'}id) { broadcastBadges { setID version title imageURL(size: QUADRUPLE) } } }
+    """.trimIndent()
+
     val VIDEO_INFO = """
         query VideoInfo(${'$'}id: ID) {
           video(id: ${'$'}id) { id title createdAt lengthSeconds viewCount previewThumbnailURL broadcastType owner { id login displayName } }

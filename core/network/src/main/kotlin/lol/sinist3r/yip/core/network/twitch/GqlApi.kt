@@ -234,6 +234,9 @@ class GqlApi @Inject constructor(
         put("period", period)
     })
 
+    suspend fun globalBadges() = query(GqlQueries.GLOBAL_BADGES)
+    suspend fun channelBadges(channelId: String) = query(GqlQueries.CHANNEL_BADGES, buildJsonObject { put("id", channelId) })
+
     suspend fun videoInfo(id: String) = query(GqlQueries.VIDEO_INFO, buildJsonObject { put("id", id) })
 
     private inline fun vars(first: Int, after: String?, extra: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit = {}) = buildJsonObject {
