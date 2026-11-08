@@ -157,7 +157,8 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     var chatTab by rememberSaveable { mutableIntStateOf(0) }
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val options = remember(settings.chat, settings.thirdParty) { ChatRenderOptions(settings.chat, settings.thirdParty, animate = true) }
+    val animate = rememberAnimate(settings.chat.animateEmotes, settings.appearance.reduceMotion, settings.data.dataSaver)
+    val options = remember(settings.chat, settings.thirdParty, animate) { ChatRenderOptions(settings.chat, settings.thirdParty, animate) }
     val actions = remember { object : ChatActions { override fun onLink(url: String) = nav.openLink(url) } }
     val host = LocalWatchHost.current
     androidx.compose.runtime.DisposableEffect(Unit) {

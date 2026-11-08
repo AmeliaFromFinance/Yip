@@ -21,7 +21,6 @@ import lol.sinist3r.yip.core.model.AppSettings
 import lol.sinist3r.yip.core.model.BufferProfile
 import lol.sinist3r.yip.core.model.CardLayout
 import lol.sinist3r.yip.core.model.DeletedMessages
-import lol.sinist3r.yip.core.model.Density
 import lol.sinist3r.yip.core.model.LandscapeChat
 import lol.sinist3r.yip.core.model.LinkOpening
 import lol.sinist3r.yip.core.model.PaintMode
@@ -107,6 +106,8 @@ object SettingsSpec {
                 validate = { if (it.length in 2..3 && it.all(Char::isLetter)) null else "Use a 2 or 3 letter language code" }),
             Row.Toggle("Show offline channels", "List followed channels that aren't live under Following",
                 get = { it.general.showOfflineFollowed }, set = { s, v -> s.copy(general = s.general.copy(showOfflineFollowed = v)) }),
+            Row.Toggle("Hide mature streams", "Streams marked for mature audiences (signed in only)",
+                get = { it.general.hideMatureStreams }, set = { s, v -> s.copy(general = s.general.copy(hideMatureStreams = v)) }),
             Row.Toggle("Continue watching", "Show recently watched streams and VODs on Following",
                 get = { it.general.continueWatching }, set = { s, v -> s.copy(general = s.general.copy(continueWatching = v)) }),
             Row.Toggle("Confirm before exit", get = { it.general.confirmBeforeExit }, set = { s, v -> s.copy(general = s.general.copy(confirmBeforeExit = v)) }),
@@ -129,15 +130,13 @@ object SettingsSpec {
                 enabled = { it.appearance.cardLayout == CardLayout.GRID }),
             Row.Slider("Corner roundness", null, 0f..24f, 5, { "${it.toInt()} dp" },
                 get = { it.appearance.roundedCorners.toFloat() }, set = { s, v -> s.copy(appearance = s.appearance.copy(roundedCorners = v.toInt())) }),
-            Row.Choice("Density", options = opts(Density.COMFORTABLE to "Comfortable", Density.COMPACT to "Compact"),
-                get = { it.appearance.density.name }, set = { s, v -> s.copy(appearance = s.appearance.copy(density = Density.valueOf(v))) }),
             Row.Header("On stream cards"),
             Row.Toggle("Viewer count", get = { it.appearance.showViewerCount }, set = { s, v -> s.copy(appearance = s.appearance.copy(showViewerCount = v)) }),
             Row.Toggle("Uptime", get = { it.appearance.showUptime }, set = { s, v -> s.copy(appearance = s.appearance.copy(showUptime = v)) }),
             Row.Toggle("Category", get = { it.appearance.showCategory }, set = { s, v -> s.copy(appearance = s.appearance.copy(showCategory = v)) }),
             Row.Toggle("Tags", get = { it.appearance.showTags }, set = { s, v -> s.copy(appearance = s.appearance.copy(showTags = v)) }),
             Row.Header("Accessibility"),
-            Row.Toggle("Reduce motion", "Fewer animations across the app", get = { it.appearance.reduceMotion }, set = { s, v -> s.copy(appearance = s.appearance.copy(reduceMotion = v)) }),
+            Row.Toggle("Reduce motion", "Fewer animations, including animated emotes", get = { it.appearance.reduceMotion }, set = { s, v -> s.copy(appearance = s.appearance.copy(reduceMotion = v)) }),
             Row.Toggle("Labels on bottom bar", get = { it.appearance.bottomBarLabels }, set = { s, v -> s.copy(appearance = s.appearance.copy(bottomBarLabels = v)) }),
         ),
     )
@@ -219,6 +218,7 @@ object SettingsSpec {
             Row.Toggle("Channel point redemptions", get = { it.chat.showRedemptions }, set = { s, v -> s.copy(chat = s.chat.copy(showRedemptions = v)) }),
             Row.Toggle("Joined / disconnected lines", get = { it.chat.showJoinMessage }, set = { s, v -> s.copy(chat = s.chat.copy(showJoinMessage = v)) }),
             Row.Toggle("Clickable links", get = { it.chat.clickableLinks }, set = { s, v -> s.copy(chat = s.chat.copy(clickableLinks = v)) }),
+            Row.Toggle("Tap a name to mention", "Instead of opening their user card", get = { it.chat.tapNameToMention }, set = { s, v -> s.copy(chat = s.chat.copy(tapNameToMention = v)) }),
             Row.Header("Mentions"),
             Row.Toggle("Highlight mentions of you", get = { it.chat.highlightMentions }, set = { s, v -> s.copy(chat = s.chat.copy(highlightMentions = v)) }),
             Row.Toggle("Vibrate on mention", get = { it.chat.mentionVibrate }, set = { s, v -> s.copy(chat = s.chat.copy(mentionVibrate = v)) }),
@@ -322,6 +322,7 @@ object SettingsSpec {
                 validate = { if (it.startsWith("https://") && "{channel}" in it) null else "Must start with https:// and contain {channel}" },
             ),
             Row.Toggle("Show 'Ad break' banner", get = { it.adBlock.showAdBreakBanner }, set = { s, v -> s.copy(adBlock = s.adBlock.copy(showAdBreakBanner = v)) }),
+            Row.Toggle("Mute during ad breaks", "Works even with ad handling off", get = { it.adBlock.muteDuringAds }, set = { s, v -> s.copy(adBlock = s.adBlock.copy(muteDuringAds = v)) }),
         ),
     )
 

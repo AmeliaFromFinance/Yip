@@ -304,7 +304,8 @@ class TwitchRepository @Inject constructor(
 
     // region mapping
 
-    private suspend fun withAvatars(streams: List<LiveStream>): List<LiveStream> {
+    private suspend fun withAvatars(all: List<LiveStream>): List<LiveStream> {
+        val streams = if (settings.current().general.hideMatureStreams) all.filterNot { it.isMature } else all
         if (streams.isEmpty()) return streams
         val avatars = runCatching {
             streams.map { it.userId }.distinct().chunked(100).flatMap { helix.users(ids = it) }.associate { it.id to it.profileImageUrl }

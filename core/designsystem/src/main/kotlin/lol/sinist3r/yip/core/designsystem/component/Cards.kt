@@ -87,6 +87,9 @@ fun StreamCard(
                     if (appearance.showCategory) stream.gameName?.let {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                    if (appearance.showTags && stream.tags.isNotEmpty()) {
+                        Text(stream.tags.take(3).joinToString("  ") { "#$it" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
         }

@@ -48,7 +48,6 @@ enum class FollowingSort { VIEWERS, RECENTLY_STARTED, NAME, CATEGORY }
 enum class ThemeMode { SYSTEM, LIGHT, DARK, BLACK }
 enum class AccentColor { FOX, CYAN, ROSE, VIOLET, MINT, SKY, CRIMSON, DYNAMIC }
 enum class CardLayout { GRID, LIST, COMPACT }
-enum class Density { COMFORTABLE, COMPACT }
 
 @Serializable
 data class AppearanceSettings(
@@ -57,7 +56,6 @@ data class AppearanceSettings(
     val customAccentArgb: Long? = null,
     val cardLayout: CardLayout = CardLayout.GRID,
     val gridColumns: Int = 0,
-    val density: Density = Density.COMFORTABLE,
     val showViewerCount: Boolean = true,
     val showUptime: Boolean = true,
     val showTags: Boolean = true,
@@ -107,7 +105,6 @@ data class PlayerSettings(
     val codecs: List<VideoCodec> = listOf(VideoCodec.H264),
     val sleepTimerMinutes: Int = 0,
     val miniPlayer: Boolean = true,
-    val portraitVideoFraction: Float = 0.3f,
 )
 
 // endregion
@@ -145,14 +142,12 @@ data class ChatSettings(
     val showJoinMessage: Boolean = true,
     val loadRecentHistory: Boolean = true,
     val clickableLinks: Boolean = true,
-    val linkPreviews: Boolean = false,
     val sendOnEnter: Boolean = true,
     val autocompleteEmotes: Boolean = true,
     val autocompleteUsers: Boolean = true,
     val tabCompletion: Boolean = true,
     val showRecentEmotes: Boolean = true,
     val keepComposerOnSend: Boolean = false,
-    val pauseScrollOnTouch: Boolean = true,
     val tapNameToMention: Boolean = false,
     val highlightMentions: Boolean = true,
     val mentionVibrate: Boolean = false,
@@ -244,7 +239,6 @@ data class AdBlockSettings(
     val backupLowerQualityOk: Boolean = true,
     val stripAdSegmentsAsLastResort: Boolean = false,
     val proxyTemplates: List<String> = emptyList(),
-    val proxyForVods: Boolean = false,
     val showAdBreakBanner: Boolean = true,
     val muteDuringAds: Boolean = false,
 )

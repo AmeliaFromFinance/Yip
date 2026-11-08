@@ -97,6 +97,7 @@ class PlaybackController @Inject constructor(
     private var masterUrl: String? = null
     private var sleepJob: Job? = null
     private var tickJob: Job? = null
+    private var volumeBeforeAd = 1f
 
     private val _state = MutableStateFlow(PlaybackUiState())
     val state: StateFlow<PlaybackUiState> = _state.asStateFlow()
@@ -173,7 +174,10 @@ class PlaybackController @Inject constructor(
         if (s.rememberQualityPerChannel) {
             channelPrefs.get(channelId)?.qualityId?.let { id -> qualities.firstOrNull { it.id == id }?.let { return it } }
         }
-        val pref = if (isOnWifi()) s.qualityWifi else s.qualityMobile
+        val wifi = isOnWifi()
+        val base = if (wifi) s.qualityWifi else s.qualityMobile
+        // Data saver caps mobile data at 480p.
+        val pref = if (!wifi && settings.current().data.dataSaver && (base == QualityPreference.AUTO || base == QualityPreference.SOURCE || (base.height ?: 0) > 480)) QualityPreference.P480 else base
         return when (pref) {
             QualityPreference.AUTO -> null
             QualityPreference.AUDIO_ONLY -> qualities.firstOrNull { it.isAudioOnly }
@@ -278,11 +282,16 @@ class PlaybackController @Inject constructor(
                 val p = _player ?: continue
                 val src = _state.value.source
                 val url = p.currentMediaItem?.localConfiguration?.uri?.toString()
+                val ad = url != null && rewriter.isAdBreak(url)
+                val wasAd = _state.value.adBreak
                 _state.update {
                     it.copy(
                         liveLatencyMs = if (src is PlaybackSource.Live) p.currentLiveOffset.takeIf { o -> o > 0 } else null,
-                        adBreak = url != null && rewriter.isAdBreak(url),
+                        adBreak = ad,
                     )
+                }
+                if (settings.settings.value.adBlock.muteDuringAds && ad != wasAd) {
+                    if (ad) { volumeBeforeAd = p.volume; p.volume = 0f } else p.volume = volumeBeforeAd
                 }
                 if (++n % 15 == 0) recordProgress()
             }

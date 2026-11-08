@@ -93,6 +93,7 @@ fun PlayerArea(
     durationSeconds: Long,
     chapters: List<VideoChapter>,
     inPip: Boolean,
+    showAdBanner: Boolean,
     onBack: () -> Unit,
     onQuality: () -> Unit,
     onRetry: () -> Unit,
@@ -191,7 +192,7 @@ fun PlayerArea(
             }
         }
 
-        if (state.adBreak) {
+        if (state.adBreak && showAdBanner) {
             Pill(
                 if (state.viaProxy) "Ad break (proxy)" else "Ad break · stream resumes after",
                 Modifier.align(Alignment.TopCenter).padding(top = 12.dp),

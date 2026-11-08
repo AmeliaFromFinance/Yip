@@ -55,13 +55,16 @@ interface WatchNavigator {
 }
 
 @Composable
-private fun rememberAnimate(mode: AnimateEmotes): Boolean {
+internal fun rememberAnimate(mode: AnimateEmotes, reduceMotion: Boolean, dataSaver: Boolean): Boolean {
     val context = LocalContext.current
-    return remember(mode) {
-        when (mode) {
-            AnimateEmotes.ALWAYS -> true
-            AnimateEmotes.NEVER -> false
-            AnimateEmotes.WIFI_ONLY -> context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == false
+    return remember(mode, reduceMotion, dataSaver) {
+        val metered = context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered != false
+        when {
+            reduceMotion -> false
+            dataSaver && metered -> false
+            mode == AnimateEmotes.ALWAYS -> true
+            mode == AnimateEmotes.NEVER -> false
+            else -> !metered
         }
     }
 }
@@ -91,11 +94,13 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     var insert by remember { mutableStateOf<String?>(null) }
 
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val animate = rememberAnimate(settings.chat.animateEmotes)
+    val animate = rememberAnimate(settings.chat.animateEmotes, settings.appearance.reduceMotion, settings.data.dataSaver)
     val options = remember(settings.chat, settings.thirdParty, animate) { ChatRenderOptions(settings.chat, settings.thirdParty, animate) }
     val actions = remember {
         object : ChatActions {
-            override fun onUser(login: String, userId: String?) = viewModel.openUser(login)
+            override fun onUser(login: String, userId: String?) {
+                if (viewModel.settings.value.chat.tapNameToMention) insert = "@$login" else viewModel.openUser(login)
+            }
             override fun onEmote(emote: Emote) { insert = emote.code }
             override fun onMessageLongPress(message: ChatItem.Message) { menuFor = message }
             override fun onLink(url: String) = nav.openLink(url)
@@ -105,6 +110,13 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     DisposableEffect(settings.player.autoPip, settings.player.keepScreenOn) {
         host?.setWatching(true, settings.player.autoPip, settings.player.keepScreenOn)
         onDispose { host?.setWatching(false, false, false) }
+    }
+    val context = LocalContext.current
+    val lastMention = chat.lastOrNull() as? ChatItem.Message
+    LaunchedEffect(lastMention?.id) {
+        if (lastMention != null && !lastMention.isHistory && lastMention.highlight == lol.sinist3r.yip.core.model.HighlightKind.MENTION && settings.chat.mentionVibrate) {
+            context.getSystemService(android.os.Vibrator::class.java)?.vibrate(android.os.VibrationEffect.createOneShot(60, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        }
     }
     LaunchedEffect(settings.player.sleepTimerMinutes) {
         if (settings.player.sleepTimerMinutes > 0 && playState.sleepAtMillis == null) viewModel.playback.setSleepTimer(settings.player.sleepTimerMinutes)
@@ -127,6 +139,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             durationSeconds = duration,
             chapters = info.chapters,
             inPip = inPip,
+            showAdBanner = settings.adBlock.showAdBreakBanner,
             onBack = nav::back,
             onQuality = { showQuality = true },
             onRetry = { if (info.error != null) viewModel.load() else viewModel.playback.retry() },
