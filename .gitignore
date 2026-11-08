@@ -1,0 +1,17 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.kotlin/
+captures/
+*.keystore
+*.jks
+keystore.properties
+signing/
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+watcher/.env
+watcher/keys/
