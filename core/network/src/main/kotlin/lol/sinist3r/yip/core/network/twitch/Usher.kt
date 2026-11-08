@@ -50,20 +50,28 @@ object Usher {
                 line.startsWith("#EXT-X-STREAM-INF:") -> {
                     val a = attrs(line)
                     val url = lines.getOrNull(i + 1)?.trim()?.takeIf { it.startsWith("http") } ?: return@forEachIndexed
-                    val group = a["VIDEO"] ?: a["STABLE-VARIANT-ID"] ?: ""
-                    val name = media[group] ?: group
+                    // Current manifests use STABLE-VARIANT-ID / IVS-NAME; older ones VIDEO + EXT-X-MEDIA.
+                    val id = a["STABLE-VARIANT-ID"] ?: a["VIDEO"] ?: a["IVS-NAME"] ?: url.hashCode().toString()
+                    val name = a["IVS-NAME"] ?: media[a["VIDEO"]] ?: id
                     val res = a["RESOLUTION"]?.split('x')
                     val height = res?.getOrNull(1)?.toIntOrNull()
                     val fps = a["FRAME-RATE"]?.toDoubleOrNull()?.let { kotlin.math.round(it).toInt() }
-                    val audioOnly = group.startsWith("audio") || name.contains("audio", true)
+                    val codecs = a["CODECS"].orEmpty()
+                    val audioOnly = id.startsWith("audio") || name.startsWith("audio") ||
+                        (res == null && codecs.isNotEmpty() && listOf("avc", "hvc", "hev", "av01").none { it in codecs })
+                    val isSource = a["IVS-VARIANT-SOURCE"] == "source" || id == "chunked" || name.contains("source", true)
                     out += StreamQuality(
-                        id = group.ifEmpty { name },
-                        label = if (audioOnly) "Audio only" else name.replace("(source)", "").trim().ifEmpty { "${height}p" },
+                        id = id,
+                        label = when {
+                            audioOnly -> "Audio only"
+                            height != null -> "${height}p" + (fps?.takeIf { it > 30 }?.toString() ?: "")
+                            else -> name.replace("(source)", "").trim()
+                        },
                         height = if (audioOnly) 0 else height,
                         fps = fps,
                         bandwidth = a["BANDWIDTH"]?.toLongOrNull(),
                         url = url,
-                        isSource = group == "chunked" || name.contains("source", true),
+                        isSource = isSource,
                         isAudioOnly = audioOnly,
                     )
                 }

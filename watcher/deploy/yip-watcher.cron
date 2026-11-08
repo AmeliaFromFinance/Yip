@@ -1,0 +1,4 @@
+# Yip playback config watcher: every 30 minutes, with a random delay so it doesn't hit Twitch on the dot.
+SHELL=/bin/bash
+PLAYWRIGHT_BROWSERS_PATH=/opt/yip-watcher/browsers
+*/30 * * * * yipwatch sleep $((RANDOM \% 240)); /opt/yip-watcher/.venv/bin/python /opt/yip-watcher/yip_watcher.py run --out __OUT__ --state /opt/yip-watcher/state/last.json --key /opt/yip-watcher/keys/config_ed25519.pem >> /var/log/yip-watcher/watcher.log 2>&1

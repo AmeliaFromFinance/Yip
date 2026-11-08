@@ -77,7 +77,8 @@ class MainActivity : ComponentActivity(), WatchHost {
     private fun handleIntent(intent: Intent?) {
         val uri = intent?.data ?: return
         if (uri.host == "yip.sinist3r.lol" && uri.path == "/auth") {
-            val fragment = uri.fragment ?: return
+            // App Link: token in the fragment. Fallback page: token moved into the query.
+            val fragment = uri.fragment ?: uri.encodedQuery ?: return
             lifecycleScope.launch {
                 val account = accounts.completeBrowserLogin(fragment)
                 Timber.i("Browser sign-in %s", if (account != null) "succeeded" else "failed")

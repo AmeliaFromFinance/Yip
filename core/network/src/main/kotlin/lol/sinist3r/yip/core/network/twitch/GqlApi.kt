@@ -89,7 +89,7 @@ class GqlApi @Inject constructor(
         val res = http.post("https://gql.twitch.tv/gql") {
             expectSuccess = false
             header("Client-Id", conf.clientId)
-            header("X-Device-Id", integrityToken?.deviceId ?: deviceId)
+            header("Device-Id", integrityToken?.deviceId ?: deviceId)
             conf.userAgent?.let { header(HttpHeaders.UserAgent, it) }
             webToken?.let { header(HttpHeaders.Authorization, "OAuth $it") }
             integrityToken?.let { header("Client-Integrity", it.token) }
@@ -118,35 +118,34 @@ class GqlApi @Inject constructor(
 
     data class AccessToken(val value: String, val signature: String)
 
-    suspend fun streamAccessToken(login: String, playerType: String, platform: String = "web"): AccessToken? {
-        val data = persisted(
-            "PlaybackAccessToken",
-            buildJsonObject {
-                put("isLive", true)
-                put("login", login.lowercase())
-                put("isVod", false)
-                put("vodID", "")
-                put("playerType", playerType)
-                put("platform", platform)
-            },
-        )
-        return data.obj("streamPlaybackAccessToken")?.toToken()
+    /** Uses the raw template query (no hash to rotate) and falls back to the persisted op. */
+    private suspend fun playbackToken(login: String, videoId: String, live: Boolean, playerType: String, platform: String): JsonObject {
+        val vars = buildJsonObject {
+            put("isLive", live)
+            put("login", if (live) login.lowercase() else "")
+            put("isVod", !live)
+            put("vodID", if (live) "" else videoId)
+            put("playerType", playerType)
+            put("platform", platform)
+        }
+        val template = config.current().query("PlaybackAccessToken_Template")
+        if (template != null) {
+            val body = buildJsonObject {
+                put("operationName", "PlaybackAccessToken_Template")
+                put("query", template)
+                put("variables", vars)
+            }
+            val result = runCatching { send(body, authenticated = false) }
+            result.getOrNull()?.let { return it }
+        }
+        return persisted("PlaybackAccessToken", vars)
     }
 
-    suspend fun videoAccessToken(videoId: String, playerType: String): AccessToken? {
-        val data = persisted(
-            "PlaybackAccessToken",
-            buildJsonObject {
-                put("isLive", false)
-                put("login", "")
-                put("isVod", true)
-                put("vodID", videoId)
-                put("playerType", playerType)
-                put("platform", "web")
-            },
-        )
-        return data.obj("videoPlaybackAccessToken")?.toToken()
-    }
+    suspend fun streamAccessToken(login: String, playerType: String, platform: String = "web"): AccessToken? =
+        playbackToken(login, "", live = true, playerType, platform).obj("streamPlaybackAccessToken")?.toToken()
+
+    suspend fun videoAccessToken(videoId: String, playerType: String): AccessToken? =
+        playbackToken("", videoId, live = false, playerType, "web").obj("videoPlaybackAccessToken")?.toToken()
 
     data class ClipSource(val quality: String, val frameRate: Int?, val url: String)
 

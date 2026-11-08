@@ -31,7 +31,10 @@ class RewritingDataSource(
     override fun open(dataSpec: DataSpec): Long {
         uri = dataSpec.uri
         val path = dataSpec.uri.path.orEmpty()
-        if (!path.endsWith(".m3u8") || dataSpec.uri.host?.startsWith("usher.") == true) {
+        val host = dataSpec.uri.host.orEmpty()
+        // Media playlists live on *.playlist.ttvnw.net (v1/playlist/...) or end in .m3u8; usher serves masters.
+        val isMediaPlaylist = (host.endsWith("playlist.ttvnw.net") || path.endsWith(".m3u8")) && !host.startsWith("usher.")
+        if (!isMediaPlaylist) {
             delegating = true
             return upstream.open(dataSpec)
         }
