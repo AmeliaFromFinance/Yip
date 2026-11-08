@@ -1,0 +1,95 @@
+package lol.sinist3r.yip.core.network.twitch
+
+/** Raw GraphQL documents. Raw queries don't depend on persisted-query hashes. */
+internal object GqlQueries {
+    private const val STREAM_NODE = """
+        broadcaster { broadcastSettings { title } displayName id login profileImageURL(width: 300) }
+        createdAt freeformTags { name } game { displayName id slug } id previewImageURL viewersCount
+    """
+
+    val TOP_STREAMS = """
+        query TopStreams(${'$'}languages: [Language!], ${'$'}first: Int, ${'$'}after: Cursor) {
+          streams(first: ${'$'}first, after: ${'$'}after, options: { sort: VIEWER_COUNT, broadcasterLanguages: ${'$'}languages }) {
+            edges { cursor node { $STREAM_NODE } }
+            pageInfo { hasNextPage }
+          }
+        }
+    """.trimIndent()
+
+    val GAME_STREAMS = """
+        query GameStreams(${'$'}id: ID, ${'$'}languages: [Language!], ${'$'}first: Int, ${'$'}after: Cursor) {
+          game(id: ${'$'}id) {
+            streams(first: ${'$'}first, after: ${'$'}after, options: { sort: VIEWER_COUNT, broadcasterLanguages: ${'$'}languages }) {
+              edges { cursor node { $STREAM_NODE } }
+              pageInfo { hasNextPage }
+            }
+          }
+        }
+    """.trimIndent()
+
+    val TOP_GAMES = """
+        query TopGames(${'$'}first: Int, ${'$'}after: Cursor) {
+          games(first: ${'$'}first, after: ${'$'}after) {
+            edges { cursor node { boxArtURL displayName id viewersCount } }
+            pageInfo { hasNextPage }
+          }
+        }
+    """.trimIndent()
+
+    val SEARCH_CHANNELS = """
+        query SearchChannels(${'$'}query: String!, ${'$'}first: Int, ${'$'}after: Cursor) {
+          searchUsers(userQuery: ${'$'}query, first: ${'$'}first, after: ${'$'}after) {
+            edges { cursor node { displayName id login profileImageURL(width: 300) stream { viewersCount game { displayName } broadcaster { broadcastSettings { title } } } } }
+            pageInfo { hasNextPage }
+          }
+        }
+    """.trimIndent()
+
+    val SEARCH_GAMES = """
+        query SearchGames(${'$'}query: String!, ${'$'}first: Int, ${'$'}after: Cursor) {
+          searchCategories(query: ${'$'}query, first: ${'$'}first, after: ${'$'}after) {
+            edges { cursor node { boxArtURL displayName id viewersCount } }
+            pageInfo { hasNextPage }
+          }
+        }
+    """.trimIndent()
+
+    val USERS_STREAM = """
+        query UsersStream(${'$'}ids: [ID!], ${'$'}logins: [String!]) {
+          users(ids: ${'$'}ids, logins: ${'$'}logins) {
+            displayName id login profileImageURL(width: 300) description createdAt roles { isPartner isAffiliate }
+            stream { $STREAM_NODE }
+          }
+        }
+    """.trimIndent()
+
+    val USER_VIDEOS = """
+        query UserVideos(${'$'}id: ID, ${'$'}login: String, ${'$'}types: [BroadcastType!], ${'$'}first: Int, ${'$'}after: Cursor) {
+          user(id: ${'$'}id, login: ${'$'}login, lookupType: ALL) {
+            id login displayName
+            videos(first: ${'$'}first, after: ${'$'}after, types: ${'$'}types, sort: TIME) {
+              edges { cursor node { broadcastType createdAt id lengthSeconds previewThumbnailURL title viewCount } }
+              pageInfo { hasNextPage }
+            }
+          }
+        }
+    """.trimIndent()
+
+    val USER_CLIPS = """
+        query UserClips(${'$'}id: ID, ${'$'}login: String, ${'$'}period: ClipsPeriod, ${'$'}first: Int, ${'$'}after: Cursor) {
+          user(id: ${'$'}id, login: ${'$'}login, lookupType: ALL) {
+            id login displayName
+            clips(first: ${'$'}first, after: ${'$'}after, criteria: { period: ${'$'}period }) {
+              edges { cursor node { createdAt durationSeconds slug thumbnailURL title url viewCount curator { displayName } video { id } videoOffsetSeconds } }
+              pageInfo { hasNextPage }
+            }
+          }
+        }
+    """.trimIndent()
+
+    val VIDEO_INFO = """
+        query VideoInfo(${'$'}id: ID) {
+          video(id: ${'$'}id) { id title createdAt lengthSeconds viewCount previewThumbnailURL broadcastType owner { id login displayName } }
+        }
+    """.trimIndent()
+}

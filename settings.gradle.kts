@@ -19,3 +19,5 @@ rootProject.name = "Yip"
 
 include(":app")
 include(":core:model")
+include(":core:common")
+include(":core:network")

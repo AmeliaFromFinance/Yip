@@ -1,0 +1,109 @@
+package lol.sinist3r.yip.core.network.twitch
+
+import io.ktor.http.URLBuilder
+import kotlin.random.Random
+import lol.sinist3r.yip.core.model.StreamQuality
+
+/** Builds usher manifest URLs and parses Twitch master playlists. */
+object Usher {
+
+    fun liveUrl(login: String, token: GqlApi.AccessToken, codecs: List<String>, lowLatency: Boolean): String =
+        URLBuilder("https://usher.ttvnw.net/api/v2/channel/hls/${login.lowercase()}.m3u8").apply {
+            common(codecs)
+            parameters.append("sig", token.signature)
+            parameters.append("token", token.value)
+            parameters.append("fast_bread", lowLatency.toString())
+        }.buildString()
+
+    fun vodUrl(videoId: String, token: GqlApi.AccessToken, codecs: List<String>): String =
+        URLBuilder("https://usher.ttvnw.net/vod/v2/$videoId.m3u8").apply {
+            common(codecs)
+            parameters.append("nauthsig", token.signature)
+            parameters.append("nauth", token.value)
+        }.buildString()
+
+    private fun URLBuilder.common(codecs: List<String>) {
+        parameters.append("platform", "web")
+        parameters.append("p", Random.nextInt(0, 999_999).toString())
+        parameters.append("allow_source", "true")
+        parameters.append("allow_audio_only", "true")
+        parameters.append("playlist_include_framerate", "true")
+        parameters.append("multigroup_video", "true")
+        parameters.append("supported_codecs", codecs.joinToString(","))
+    }
+
+    private val attrRegex = Regex("""([A-Z0-9-]+)=("[^"]*"|[^,]*)""")
+
+    /** Parses EXT-X-STREAM-INF variants into qualities, best first. */
+    fun parseMaster(playlist: String): List<StreamQuality> {
+        val lines = playlist.lines()
+        val media = mutableMapOf<String, String>() // GROUP-ID -> NAME
+        val out = mutableListOf<StreamQuality>()
+        lines.forEachIndexed { i, line ->
+            when {
+                line.startsWith("#EXT-X-MEDIA:") -> {
+                    val a = attrs(line)
+                    val group = a["GROUP-ID"]
+                    val name = a["NAME"]
+                    if (group != null && name != null) media[group] = name
+                }
+                line.startsWith("#EXT-X-STREAM-INF:") -> {
+                    val a = attrs(line)
+                    val url = lines.getOrNull(i + 1)?.trim()?.takeIf { it.startsWith("http") } ?: return@forEachIndexed
+                    val group = a["VIDEO"] ?: a["STABLE-VARIANT-ID"] ?: ""
+                    val name = media[group] ?: group
+                    val res = a["RESOLUTION"]?.split('x')
+                    val height = res?.getOrNull(1)?.toIntOrNull()
+                    val fps = a["FRAME-RATE"]?.toDoubleOrNull()?.let { kotlin.math.round(it).toInt() }
+                    val audioOnly = group.startsWith("audio") || name.contains("audio", true)
+                    out += StreamQuality(
+                        id = group.ifEmpty { name },
+                        label = if (audioOnly) "Audio only" else name.replace("(source)", "").trim().ifEmpty { "${height}p" },
+                        height = if (audioOnly) 0 else height,
+                        fps = fps,
+                        bandwidth = a["BANDWIDTH"]?.toLongOrNull(),
+                        url = url,
+                        isSource = group == "chunked" || name.contains("source", true),
+                        isAudioOnly = audioOnly,
+                    )
+                }
+            }
+        }
+        return out.distinctBy { it.id }.sortedWith(compareByDescending<StreamQuality> { it.height ?: -1 }.thenByDescending { it.fps ?: 0 })
+    }
+
+    private fun attrs(line: String): Map<String, String> =
+        attrRegex.findAll(line.substringAfter(':')).associate { it.groupValues[1] to it.groupValues[2].trim('"') }
+
+    // region ad markers (used only when the user opts in to ad handling)
+
+    /** True if a media playlist currently contains stitched ad segments. */
+    fun hasAds(mediaPlaylist: String): Boolean =
+        "stitched-ad" in mediaPlaylist || "twitch-stitched-ad" in mediaPlaylist ||
+            mediaPlaylist.lineSequence().any { it.startsWith("#EXTINF") && "Amazon" in it }
+
+    /**
+     * Removes ad segments from a media playlist. Used only as a last resort; Twitch then
+     * serves nothing for the ad duration, so playback pauses rather than shows an ad.
+     */
+    fun stripAds(mediaPlaylist: String): String {
+        if (!hasAds(mediaPlaylist)) return mediaPlaylist
+        val out = ArrayList<String>()
+        var skipUri = false
+        for (line in mediaPlaylist.lineSequence()) {
+            when {
+                line.startsWith("#EXT-X-DATERANGE") && "stitched-ad" in line -> Unit
+                line.startsWith("#EXT-X-TWITCH-PREFETCH") -> Unit
+                line.startsWith("#EXTINF") -> {
+                    val isAd = !line.substringAfter(',').contains("live")
+                    if (isAd) skipUri = true else out += line
+                }
+                !line.startsWith("#") && line.isNotBlank() -> if (skipUri) skipUri = false else out += line
+                else -> out += line
+            }
+        }
+        return out.joinToString("\n")
+    }
+
+    // endregion
+}
