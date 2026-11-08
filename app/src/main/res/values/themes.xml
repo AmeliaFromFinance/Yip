@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Yip" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowBackground">@color/yip_background</item>
+    </style>
+    <style name="Theme.Yip.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/yip_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.Yip</item>
+    </style>
+    <color name="yip_background">#FFFBF8</color>
+    <color name="yip_fox">#F28C28</color>
+</resources>

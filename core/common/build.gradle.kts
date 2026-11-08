@@ -5,4 +5,5 @@ plugins {
 
 dependencies {
     api(libs.kotlinx.coroutines.android)
+    api(libs.timber)
 }

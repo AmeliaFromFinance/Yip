@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Yip</string>
+    <string name="channel_live">Live channels</string>
+    <string name="channel_live_desc">When channels you follow go live</string>
+</resources>

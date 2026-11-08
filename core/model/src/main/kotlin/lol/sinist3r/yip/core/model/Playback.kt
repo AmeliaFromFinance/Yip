@@ -44,6 +44,8 @@ data class RemoteConfig(
             "ClaimCommunityPoints" to "46aaeebe02c99afdf4fc97c7c0cba964124bf6b0af229395f1f6d1feed05b3d0",
             "VideoPlayer_ChapterSelectButtonVideo" to "71835d5ef425e154bf282453a926d99b328cdc5e32f36d3a209d0f4778b41203",
             "StreamMetadata" to "b57f9b910f8cd1a4659d894fe7550ccc81ec9052c01e438b290fd66a040b9b93",
+            "FollowButton_FollowUser" to "800e7346bdf7e5278a3c1d3f21b2b56e2639928f86815677a7126b093b2fdd08",
+            "FollowButton_UnfollowUser" to "f7dae976ebf41c755ae2d758546bfd176b4eeb856656098bb40e0a672ca0d880",
         )
     }
 }

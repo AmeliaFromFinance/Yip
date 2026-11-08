@@ -130,6 +130,22 @@ class AccountRepository @Inject constructor(
         emit(DeviceLoginState.Failed("The code expired. Try again."))
     }
 
+    @Volatile private var pendingBrowserState: String? = null
+
+    /** Starts the browser (implicit grant) flow; returns the URL to open in a Custom Tab. */
+    fun beginBrowserLogin(): String {
+        val state = auth.newState()
+        pendingBrowserState = state
+        return auth.implicitAuthorizeUrl(TwitchAuthApi.SCOPES, state)
+    }
+
+    /** Called with the redirect's URL fragment. Returns null on mismatch or failure. */
+    suspend fun completeBrowserLogin(fragment: String): Account? {
+        val expected = pendingBrowserState ?: return null
+        pendingBrowserState = null
+        return completeImplicitLogin(fragment, expected)
+    }
+
     /** Completes the implicit-grant browser flow. [state] must match what we sent. */
     suspend fun completeImplicitLogin(fragment: String, expectedState: String): Account? {
         val params = fragment.removePrefix("#").split('&').associate { it.substringBefore('=') to java.net.URLDecoder.decode(it.substringAfter('='), "UTF-8") }
