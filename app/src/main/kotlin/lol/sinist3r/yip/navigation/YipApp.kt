@@ -160,7 +160,6 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun openChat(login: String) = nav.navigate(WatchRoute("CHAT", login))
             override fun openStreamManager() = nav.navigate(StreamManagerRoute)
             override fun addToMultiView(login: String) {
-                if (!settings.experimental.multiView) return
                 if (login !in multiQueue) multiQueue += login
                 scope.launch {
                     val r = snackbar.showSnackbar("Added $login to multi-view (${multiQueue.size})", actionLabel = "Open", duration = SnackbarDuration.Short)
@@ -178,6 +177,10 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun openChannel(login: String) = nav.navigate(ChannelRoute(login))
             override fun openVod(videoId: String, offsetSeconds: Int) = nav.navigate(WatchRoute("VOD", videoId, offsetSeconds))
             override fun openLink(url: String) = openLink(url)
+            override fun openLive(login: String) {
+                nav.popBackStack()
+                nav.navigate(WatchRoute("LIVE", login))
+            }
             override fun openMultiView(logins: List<String>) {
                 nav.popBackStack()
                 nav.navigate(MultiViewRoute(logins.joinToString(",")))

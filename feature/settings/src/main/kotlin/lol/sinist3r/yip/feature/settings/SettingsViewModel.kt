@@ -76,6 +76,9 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /** QR link (null if too big) and full JSON for the transfer sheet. */
+    suspend fun transfer(): Pair<String?, String> = repo.transferLink() to repo.exportJson()
+
     fun export(uri: Uri) = viewModelScope.launch {
         attempt {
             val text = repo.exportJson()

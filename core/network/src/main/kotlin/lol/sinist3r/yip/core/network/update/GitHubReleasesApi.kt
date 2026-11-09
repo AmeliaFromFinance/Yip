@@ -54,6 +54,21 @@ class GitHubReleasesApi @Inject constructor(private val http: HttpClient, privat
             .firstOrNull()
     }
 
+    /** Title and notes of the release tagged [version] (with or without a leading v), or null. */
+    suspend fun notesFor(repo: String, version: String): Pair<String, String>? {
+        for (tag in listOf("v$version", version)) {
+            val res = http.get("https://api.github.com/repos/$repo/releases/tags/$tag") {
+                expectSuccess = false
+                header("Accept", "application/vnd.github+json")
+            }
+            if (!res.status.isSuccess()) continue
+            val o = json.parseToJsonElement(res.bodyAsText()) as? JsonObject ?: continue
+            val notes = cleanNotes(o.str("body").orEmpty())
+            return (o.str("name")?.ifBlank { null } ?: tag) to notes
+        }
+        return null
+    }
+
     suspend fun text(url: String): String? {
         val res = http.get(url) { expectSuccess = false }
         return if (res.status.isSuccess()) res.bodyAsText() else null

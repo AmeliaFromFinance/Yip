@@ -55,4 +55,6 @@ sealed interface RawChat {
     ) : RawChat
     data class Status(val connected: Boolean, val readOnly: Boolean, val message: String? = null) : RawChat
     data class ServerNotice(val text: String) : RawChat
+    /** The channel being watched raided out to another channel. */
+    data class RaidOut(val toLogin: String, val toName: String, val viewers: Int) : RawChat
 }

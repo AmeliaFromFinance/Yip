@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.Fullscreen
 import androidx.compose.material.icons.outlined.FullscreenExit
 import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -103,6 +104,7 @@ fun PlayerArea(
     stats: lol.sinist3r.yip.core.playback.PlaybackStats? = null,
     onToggleMute: () -> Unit = { player.volume = if (player.volume == 0f) 1f else 0f },
     onMultiView: (() -> Unit)? = null,
+    onClip: (() -> Unit)? = null,
 ) {
     val host = LocalWatchHost.current
     val context = LocalContext.current
@@ -234,6 +236,7 @@ fun PlayerArea(
                         Text(title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp)
                         Text(subtitle, color = Color.White.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
                     }
+                    onClip?.let { IconButton(onClick = it) { Icon(Icons.Outlined.ContentCut, "Clip", tint = Color.White) } }
                     onMultiView?.let { IconButton(onClick = it) { Icon(Icons.Outlined.GridView, "Watch with another stream", tint = Color.White) } }
                     IconButton(onClick = { host?.enterPip() }) { Icon(Icons.Outlined.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
                     IconButton(onClick = onQuality) { Icon(Icons.Outlined.Settings, "Quality and options", tint = Color.White) }

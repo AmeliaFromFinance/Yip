@@ -68,6 +68,11 @@ class ChatSession internal constructor(
     private val _connection = MutableStateFlow(ChatConnection())
     val connection: StateFlow<ChatConnection> = _connection.asStateFlow()
 
+    /** Set when this channel raids out; the watch screen offers to follow it. */
+    private val _raid = MutableStateFlow<RaidTarget?>(null)
+    val raid: StateFlow<RaidTarget?> = _raid.asStateFlow()
+    fun dismissRaid() { _raid.value = null }
+
     /** Recent chatter logins, newest last, for @-autocomplete. */
     fun chatters(): List<String> = synchronized(knownChatters) { knownChatters.toList().asReversed() }
 
@@ -169,6 +174,10 @@ class ChatSession internal constructor(
                     if (!ev.connected && was) system("Disconnected, reconnecting...")
                 }
                 is RawChat.ServerNotice -> system(ev.text)
+                is RawChat.RaidOut -> {
+                    _raid.value = RaidTarget(ev.toLogin, ev.toName, ev.viewers)
+                    system("Raiding ${ev.toName} with ${ev.viewers} viewers")
+                }
                 is RawChat.JoinFailed -> Unit // handled in transport()
                 is RawChat.AutoModHeld -> append(ChatItem.AutoMod("automod-${ev.messageId}", kotlin.time.Clock.System.now(), ev.login, ev.displayName, ev.text, ev.reason))
                 is RawChat.AutoModResolved -> markAutoMod(ev.messageId, ev.status)
@@ -359,3 +368,5 @@ class ChatRepository @Inject constructor(
             "/emoteonly, /emoteonlyoff, /subscribers, /subscribersoff, /uniquechat, /uniquechatoff, /announce, /shoutout, /color, /block, /unblock"
     }
 }
+
+data class RaidTarget(val login: String, val displayName: String, val viewers: Int)

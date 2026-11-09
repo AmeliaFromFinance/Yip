@@ -116,7 +116,7 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
     var sortMenu by remember { mutableStateOf(false) }
     var quick by remember { mutableStateOf<QuickTarget?>(null) }
     quick?.let { t ->
-        QuickActionsSheet(t, onAddToMultiView = if (settings.experimental.multiView) nav::addToMultiView else null, onDismiss = { quick = null }, allowHide = false)
+        QuickActionsSheet(t, onAddToMultiView = nav::addToMultiView, onDismiss = { quick = null }, allowHide = false)
     }
     Scaffold(
         topBar = {
@@ -313,8 +313,7 @@ internal fun StreamGrid(
 ) {
     val grid = rememberLazyGridState()
     var quick by remember { mutableStateOf<QuickTarget?>(null) }
-    val multiView = hiltViewModel<QuickActionsViewModel>().state.collectAsStateWithLifecycle().value.experimental.multiView
-    quick?.let { t -> QuickActionsSheet(t, onAddToMultiView = if (multiView) nav::addToMultiView else null, onDismiss = { quick = null }) }
+    quick?.let { t -> QuickActionsSheet(t, onAddToMultiView = nav::addToMultiView, onDismiss = { quick = null }) }
     grid.OnNearEnd(onLoadMore = onMore)
     when {
         !paged.initialized -> LoadingState()

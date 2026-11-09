@@ -36,12 +36,21 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- OAuth browser sign-in returns here. Verified via assetlinks.json on yip.sinist3r.lol. -->
+            <!-- Browser sign-in and settings QR links. Verified via assetlinks.json on yip.sinist3r.lol. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="yip.sinist3r.lol" android:path="/auth" />
+                <data android:path="/import" />
+            </intent-filter>
+
+            <!-- Settings files sent from another device. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/json" />
             </intent-filter>
 
             <!-- Offer to open twitch.tv links (user picks Yip in the chooser). -->
@@ -57,6 +66,15 @@
             </intent-filter>
         </activity>
 
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"

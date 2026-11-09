@@ -13,11 +13,13 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Quality picker, separate defaults for Wi-Fi and mobile data, remember per channel
 - Low-latency, balanced or stable buffering, with live latency shown on the player
 - Stats overlay: delay, resolution, bitrate, network speed, buffer and dropped frames
-- Background audio, audio-only mode, picture-in-picture, sleep timer, mini-player
+- Background audio, audio-only mode, picture-in-picture, mini-player
+- Sleep timer: fixed times or when the stream ends
+- Clip the last 30 seconds and share the link
 - Notification controls: play, pause and mute without opening the app
 - Swipe for brightness and volume, double-tap to seek, pinch to fill
 - Landscape chat as an overlay, side panel or hidden
-- Multi-view: up to four streams at once with chat for each. Start it from any stream, tap one to hear it
+- Multi-view: up to four streams with chat for each, grid or focus layout. Start it from any stream, tap one to hear it
 
 **Chat**
 - 7TV, BTTV and FFZ emotes with live 7TV updates, personal emotes and zero-width overlays
@@ -28,6 +30,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Highlights for keywords and users
 - Emote card: long-press an emote to see it large, its source and creator, and favourite it
 - Pronouns next to names, from pronouns.alejo.io
+- Raid prompt: jump to the channel being raided in one tap
 - Pings for mentions, keywords and highlighted users when that chat isn't on screen
 - Emote picker (Favourites, Recent, Twitch, 3rd Party), emote and @name suggestions, Tab completion on keyboards
 - Moderation: timeouts, bans, deletes and slash commands; AutoMod holds in your own chat and channels you moderate
@@ -43,6 +46,8 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Updates itself from GitHub releases (checksum-verified)
 - Themes: system, light, dark, OLED black, eight accents including Material You
 - Searchable settings with import and export
+- Move settings to another device by QR code or file
+- "What's new" after each update
 
 **Opt-in and experimental** (all off by default)
 - Ad handling: swaps to an ad-free stream copy during ad breaks, or uses proxy servers you add yourself

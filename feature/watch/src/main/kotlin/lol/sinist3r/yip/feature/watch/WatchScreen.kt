@@ -59,6 +59,8 @@ interface WatchNavigator {
     fun openLink(url: String)
     /** Replaces this screen with multi-view. */
     fun openMultiView(logins: List<String>) {}
+    /** Replaces this screen with another live stream. */
+    fun openLive(login: String) {}
 }
 
 @Composable
@@ -84,6 +86,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val info by viewModel.info.collectAsStateWithLifecycle()
     val chat by viewModel.chat.collectAsStateWithLifecycle()
     val room by viewModel.room.collectAsStateWithLifecycle()
+    val raid by viewModel.raid.collectAsStateWithLifecycle()
     val connection by viewModel.connection.collectAsStateWithLifecycle()
     val cosmetics by viewModel.cosmeticsState.collectAsStateWithLifecycle()
     val twitchEmotes by viewModel.twitchEmotes.collectAsStateWithLifecycle()
@@ -144,7 +147,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         }
     }
     LaunchedEffect(settings.player.sleepTimerMinutes) {
-        if (!chatOnly && settings.player.sleepTimerMinutes > 0 && playState.sleepAtMillis == null) viewModel.playback.setSleepTimer(settings.player.sleepTimerMinutes)
+        if (!chatOnly && settings.player.sleepTimerMinutes > 0 && playState.sleepAtMillis == null && !playState.sleepAtEnd) viewModel.playback.setSleepTimer(settings.player.sleepTimerMinutes)
     }
 
     val src = playState.source
@@ -169,7 +172,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onQuality = { showQuality = true },
             stats = viewModel.playback.stats,
             onToggleMute = viewModel.playback::toggleMute,
-            onMultiView = if (isLive && settings.experimental.multiView && info.user != null) ({ showAddStream = true }) else null,
+            onMultiView = if (isLive && info.user != null) ({ showAddStream = true }) else null,
+            onClip = if (isLive && signedIn && info.stream != null) ({ viewModel.createClip() }) else null,
             onRetry = { if (info.error != null) viewModel.load() else viewModel.playback.retry() },
             modifier = mod,
         )
@@ -179,6 +183,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val chatPane = @Composable { mod: Modifier, overlay: Boolean ->
         Column(mod) {
             if (!overlay) RoomStateBar(room, connection, points)
+            raid?.let { r -> RaidBanner(r, onGo = { viewModel.dismissRaid(); nav.openLive(r.login) }, onDismiss = viewModel::dismissRaid) }
             ChatList(chat, options, actions, Modifier.weight(1f))
             if ((isLive || chatOnly) && !overlay) {
                 Composer(
@@ -253,6 +258,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         }
     }
 
+    val clip by viewModel.clip.collectAsStateWithLifecycle()
+    clip?.let { ClipSheet(it, onDismiss = viewModel::dismissClip) }
     if (showAddStream) info.user?.let { u ->
         AddStreamSheet(exclude = setOf(u.login.lowercase()), onPick = { showAddStream = false; nav.openMultiView(listOf(u.login, it)) }, onDismiss = { showAddStream = false })
     }
@@ -266,6 +273,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         speed = playState.speed,
         showSpeed = !isLive,
         sleepAtMillis = playState.sleepAtMillis,
+        sleepAtEnd = playState.sleepAtEnd,
+        sleepAtEndLabel = if (isLive) "End of stream" else "End of video",
         onQuality = { viewModel.playback.selectQuality(it); showQuality = false },
         onSpeed = viewModel.playback::setSpeed,
         onSleep = viewModel.playback::setSleepTimer,

@@ -201,6 +201,9 @@ fun QualitySheet(
     onLowLatency: (Boolean) -> Unit = {},
     audioOnly: Boolean? = null,
     onAudioOnly: () -> Unit = {},
+    /** "End of stream" / "End of video"; null hides the option. */
+    sleepAtEndLabel: String? = null,
+    sleepAtEnd: Boolean = false,
 ) {
     // Fully expanded straight away: a sheet still settling eats the first tap.
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -231,6 +234,20 @@ fun QualitySheet(
             SheetTitle("Sleep timer")
             FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(15, 30, 60, 90).forEach { m -> OutlinedButton(onClick = { onSleep(m) }) { Text("$m min") } }
+                sleepAtEndLabel?.let { OutlinedButton(onClick = { onSleep(lol.sinist3r.yip.core.playback.SLEEP_AT_END) }) { Text(it) } }
+            }
+            if (sleepAtEnd) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                ) {
+                    Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Timer, null)
+                        Text("Stops when it ends", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(start = 12.dp))
+                        TextButton(onClick = { onSleep(null) }) { Text("Turn off") }
+                    }
+                }
             }
             if (sleepAtMillis != null) {
                 // Ticks while the sheet is open.

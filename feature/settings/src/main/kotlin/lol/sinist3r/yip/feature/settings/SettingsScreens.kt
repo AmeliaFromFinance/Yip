@@ -53,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -134,10 +135,14 @@ fun SettingsPage(key: String, nav: SettingsNavigator, viewModel: SettingsViewMod
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { it?.let(viewModel::export) }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(viewModel::import) }
     var confirm by remember { mutableStateOf<Row.Action?>(null) }
+    var transfer by remember { mutableStateOf<Pair<String?, String>?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    transfer?.let { (link, json) -> TransferSheet(link, json, onDismiss = { transfer = null }) }
 
     val onAction: (Row.Action) -> Unit = { a ->
         when {
             a.destructive -> confirm = a
+            a.id == "transfer" -> scope.launch { transfer = viewModel.transfer() }
             a.id == "export" -> exportLauncher.launch("yip-settings.json")
             a.id == "import" -> importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
             a.id == "logs" -> nav.openLogs()

@@ -52,6 +52,8 @@ class MainActivity : ComponentActivity(), WatchHost {
     private var autoPipAllowed = false
     private var fullscreenOn by mutableStateOf(false)
     var openSignInRequest: (() -> Unit)? = null
+    /** Settings from a QR link or file, waiting for the user to confirm. */
+    var pendingImport by mutableStateOf<lol.sinist3r.yip.core.model.AppSettings?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -64,6 +66,20 @@ class MainActivity : ComponentActivity(), WatchHost {
             YipTheme(s.appearance) {
                 CompositionLocalProvider(LocalWatchHost provides this) {
                     YipApp(activity = this, settings = s, inPip = inPip)
+                    pendingImport?.let { incoming ->
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { pendingImport = null },
+                            title = { androidx.compose.material3.Text("Import settings?") },
+                            text = { androidx.compose.material3.Text("This replaces your current settings, filters and favourites with the ones you received. Accounts stay as they are.") },
+                            confirmButton = {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    pendingImport = null
+                                    lifecycleScope.launch { settings.apply(incoming) }
+                                }) { androidx.compose.material3.Text("Import") }
+                            },
+                            dismissButton = { androidx.compose.material3.TextButton(onClick = { pendingImport = null }) { androidx.compose.material3.Text("Cancel") } },
+                        )
+                    }
                 }
             }
         }
@@ -75,7 +91,25 @@ class MainActivity : ComponentActivity(), WatchHost {
     }
 
     private fun handleIntent(intent: Intent?) {
-        val uri = intent?.data ?: return
+        intent ?: return
+        if (intent.type == "application/json" && (intent.action == Intent.ACTION_VIEW || intent.action == Intent.ACTION_SEND)) {
+            val file = intent.data ?: androidx.core.content.IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, android.net.Uri::class.java) ?: return
+            lifecycleScope.launch {
+                val text = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching { contentResolver.openInputStream(file)?.use { it.readBytes().decodeToString() } }.getOrNull()
+                }
+                pendingImport = text?.let { runCatching { lol.sinist3r.yip.core.datastore.SettingsJson.import(it) }.getOrNull() }
+                if (pendingImport == null) Timber.w("Opened file isn't a Yip settings export")
+            }
+            return
+        }
+        val uri = intent.data ?: return
+        if (uri.host == "yip.sinist3r.lol" && uri.path == "/import") {
+            // Fragment from the QR link; query from the fallback page.
+            val payload = uri.fragment ?: uri.encodedQuery ?: return
+            pendingImport = runCatching { settings.readTransfer(payload) }.onFailure { Timber.w(it, "Bad settings link") }.getOrNull()
+            return
+        }
         if (uri.host == "yip.sinist3r.lol" && uri.path == "/auth") {
             // App Link: token in the fragment. Fallback page: token moved into the query.
             val fragment = uri.fragment ?: uri.encodedQuery ?: return

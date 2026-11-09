@@ -32,6 +32,8 @@ import lol.sinist3r.yip.core.network.update.AppRelease
 class UpdateViewModel @Inject constructor(private val repo: UpdateRepository) : ViewModel() {
     val state = repo.state
     val installedVersion = repo.installedVersion
+    val whatsNew = repo.whatsNew
+    fun dismissWhatsNew() = repo.dismissWhatsNew()
 
     init { viewModelScope.launch { repo.checkInBackground() } }
 
@@ -52,6 +54,17 @@ fun UpdatePrompt(viewModel: UpdateViewModel = hiltViewModel()) {
     LifecycleResumeEffect(state) {
         (state as? UpdateState.NeedsPermission)?.let { if (context.packageManager.canRequestPackageInstalls()) viewModel.retryInstall(it) }
         onPauseOrDispose { }
+    }
+    val news by viewModel.whatsNew.collectAsStateWithLifecycle()
+    news?.takeIf { state !is UpdateState.Available }?.let { n ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissWhatsNew,
+            title = { Text("What's new in ${n.version}") },
+            text = {
+                Text(n.notes, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()))
+            },
+            confirmButton = { TextButton(onClick = viewModel::dismissWhatsNew) { Text("Got it") } },
+        )
     }
     when (val s = state) {
         is UpdateState.Available -> AlertDialog(

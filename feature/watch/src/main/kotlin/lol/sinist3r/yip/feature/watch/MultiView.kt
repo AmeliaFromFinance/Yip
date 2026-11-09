@@ -25,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -253,19 +255,35 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
         onDispose { host?.setWatching(false, false, false) }
     }
 
+    var focusLayout by rememberSaveable { mutableStateOf(false) }
+    val tile = @Composable { i: Int, t: MultiTile, mod: Modifier, small: Boolean ->
+        Box(
+            mod.aspectRatio(16f / 9f).background(Color.Black)
+                .border(2.dp, if (i == focused) MaterialTheme.colorScheme.primary else Color.Transparent)
+                .clickable(onClickLabel = "Listen to ${t.displayName}") { viewModel.focus(i); chatTab = i },
+        ) {
+            t.player?.let { PlayerSurface(player = it, surfaceType = SURFACE_TYPE_TEXTURE_VIEW, modifier = Modifier.fillMaxSize()) }
+            if (!small) Pill(t.displayName + if (i == focused) " · audio" else "", Modifier.align(Alignment.TopStart).padding(6.dp))
+            t.error?.let { Text(it, color = Color.White, modifier = Modifier.align(Alignment.Center)) }
+            if (!small) IconButton(onClick = { viewModel.remove(i) }, modifier = Modifier.align(Alignment.TopEnd)) { Icon(Icons.Outlined.Close, "Remove ${t.displayName}", tint = Color.White) }
+        }
+    }
     val grid = @Composable { mod: Modifier ->
-        LazyVerticalGrid(GridCells.Fixed(if (tiles.size <= 1) 1 else 2), modifier = mod, userScrollEnabled = false) {
-            itemsIndexed(tiles, key = { _, t -> t.login }) { i, t ->
-                Box(
-                    Modifier.aspectRatio(16f / 9f).background(Color.Black)
-                        .border(2.dp, if (i == focused) MaterialTheme.colorScheme.primary else Color.Transparent)
-                        .clickable { viewModel.focus(i); chatTab = i },
-                ) {
-                    t.player?.let { PlayerSurface(player = it, surfaceType = SURFACE_TYPE_TEXTURE_VIEW, modifier = Modifier.fillMaxSize()) }
-                    Pill(t.displayName + if (i == focused) " · audio" else "", Modifier.align(Alignment.TopStart).padding(6.dp))
-                    t.error?.let { Text(it, color = Color.White, modifier = Modifier.align(Alignment.Center)) }
-                    IconButton(onClick = { viewModel.remove(i) }, modifier = Modifier.align(Alignment.TopEnd)) { Icon(Icons.Outlined.Close, "Remove", tint = Color.White) }
+        if (focusLayout && tiles.size > 1) {
+            // Focused stream big, the rest in a strip below. Tap a small one to swap.
+            Column(mod) {
+                val f = focused.coerceIn(0, tiles.lastIndex)
+                androidx.compose.runtime.key(tiles[f].login) { tile(f, tiles[f], Modifier.fillMaxWidth(), false) }
+                Row {
+                    tiles.forEachIndexed { i, t ->
+                        if (i != f) androidx.compose.runtime.key(t.login) { tile(i, t, Modifier.weight(1f), true) }
+                    }
+                    repeat(3 - (tiles.size - 1)) { androidx.compose.foundation.layout.Spacer(Modifier.weight(1f)) }
                 }
+            }
+        } else {
+            LazyVerticalGrid(GridCells.Fixed(if (tiles.size <= 1) 1 else 2), modifier = mod, userScrollEnabled = false) {
+                itemsIndexed(tiles, key = { _, t -> t.login }) { i, t -> tile(i, t, Modifier, false) }
             }
         }
     }
@@ -275,6 +293,9 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     PrimaryScrollableTabRow(selectedTabIndex = chatTab.coerceIn(0, tiles.lastIndex), edgePadding = 8.dp, modifier = Modifier.weight(1f)) {
                         tiles.forEachIndexed { i, t -> Tab(chatTab == i, { chatTab = i }, text = { Text(t.displayName) }) }
+                    }
+                    if (landscape && tiles.size > 1) IconButton(onClick = { focusLayout = !focusLayout }) {
+                        Icon(if (focusLayout) Icons.Outlined.GridView else Icons.Outlined.ViewAgenda, if (focusLayout) "Grid layout" else "Focus layout")
                     }
                     if (landscape && canAdd) IconButton(onClick = { showAdd = true }) { Icon(Icons.Outlined.Add, "Add a stream") }
                 }
@@ -356,7 +377,12 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
             TopAppBar(
                 title = { Text("Multi-view · ${tiles.size}") },
                 navigationIcon = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-                actions = { if (canAdd) IconButton(onClick = { showAdd = true }) { Icon(Icons.Outlined.Add, "Add a stream") } },
+                actions = {
+                    if (tiles.size > 1) IconButton(onClick = { focusLayout = !focusLayout }) {
+                        Icon(if (focusLayout) Icons.Outlined.GridView else Icons.Outlined.ViewAgenda, if (focusLayout) "Grid layout" else "Focus layout")
+                    }
+                    if (canAdd) IconButton(onClick = { showAdd = true }) { Icon(Icons.Outlined.Add, "Add a stream") }
+                },
                 windowInsets = androidx.compose.foundation.layout.WindowInsets(0),
             )
             grid(Modifier.fillMaxWidth())

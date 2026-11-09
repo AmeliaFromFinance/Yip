@@ -194,6 +194,9 @@ object SettingsSpec {
                 get = { it.player.overlayChatOpacity }, set = { s, v -> s.copy(player = s.player.copy(overlayChatOpacity = v)) }, enabled = { it.player.landscapeChat == LandscapeChat.OVERLAY }),
             Row.Slider("Overlay width", null, 0.2f..0.6f, 7, { "${(it * 100).toInt()}%" },
                 get = { it.player.overlayChatWidthFraction }, set = { s, v -> s.copy(player = s.player.copy(overlayChatWidthFraction = v)) }, enabled = { it.player.landscapeChat == LandscapeChat.OVERLAY }),
+            Row.Header("Multi-view"),
+            Row.Note("How to use", "Tap the grid button on a live stream, or long-press any stream card."),
+            Row.Slider("Max streams", null, 2f..4f, 1, { it.toInt().toString() }, get = { it.experimental.multiViewMaxStreams.toFloat() }, set = { s, v -> s.copy(experimental = s.experimental.copy(multiViewMaxStreams = v.toInt())) }),
             Row.Header("Advanced"),
             Row.Choice("Player type", "Which Twitch player Yip identifies as. Change only if streams stop loading.",
                 PlayerTypeOption.entries.map { it.name to it.wire }, get = { it.player.playerType.name }, set = { s, v -> s.copy(player = s.player.copy(playerType = PlayerTypeOption.valueOf(v))) }),
@@ -350,14 +353,11 @@ object SettingsSpec {
     )
 
     val experimental = Page(
-        "experimental", "Experimental", "Channel points, multi-view", Icons.Outlined.Science,
+        "experimental", "Experimental", "Channel points", Icons.Outlined.Science,
         listOf(
             Row.Note("Channel points", "Needs the optional twitch.tv connection under Accounts. Uses Twitch's private API and may stop working without notice."),
             Row.Toggle("Show points balance", get = { it.experimental.showPointsBalance }, set = { s, v -> s.copy(experimental = s.experimental.copy(showPointsBalance = v)) }),
             Row.Toggle("Auto-claim bonus points", "Claims the bonus chest while you watch", get = { it.experimental.autoClaimPoints }, set = { s, v -> s.copy(experimental = s.experimental.copy(autoClaimPoints = v)) }),
-            Row.Header("Multi-view"),
-            Row.Toggle("Enable multi-view", "Long-press a stream to add it", get = { it.experimental.multiView }, set = { s, v -> s.copy(experimental = s.experimental.copy(multiView = v)) }),
-            Row.Slider("Max streams", null, 2f..4f, 1, { it.toInt().toString() }, get = { it.experimental.multiViewMaxStreams.toFloat() }, set = { s, v -> s.copy(experimental = s.experimental.copy(multiViewMaxStreams = v.toInt())) }),
         ),
     )
 
@@ -373,6 +373,7 @@ object SettingsSpec {
             Row.Toggle("Keep recent searches", "Channels, categories and searches you opened from Search", get = { it.data.keepRecentSearches }, set = { s, v -> s.copy(data = s.data.copy(keepRecentSearches = v)) }),
             Row.Action("Clear recent searches", null, "clear_recent_searches", destructive = true),
             Row.Header("Backup"),
+            Row.Action("Send to another device", "Show a QR code to scan, or send a file. Accounts aren't included.", "transfer"),
             Row.Action("Export settings", "Save every setting and filter to a file. Accounts aren't included.", "export"),
             Row.Action("Import settings", "Replace your settings with a saved file", "import"),
             Row.Action("Reset all settings", null, "reset", destructive = true),

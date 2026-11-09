@@ -60,6 +60,9 @@ sealed interface PlaybackSource {
     ) : PlaybackSource
 }
 
+/** Sleep timer value meaning "stop when the stream or video ends". */
+const val SLEEP_AT_END = -1
+
 data class PlaybackUiState(
     val source: PlaybackSource? = null,
     val loading: Boolean = false,
@@ -73,6 +76,8 @@ data class PlaybackUiState(
     val adBreak: Boolean = false,
     val viaProxy: Boolean = false,
     val sleepAtMillis: Long? = null,
+    /** Sleep timer set to stop when the stream or video ends. */
+    val sleepAtEnd: Boolean = false,
     val speed: Float = 1f,
     val muted: Boolean = false,
 )
@@ -141,6 +146,7 @@ class PlaybackController @Inject constructor(
         override fun onVolumeChanged(volume: Float) = _state.update { it.copy(muted = volume == 0f) }
         override fun onPlaybackStateChanged(playbackState: Int) {
             _state.update { it.copy(loading = playbackState == Player.STATE_BUFFERING) }
+            if (playbackState == Player.STATE_ENDED && _state.value.sleepAtEnd) stop()
         }
         override fun onPlayerError(error: PlaybackException) {
             Timber.w(error, "Player error")
@@ -150,6 +156,8 @@ class PlaybackController @Inject constructor(
                 player.prepare()
                 return
             }
+            // A live stream ending usually surfaces as a playlist error.
+            if (_state.value.sleepAtEnd && _state.value.source is PlaybackSource.Live) { stop(); return }
             _state.update { it.copy(error = humanError(error), loading = false) }
         }
     }
@@ -263,14 +271,19 @@ class PlaybackController @Inject constructor(
         play(src)
     }
 
+    /** [minutes] null or 0 turns it off; [SLEEP_AT_END] stops when the stream or video ends. */
     fun setSleepTimer(minutes: Int?) {
         sleepJob?.cancel()
+        if (minutes == SLEEP_AT_END) {
+            _state.update { it.copy(sleepAtMillis = null, sleepAtEnd = true) }
+            return
+        }
         if (minutes == null || minutes <= 0) {
-            _state.update { it.copy(sleepAtMillis = null) }
+            _state.update { it.copy(sleepAtMillis = null, sleepAtEnd = false) }
             return
         }
         val at = System.currentTimeMillis() + minutes * 60_000L
-        _state.update { it.copy(sleepAtMillis = at) }
+        _state.update { it.copy(sleepAtMillis = at, sleepAtEnd = false) }
         sleepJob = scope.launch {
             delay(minutes * 60_000L)
             player.pause()

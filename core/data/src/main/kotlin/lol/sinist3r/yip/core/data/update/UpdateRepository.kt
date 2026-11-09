@@ -62,8 +62,23 @@ class UpdateRepository @Inject constructor(
 
     private val prefs = context.getSharedPreferences("updates", Context.MODE_PRIVATE)
 
+    /** Release notes for the version just installed, shown once after an update. */
+    private val _whatsNew = MutableStateFlow<WhatsNew?>(null)
+    val whatsNew = _whatsNew.asStateFlow()
+    fun dismissWhatsNew() { _whatsNew.value = null }
+
+    private suspend fun loadWhatsNew() {
+        val seen = prefs.getString("last_seen_version", null)
+        prefs.edit().putString("last_seen_version", installedVersion).apply()
+        // First install or same version: nothing to show.
+        if (seen == null || seen == installedVersion || BuildConfig.UPDATE_REPO.isBlank()) return
+        val (title, notes) = attempt { api.notesFor(BuildConfig.UPDATE_REPO, installedVersion) }.getOrNull() ?: return
+        if (notes.isNotBlank()) _whatsNew.value = WhatsNew(installedVersion, title, notes)
+    }
+
     /** Automatic check, at most every few hours. */
     suspend fun checkInBackground() {
+        loadWhatsNew()
         val cfg = settings.current().updates
         if (unsupportedReason != null || !cfg.autoCheck) return
         val last = prefs.getLong("last_check", 0)
@@ -194,3 +209,5 @@ class UpdateRepository @Inject constructor(
         const val AUTO_INTERVAL_MS = 6 * 60 * 60 * 1000L
     }
 }
+
+data class WhatsNew(val version: String, val title: String, val notes: String)

@@ -48,6 +48,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -280,6 +282,20 @@ fun Composer(
             FilledIconButton(onClick = ::send, enabled = enabled && value.text.isNotBlank(), modifier = Modifier.padding(start = 6.dp)) {
                 Icon(Icons.AutoMirrored.Filled.Send, "Send")
             }
+        }
+    }
+}
+
+@Composable
+fun RaidBanner(raid: lol.sinist3r.yip.core.data.chat.RaidTarget, onGo: () -> Unit, onDismiss: () -> Unit) {
+    androidx.compose.material3.Surface(
+        color = MaterialTheme.colorScheme.primaryContainer,
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = false) { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite },
+    ) {
+        androidx.compose.foundation.layout.Row(Modifier.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text("Raiding ${raid.displayName}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            androidx.compose.material3.FilledTonalButton(onClick = onGo) { Text("Go") }
+            androidx.compose.material3.IconButton(onClick = onDismiss) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Close, "Dismiss") }
         }
     }
 }

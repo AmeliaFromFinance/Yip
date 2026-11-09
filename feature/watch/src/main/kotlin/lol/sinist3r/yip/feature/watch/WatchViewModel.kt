@@ -94,6 +94,20 @@ class WatchViewModel @Inject constructor(
             .onFailure { e -> session.value?.system("Couldn't ${if (allow) "allow" else "deny"} that message: ${e.message?.substringAfter(": ")?.take(120)}") }
     }
 
+    private val _clip = MutableStateFlow<ClipState?>(null)
+    val clip = _clip.asStateFlow()
+
+    fun createClip() = viewModelScope.launch {
+        val ch = channelIdFlow.value ?: return@launch
+        _clip.value = ClipState.Creating
+        _clip.value = attempt { helix.createClip(ch) }.fold(
+            onSuccess = { id -> id?.let(ClipState::Ready) ?: ClipState.Failed("Twitch didn't return a clip.") },
+            onFailure = { ClipState.Failed(it.message ?: "Unknown error. Clips may be off for this channel.") },
+        )
+    }
+
+    fun dismissClip() { _clip.value = null }
+
     fun toggleFavouriteEmote(e: lol.sinist3r.yip.core.model.Emote) = viewModelScope.launch {
         settingsRepo.update { s ->
             val fav = s.chat.favouriteEmotes
@@ -136,6 +150,9 @@ class WatchViewModel @Inject constructor(
     private val session = MutableStateFlow<ChatSession?>(null)
     val chat: StateFlow<ImmutableList<ChatItem>> = session.flatMapLatest { it?.items ?: if (kind == WatchKind.VOD) replay.items else flowOf(persistentListOf()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), persistentListOf())
+    val raid: StateFlow<lol.sinist3r.yip.core.data.chat.RaidTarget?> = session.flatMapLatest { it?.raid ?: flowOf(null) }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    fun dismissRaid() = session.value?.dismissRaid()
+
     val room: StateFlow<RoomState> = session.flatMapLatest { it?.room ?: flowOf(RoomState()) }.stateIn(viewModelScope, SharingStarted.Eagerly, RoomState())
     val connection: StateFlow<ChatConnection> = session.flatMapLatest { it?.connection ?: flowOf(ChatConnection()) }.stateIn(viewModelScope, SharingStarted.Eagerly, ChatConnection())
 

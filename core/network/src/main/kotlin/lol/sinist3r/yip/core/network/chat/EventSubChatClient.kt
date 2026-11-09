@@ -157,12 +157,13 @@ class EventSubChatClient @Inject constructor(
             "notification" -> {
                 val event = payload.obj("event") ?: return null
                 val type = meta.str("subscription_type") ?: return null
-                val channel = event.str("broadcaster_user_id") ?: return null
+                // Outgoing raids are keyed by the raiding channel.
+                val channel = event.str("broadcaster_user_id") ?: event.str("from_broadcaster_user_id") ?: return null
                 mapEvent(type, event)?.let { channels[channel]?.flow?.tryEmit(it) }
             }
             "revocation" -> {
                 val sub = payload.obj("subscription") ?: return null
-                val channel = sub.obj("condition")?.str("broadcaster_user_id") ?: return null
+                val channel = sub.obj("condition")?.let { it.str("broadcaster_user_id") ?: it.str("from_broadcaster_user_id") } ?: return null
                 val status = sub.str("status")
                 channels[channel]?.let { j ->
                     j.subIds.remove(sub.str("id"))
@@ -201,6 +202,10 @@ class EventSubChatClient @Inject constructor(
                     }
                 }
         }
+        // Outgoing raids, for the "Go to" prompt. Needs no extra scope.
+        attempt { helix.createEventSub(EventSubCreate("channel.raid", "1", mapOf("from_broadcaster_user_id" to channelId), EventSubTransport.webSocket(sid))) }
+            .onSuccess { created -> created?.id?.let(j.subIds::add) }
+            .onFailure { e -> Timber.i("Raid events unavailable: ${e.message}") }
         // Channels you own or moderate: AutoMod holds, for approving in chat. Optional; older sign-ins lack the scope.
         if (canModerate(channelId, uid)) {
             val modCondition = mapOf("broadcaster_user_id" to channelId, "moderator_user_id" to uid)
@@ -248,6 +253,7 @@ class EventSubChatClient @Inject constructor(
         }
         "automod.message.update" -> e.str("message_id")?.let { RawChat.AutoModResolved(it, e.str("status").orEmpty().lowercase()) }
         "channel.chat.notification" -> notification(e)
+        "channel.raid" -> e.str("to_broadcaster_user_login")?.let { RawChat.RaidOut(it, e.str("to_broadcaster_user_name") ?: it, e.int("viewers") ?: 0) }
         "channel.chat.message_delete" -> e.str("message_id")?.let(RawChat::Deleted)
         "channel.chat.clear_user_messages" -> e.str("target_user_id")?.let { RawChat.ClearUser(it, null) }
         "channel.chat.clear" -> RawChat.Clear
