@@ -34,6 +34,7 @@ class SettingsViewModel @Inject constructor(
     private val accounts: AccountRepository,
     private val history: HistoryRepository,
     private val recentSearches: lol.sinist3r.yip.core.data.search.RecentSearchRepository,
+    private val updates: lol.sinist3r.yip.core.data.update.UpdateRepository,
     private val cosmetics: CosmeticsRepository,
     private val remoteConfig: RemoteConfigSource,
     private val playback: PlaybackController,
@@ -66,6 +67,7 @@ class SettingsViewModel @Inject constructor(
             }
             "clear_history" -> { history.clear(); _messages.emit("Watch history cleared") }
             "clear_recent_searches" -> { recentSearches.clear(); _messages.emit("Recent searches cleared") }
+            "check_updates" -> updates.check(manual = true) // the app-wide dialog shows the result
             "reset" -> { repo.reset(); _messages.emit("Settings reset") }
             "refresh_config" -> {
                 val cfg = remoteConfig.refresh(force = true)

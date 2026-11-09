@@ -69,6 +69,7 @@ interface ChatActions {
     fun onEmote(emote: Emote) {}
     fun onMessageLongPress(message: ChatItem.Message) {}
     fun onLink(url: String) {}
+    fun onAutoMod(item: ChatItem.AutoMod, allow: Boolean) {}
 }
 
 /** Names and mentions are tappable but shouldn't look like web links. */
@@ -106,6 +107,7 @@ fun ChatRow(item: ChatItem, options: ChatRenderOptions, actions: ChatActions, al
         item is ChatItem.Message && item.highlight == HighlightKind.USER -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
         item is ChatItem.Message && item.highlight == HighlightKind.REDEMPTION -> MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
         item is ChatItem.Notice -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+        item is ChatItem.AutoMod && item.status == null -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
         alternate && chat.alternateRows -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f)
         else -> Color.Transparent
     }
@@ -120,6 +122,7 @@ fun ChatRow(item: ChatItem, options: ChatRenderOptions, actions: ChatActions, al
                 Text(item.text, style = MaterialTheme.typography.bodySmall.copy(fontSize = (chat.fontSizeSp - 0.5f).sp), fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                 item.message?.let { MessageText(it, options, actions) }
             }
+            is ChatItem.AutoMod -> AutoModRow(item, chat.fontSizeSp, actions)
             is ChatItem.System -> Text(
                 item.text,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = (chat.fontSizeSp - 1f).sp, fontStyle = FontStyle.Italic),
@@ -166,9 +169,12 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
         val inline = HashMap<String, InlineTextContent>()
         val paint = m.paint?.takeIf { tp.seventvPaints != PaintMode.OFF }
         // Position the paint gradient over the name only.
+        val pronouns = m.pronouns?.takeIf { chat.showPronouns }
+        val smallStyle = baseStyle.copy(fontSize = (chat.fontSizeSp - 2).sp)
         val prefixPx = with(density) {
-            val t = time?.let { measurer.measure(AnnotatedString("$it "), baseStyle.copy(fontSize = (chat.fontSizeSp - 2).sp)).size.width.toFloat() } ?: 0f
-            t + m.badges.size * (badgeSize + 3).sp.toPx()
+            val t = time?.let { measurer.measure(AnnotatedString("$it "), smallStyle).size.width.toFloat() } ?: 0f
+            val p = pronouns?.let { measurer.measure(AnnotatedString("$it "), smallStyle).size.width.toFloat() } ?: 0f
+            t + m.badges.size * (badgeSize + 3).sp.toPx() + p
         }
         val nameStyle = baseStyle.copy(fontWeight = FontWeight.Bold)
         val nameWidth = paint?.let { measurer.measure(AnnotatedString(name), nameStyle).size.width.toFloat() } ?: 0f
@@ -189,6 +195,7 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
                 inline[key] = InlineTextContent(Placeholder((badgeSize + 3).sp, badgeSize.sp, PlaceholderVerticalAlign.TextCenter)) { BadgeImage(b, badgeSize) }
                 appendInlineContentCompat(key)
             }
+            pronouns?.let { withStyle(SpanStyle(color = muted, fontSize = (chat.fontSizeSp - 2).sp)) { append("$it ") } }
             val nameSpan = if (paint != null) {
                 SpanStyle(
                     brush = paint.toBrush(prefixPx, 0f, nameWidth.coerceAtLeast(1f), lineH, paintImage),
@@ -263,4 +270,28 @@ fun BadgeImage(badge: Badge, sizeSp: Float) {
                 ?.let { m.clip(RoundedCornerShape(3.dp)).background(it) } ?: m
         },
     )
+}
+
+@Composable
+private fun AutoModRow(item: ChatItem.AutoMod, fontSizeSp: Float, actions: ChatActions) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    Column {
+        Text("AutoMod held a message from ${item.userName} · ${item.reason}", style = MaterialTheme.typography.labelMedium, color = muted)
+        Text(
+            item.text,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = fontSizeSp.sp),
+            color = if (item.status == null) MaterialTheme.colorScheme.onSurface else muted,
+            textDecoration = if (item.status == "denied") androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+        )
+        when (val status = item.status) {
+            null -> androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.FilledTonalButton(onClick = { actions.onAutoMod(item, true) }) { Text("Allow") }
+                androidx.compose.material3.OutlinedButton(onClick = { actions.onAutoMod(item, false) }) { Text("Deny") }
+            }
+            else -> Text(
+                when (status) { "approved" -> "Allowed"; "denied" -> "Denied"; "expired" -> "Expired"; else -> status.replaceFirstChar(Char::uppercase) },
+                style = MaterialTheme.typography.labelMedium, color = muted,
+            )
+        }
+    }
 }

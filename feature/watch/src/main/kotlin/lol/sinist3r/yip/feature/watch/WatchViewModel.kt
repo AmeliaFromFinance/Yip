@@ -83,7 +83,34 @@ class WatchViewModel @Inject constructor(
     private val points: PointsRepository,
     private val helix: HelixApi,
     private val replay: ReplaySession,
+    private val mentions: lol.sinist3r.yip.core.data.chat.MentionNotifier,
 ) : ViewModel() {
+
+    fun resolveAutoMod(item: ChatItem.AutoMod, allow: Boolean) = viewModelScope.launch {
+        val me = accounts.userId() ?: return@launch
+        val id = item.id.removePrefix("automod-")
+        attempt { helix.resolveAutoMod(me, id, allow) }
+            .onSuccess { session.value?.markAutoMod(id, if (allow) "approved" else "denied") }
+            .onFailure { e -> session.value?.system("Couldn't ${if (allow) "allow" else "deny"} that message: ${e.message?.substringAfter(": ")?.take(120)}") }
+    }
+
+    /** Switches the live buffer between low latency and the steadier default, then restarts playback. */
+    fun setLowLatency(on: Boolean) = viewModelScope.launch {
+        val profile = if (on) lol.sinist3r.yip.core.model.BufferProfile.LOW_LATENCY else lol.sinist3r.yip.core.model.BufferProfile.BALANCED
+        if (settingsRepo.current().player.bufferProfile == profile) return@launch
+        settingsRepo.update { it.copy(player = it.player.copy(bufferProfile = profile)) }
+        playback.recreate()
+    }
+
+    /** While chat is on screen, no pings for it; opening it clears old ones. */
+    fun chatOnScreen(channelId: String, login: String, visible: Boolean) {
+        if (visible) {
+            lol.sinist3r.yip.core.common.VisibleChats.show(channelId)
+            mentions.clear(login)
+        } else {
+            lol.sinist3r.yip.core.common.VisibleChats.hide(channelId)
+        }
+    }
     val kind: WatchKind = WatchKind.valueOf(savedState.get<String>("kind") ?: "LIVE")
     private val target: String = checkNotNull(savedState["id"])
     private val offset: Int? = savedState.get<Int>("offset")?.takeIf { it >= 0 }

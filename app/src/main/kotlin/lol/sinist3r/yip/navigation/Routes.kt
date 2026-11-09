@@ -24,3 +24,4 @@ import kotlinx.serialization.Serializable
 @Serializable data object LoginRoute
 @Serializable data object ConnectWebRoute
 @Serializable data object LogsRoute
+@Serializable data object StreamManagerRoute

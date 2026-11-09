@@ -105,9 +105,12 @@ class PlaybackController @Inject constructor(
         get() = _player ?: factory.create(settings.settings.value.player).also {
             _player = it
             it.addListener(listener)
+            it.addAnalyticsListener(stats)
         }
 
     val hasMedia: Boolean get() = _player?.currentMediaItem != null
+
+    val stats = PlaybackStats()
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) = _state.update { it.copy(playing = isPlaying) }
@@ -189,6 +192,7 @@ class PlaybackController @Inject constructor(
         val src = _state.value.source ?: return
         val url = quality?.url ?: masterUrl ?: return
         val profile = settings.settings.value.player.bufferProfile
+        stats.reset()
         player.setMediaSource(factory.hlsSource(url, live, profile, metadata(src)))
         player.prepare()
         if (settings.settings.value.player.startMuted) player.volume = 0f
@@ -263,6 +267,7 @@ class PlaybackController @Inject constructor(
     fun recreate() {
         val src = _state.value.source
         _player?.removeListener(listener)
+        _player?.removeAnalyticsListener(stats)
         _player?.release()
         _player = null
         src?.let { _state.value = PlaybackUiState(); play(it) }

@@ -19,7 +19,16 @@ data class AppSettings(
     val adBlock: AdBlockSettings = AdBlockSettings(),
     val experimental: ExperimentalSettings = ExperimentalSettings(),
     val data: DataSettings = DataSettings(),
+    val updates: UpdateSettings = UpdateSettings(),
     val onboardingDone: Boolean = false,
+)
+
+@Serializable
+data class UpdateSettings(
+    val autoCheck: Boolean = true,
+    val prereleases: Boolean = false,
+    /** Version the user chose to skip; only a newer one prompts again. */
+    val skippedVersion: String? = null,
 )
 
 // region General
@@ -126,6 +135,7 @@ data class ChatSettings(
     val timestamps: TimestampStyle = TimestampStyle.OFF,
     val timestampSeconds: Boolean = false,
     val showBadges: Boolean = true,
+    val showPronouns: Boolean = true,
     val showNameColors: Boolean = true,
     val readableColors: Boolean = true,
     val usernameStyle: UsernameStyle = UsernameStyle.DISPLAY,
@@ -226,6 +236,9 @@ data class NotificationSettings(
     val muted: List<String> = emptyList(),
     val groupNotifications: Boolean = true,
     val notifyCategoryChange: Boolean = false,
+    val pingMentions: Boolean = true,
+    val pingKeywords: Boolean = false,
+    val pingHighlightUsers: Boolean = false,
 )
 
 // endregion

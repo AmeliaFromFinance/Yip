@@ -157,6 +157,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun openLogin() = nav.navigate(LoginRoute)
             override fun openSearch() = nav.navigate(SearchRoute)
             override fun openChat(login: String) = nav.navigate(WatchRoute("CHAT", login))
+            override fun openStreamManager() = nav.navigate(StreamManagerRoute)
             override fun addToMultiView(login: String) {
                 if (!settings.experimental.multiView) return
                 if (login !in multiQueue) multiQueue += login
@@ -247,6 +248,13 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
                 composable<LoginRoute> { LoginScreen(onDone = { nav.popBackStack() }, onBack = { nav.popBackStack() }) }
                 composable<ConnectWebRoute> { ConnectWebScreen(onDone = { nav.popBackStack() }, onBack = { nav.popBackStack() }) }
                 composable<LogsRoute> { LogsScreen(onBack = { nav.popBackStack() }) }
+                composable<StreamManagerRoute> {
+                    lol.sinist3r.yip.feature.browse.StreamManagerScreen(
+                        onBack = { nav.popBackStack() },
+                        onOpenChat = { nav.navigate(WatchRoute("CHAT", it)) },
+                        onSignIn = { nav.navigate(LoginRoute) },
+                    )
+                }
             }
             val src = playState.source
             if ((!onWatch || chatOnly) && src != null && settings.player.miniPlayer && !inPip) {
@@ -295,6 +303,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             layoutType = if (onWatch || inPip || !isTopLevel) NavigationSuiteType.None else adaptive,
         ) { content() }
     }
+    if (!inPip) lol.sinist3r.yip.feature.settings.UpdatePrompt()
 }
 
 /** Maps twitch.tv URLs to screens. Returns false for pages Yip doesn't handle. */

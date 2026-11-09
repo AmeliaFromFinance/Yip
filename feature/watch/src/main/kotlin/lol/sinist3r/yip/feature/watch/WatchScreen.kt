@@ -106,6 +106,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             override fun onEmote(emote: Emote) { insert = emote.code }
             override fun onMessageLongPress(message: ChatItem.Message) { menuFor = message }
             override fun onLink(url: String) = nav.openLink(url)
+            override fun onAutoMod(item: ChatItem.AutoMod, allow: Boolean) { viewModel.resolveAutoMod(item, allow) }
         }
     }
 
@@ -113,6 +114,18 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     DisposableEffect(settings.player.autoPip, settings.player.keepScreenOn, chatOnly) {
         if (!chatOnly) host?.setWatching(true, settings.player.autoPip, settings.player.keepScreenOn)
         onDispose { host?.setWatching(false, false, false) }
+    }
+    val chatUser = info.user
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(chatUser?.id, lifecycle, inPip) {
+        val user = chatUser ?: return@DisposableEffect onDispose { }
+        var shown = false
+        fun set(on: Boolean) { if (on != shown) { shown = on; viewModel.chatOnScreen(user.id, user.login, on) } }
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, _ ->
+            set(!inPip && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED))
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer); set(false) }
     }
     val context = LocalContext.current
     val lastMention = chat.lastOrNull() as? ChatItem.Message
@@ -145,6 +158,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             showAdBanner = settings.adBlock.showAdBreakBanner,
             onBack = nav::back,
             onQuality = { showQuality = true },
+            stats = viewModel.playback.stats,
             onRetry = { if (info.error != null) viewModel.load() else viewModel.playback.retry() },
             modifier = mod,
         )
@@ -239,6 +253,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         onSpeed = viewModel.playback::setSpeed,
         onSleep = viewModel.playback::setSleepTimer,
         onDismiss = { showQuality = false },
+        lowLatency = if (isLive) settings.player.bufferProfile == lol.sinist3r.yip.core.model.BufferProfile.LOW_LATENCY else null,
+        onLowLatency = viewModel::setLowLatency,
     )
     if (showEmotes) EmotePickerSheet(cosmetics, twitchEmotes, recent, animate, onPick = { insert = it.code; viewModel.useEmote(it); showEmotes = false }, onDismiss = { showEmotes = false })
     userCard?.let { card ->

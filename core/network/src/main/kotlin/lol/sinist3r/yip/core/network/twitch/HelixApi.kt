@@ -242,6 +242,70 @@ class HelixApi @Inject constructor(
             cursor?.let { parameter("after", it) }
         }
 
+    // region Stream manager (own channel)
+
+    /** Only fields passed are changed. Tags replace the whole list. */
+    suspend fun updateChannel(broadcasterId: String, title: String? = null, gameId: String? = null, tags: List<String>? = null, language: String? = null) {
+        val body = buildJsonObject {
+            title?.let { put("title", it) }
+            gameId?.let { put("game_id", it) }
+            language?.let { put("broadcaster_language", it) }
+            tags?.let { t -> put("tags", kotlinx.serialization.json.JsonArray(t.map { kotlinx.serialization.json.JsonPrimitive(it) })) }
+        }.toString()
+        callUnit("PATCH", "/channels", body = body) { parameter("broadcaster_id", broadcasterId) }
+    }
+
+    suspend fun createMarker(userId: String, description: String?): HelixMarker? {
+        val body = buildJsonObject {
+            put("user_id", userId)
+            description?.takeIf { it.isNotBlank() }?.let { put("description", it.take(140)) }
+        }.toString()
+        return call<HelixPage<HelixMarker>>("POST", "/streams/markers", body = body).data.firstOrNull()
+    }
+
+    suspend fun startCommercial(broadcasterId: String, lengthSeconds: Int): HelixCommercial? {
+        val body = buildJsonObject {
+            put("broadcaster_id", broadcasterId)
+            put("length", lengthSeconds.coerceIn(30, 180))
+        }.toString()
+        return call<HelixPage<HelixCommercial>>("POST", "/channels/commercial", body = body).data.firstOrNull()
+    }
+
+    suspend fun adSchedule(broadcasterId: String): HelixAdSchedule? =
+        HelixAdSchedule.parse(get<HelixPage<RawJson>>("/channels/ads") { parameter("broadcaster_id", broadcasterId) }.data.firstOrNull())
+
+    suspend fun snoozeNextAd(broadcasterId: String): HelixAdSchedule? =
+        HelixAdSchedule.parse(call<HelixPage<RawJson>>("POST", "/channels/ads/schedule/snooze") { parameter("broadcaster_id", broadcasterId) }.data.firstOrNull())
+
+    /** [allow] true lets a held message through, false denies it. */
+    suspend fun resolveAutoMod(moderatorId: String, messageId: String, allow: Boolean) {
+        val body = buildJsonObject {
+            put("user_id", moderatorId)
+            put("msg_id", messageId)
+            put("action", if (allow) "ALLOW" else "DENY")
+        }.toString()
+        callUnit("POST", "/moderation/automod/message", body = body)
+    }
+
+    suspend fun unbanRequests(broadcasterId: String, moderatorId: String): List<HelixUnbanRequest> =
+        get<HelixPage<HelixUnbanRequest>>("/moderation/unban_requests") {
+            parameter("broadcaster_id", broadcasterId)
+            parameter("moderator_id", moderatorId)
+            parameter("status", "pending")
+            parameter("first", 100)
+        }.data
+
+    suspend fun resolveUnbanRequest(broadcasterId: String, moderatorId: String, requestId: String, approve: Boolean, note: String? = null) =
+        callUnit("PATCH", "/moderation/unban_requests") {
+            parameter("broadcaster_id", broadcasterId)
+            parameter("moderator_id", moderatorId)
+            parameter("unban_request_id", requestId)
+            parameter("status", if (approve) "approved" else "denied")
+            note?.takeIf { it.isNotBlank() }?.let { parameter("resolution_text", it.take(500)) }
+        }
+
+    // endregion
+
     suspend fun moderatedChannels(userId: String): List<String> =
         getOrNull<HelixPage<RawJson>>("/moderation/channels") { parameter("user_id", userId); parameter("first", 100) }
             ?.data?.mapNotNull { it["broadcaster_id"]?.toString()?.trim('"') }.orEmpty()

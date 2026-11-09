@@ -95,7 +95,7 @@ object SettingsSpec {
     val accountPage = Page("account", "Accounts", "Sign in, switch accounts, twitch.tv connection", Icons.Outlined.AccountCircle, emptyList())
 
     val general = Page(
-        "general", "General", "Start screen, links, languages", Icons.Outlined.Tune,
+        "general", "General", "Start screen, links, languages, updates", Icons.Outlined.Tune,
         listOf(
             Row.Choice("Start screen", options = opts(StartScreen.FOLLOWING to "Following", StartScreen.BROWSE to "Browse", StartScreen.SEARCH to "Search"),
                 get = { it.general.startScreen.name }, set = { s, v -> s.copy(general = s.general.copy(startScreen = StartScreen.valueOf(v))) }),
@@ -111,6 +111,12 @@ object SettingsSpec {
             Row.Toggle("Continue watching", "Show recently watched streams and VODs on Following",
                 get = { it.general.continueWatching }, set = { s, v -> s.copy(general = s.general.copy(continueWatching = v)) }),
             Row.Toggle("Confirm before exit", get = { it.general.confirmBeforeExit }, set = { s, v -> s.copy(general = s.general.copy(confirmBeforeExit = v)) }),
+            Row.Header("Updates"),
+            Row.Toggle("Check for updates", "Looks for a new release on GitHub every few hours",
+                get = { it.updates.autoCheck }, set = { s, v -> s.copy(updates = s.updates.copy(autoCheck = v)) }),
+            Row.Toggle("Include pre-releases", "Test builds that may be less stable",
+                get = { it.updates.prereleases }, set = { s, v -> s.copy(updates = s.updates.copy(prereleases = v)) }),
+            Row.Action("Check now", null, "check_updates"),
         ),
     )
 
@@ -203,6 +209,7 @@ object SettingsSpec {
             Row.Toggle("Name colours", get = { it.chat.showNameColors }, set = { s, v -> s.copy(chat = s.chat.copy(showNameColors = v)) }),
             Row.Toggle("Make dark names readable", "Adjusts colours that are hard to see on your theme", get = { it.chat.readableColors }, set = { s, v -> s.copy(chat = s.chat.copy(readableColors = v)) }),
             Row.Toggle("Badges", get = { it.chat.showBadges }, set = { s, v -> s.copy(chat = s.chat.copy(showBadges = v)) }),
+            Row.Toggle("Pronouns", "From pronouns.alejo.io, shown before names", get = { it.chat.showPronouns }, set = { s, v -> s.copy(chat = s.chat.copy(showPronouns = v)) }),
             Row.Toggle("Alternate row shading", get = { it.chat.alternateRows }, set = { s, v -> s.copy(chat = s.chat.copy(alternateRows = v)) }),
             Row.Toggle("Separator lines", get = { it.chat.separators }, set = { s, v -> s.copy(chat = s.chat.copy(separators = v)) }),
             Row.Header("Messages"),
@@ -279,13 +286,14 @@ object SettingsSpec {
             Row.Toggle("Hide emote-only messages", get = { it.filters.hideEmoteOnly }, set = { s, v -> s.copy(filters = s.filters.copy(hideEmoteOnly = v)) }),
             Row.Toggle("Hide first-time chatters", get = { it.filters.hideFirstTimeChatters }, set = { s, v -> s.copy(filters = s.filters.copy(hideFirstTimeChatters = v)) }),
             Row.Header("Highlight"),
-            Row.Words("Keywords", "Highlight messages containing these", "Word or phrase", get = { it.filters.highlightKeywords }, set = { s, v -> s.copy(filters = s.filters.copy(highlightKeywords = v)) }, lowercase = false),
+            Row.Words("Keywords", "Whole words, any case. Wrap in slashes for a pattern, e.g. /^!so\\b/", "Word, phrase or /pattern/", get = { it.filters.highlightKeywords }, set = { s, v -> s.copy(filters = s.filters.copy(highlightKeywords = v)) }, lowercase = false,
+                validate = lol.sinist3r.yip.core.data.chat.KeywordMatcher::problem),
             Row.Words("Users", "Highlight messages from these people", "Login name", get = { it.filters.highlightUsers }, set = { s, v -> s.copy(filters = s.filters.copy(highlightUsers = v)) }),
         ),
     )
 
     val notifications = Page(
-        "notifications", "Notifications", "Go-live alerts for channels you follow", Icons.Outlined.Notifications,
+        "notifications", "Notifications", "Go-live alerts and chat pings", Icons.Outlined.Notifications,
         listOf(
             Row.Toggle("Live notifications", "Checks in the background. Needs you to be signed in.", get = { it.notifications.enabled }, set = { s, v -> s.copy(notifications = s.notifications.copy(enabled = v)) }),
             Row.Slider("Check every", "Android won't check more often than every 15 minutes", 15f..120f, 6, { "${it.toInt()} min" },
@@ -298,6 +306,11 @@ object SettingsSpec {
             Row.Slider("Quiet from", null, 0f..1410f, 46, ::hhmm, get = { it.notifications.quietStartMinutes.toFloat() }, set = { s, v -> s.copy(notifications = s.notifications.copy(quietStartMinutes = v.toInt())) }, enabled = { it.notifications.quietHoursEnabled }),
             Row.Slider("Quiet until", null, 0f..1410f, 46, ::hhmm, get = { it.notifications.quietEndMinutes.toFloat() }, set = { s, v -> s.copy(notifications = s.notifications.copy(quietEndMinutes = v.toInt())) }, enabled = { it.notifications.quietHoursEnabled }),
             Row.Toggle("Group notifications", get = { it.notifications.groupNotifications }, set = { s, v -> s.copy(notifications = s.notifications.copy(groupNotifications = v)) }),
+            Row.Header("Chat pings"),
+            Row.Note("When chat isn't on screen", "Notifies while you're on another screen, in picture-in-picture, or outside the app with a stream still running."),
+            Row.Toggle("Mentions", "Someone @'s you or replies to you", get = { it.notifications.pingMentions }, set = { s, v -> s.copy(notifications = s.notifications.copy(pingMentions = v)) }),
+            Row.Toggle("Highlight keywords", "Set under Filters and highlights", get = { it.notifications.pingKeywords }, set = { s, v -> s.copy(notifications = s.notifications.copy(pingKeywords = v)) }),
+            Row.Toggle("Highlighted users", "Set under Filters and highlights", get = { it.notifications.pingHighlightUsers }, set = { s, v -> s.copy(notifications = s.notifications.copy(pingHighlightUsers = v)) }),
             Row.Action("System notification settings", "Sound, vibration and importance", "system_notifications"),
         ),
     )

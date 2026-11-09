@@ -189,6 +189,13 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
                     tiles.forEachIndexed { i, t -> Tab(chatTab == i, { chatTab = i }, text = { Text(t.displayName) }) }
                 }
                 val session = tiles.getOrNull(chatTab)?.chat
+                // The selected tab's chat is on screen, so no pings for it.
+                session?.let { ses ->
+                    androidx.compose.runtime.DisposableEffect(ses) {
+                        lol.sinist3r.yip.core.common.VisibleChats.show(ses.channelId)
+                        onDispose { lol.sinist3r.yip.core.common.VisibleChats.hide(ses.channelId) }
+                    }
+                }
                 val items: ImmutableList<ChatItem> = session?.items?.collectAsStateWithLifecycle()?.value ?: persistentListOf()
                 ChatList(items, options, actions, Modifier.weight(1f))
             }

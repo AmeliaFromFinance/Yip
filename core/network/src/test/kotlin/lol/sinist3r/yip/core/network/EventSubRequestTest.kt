@@ -21,3 +21,19 @@ class EventSubRequestTest {
         assertEquals("abc", transport["session_id"]!!.jsonPrimitive.content)
     }
 }
+
+class AdScheduleTest {
+    @Test fun acceptsDocumentedAndObservedShapes() {
+        val docs = kotlinx.serialization.json.Json.parseToJsonElement(
+            """{"next_ad_at":"2023-08-01T23:08:18+00:00","last_ad_at":"","duration":"60","preroll_free_time":"90","snooze_count":"1","snooze_refresh_at":"2023-08-01T23:08:18+00:00"}""",
+        ).jsonObject
+        val a = lol.sinist3r.yip.core.network.twitch.HelixAdSchedule.parse(docs)!!
+        assertEquals(1690931298L, a.nextAdAt)
+        assertEquals(0L, a.lastAdAt)
+        assertEquals(60, a.duration)
+        val numbers = kotlinx.serialization.json.Json.parseToJsonElement("""{"next_ad_at":1690931298,"duration":60,"snooze_count":3}""").jsonObject
+        val b = lol.sinist3r.yip.core.network.twitch.HelixAdSchedule.parse(numbers)!!
+        assertEquals(1690931298L, b.nextAdAt)
+        assertEquals(3, b.snoozeCount)
+    }
+}

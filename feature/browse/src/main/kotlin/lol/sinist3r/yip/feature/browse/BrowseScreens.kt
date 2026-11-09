@@ -94,6 +94,7 @@ interface BrowseNavigator {
     fun addToMultiView(login: String)
     fun openSearch()
     fun openChat(login: String)
+    fun openStreamManager()
 }
 
 internal fun gridCells(appearance: AppearanceSettings): GridCells = when {

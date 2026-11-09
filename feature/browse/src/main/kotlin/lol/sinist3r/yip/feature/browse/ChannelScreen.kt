@@ -1,5 +1,6 @@
 package lol.sinist3r.yip.feature.browse
 
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -115,7 +116,9 @@ fun ChannelScreen(
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 info.stream?.let { s -> Button(onClick = { nav.openStream(s) }) { Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Watch live") } }
-                                if (header.following) {
+                                if (header.isMe) {
+                                    FilledTonalButton(onClick = nav::openStreamManager) { Icon(Icons.Outlined.Tune, null); Spacer(Modifier.width(6.dp)); Text("Manage stream") }
+                                } else if (header.following) {
                                     OutlinedButton(onClick = { onFollowToggle(info.user.id, info.user.login, false) }) { Icon(Icons.Outlined.Favorite, null); Spacer(Modifier.width(6.dp)); Text("Following") }
                                 } else {
                                     FilledTonalButton(onClick = { onFollowToggle(info.user.id, info.user.login, true) }) { Icon(Icons.Outlined.FavoriteBorder, null); Spacer(Modifier.width(6.dp)); Text("Follow") }

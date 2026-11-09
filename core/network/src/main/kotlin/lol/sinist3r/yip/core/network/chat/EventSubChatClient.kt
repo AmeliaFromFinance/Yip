@@ -201,6 +201,15 @@ class EventSubChatClient @Inject constructor(
                     }
                 }
         }
+        // Your own channel: AutoMod holds, for approving in chat. Optional; older sign-ins lack the scope.
+        if (channelId == uid) {
+            val modCondition = mapOf("broadcaster_user_id" to channelId, "moderator_user_id" to uid)
+            for (type in AUTOMOD_TYPES) {
+                attempt { helix.createEventSub(EventSubCreate(type, "2", modCondition, EventSubTransport.webSocket(sid))) }
+                    .onSuccess { created -> created?.id?.let(j.subIds::add) }
+                    .onFailure { e -> Timber.i("AutoMod events unavailable: ${e.message}") }
+            }
+        }
     }
 
     /** Pulls Twitch's "message" out of a Helix error body, falling back to the status line. */
@@ -215,6 +224,19 @@ class EventSubChatClient @Inject constructor(
 
     private fun mapEvent(type: String, e: JsonObject): RawChat? = when (type) {
         "channel.chat.message" -> RawChat.Message(message(e))
+        "automod.message.hold" -> e.str("message_id")?.let { id ->
+            RawChat.AutoModHeld(
+                messageId = id,
+                login = e.str("user_login").orEmpty(),
+                displayName = e.str("user_name") ?: e.str("user_login").orEmpty(),
+                text = e.obj("message")?.str("text").orEmpty(),
+                reason = when (e.str("reason")) {
+                    "blocked_term" -> "blocked term"
+                    else -> e.obj("automod")?.str("category")?.replace('_', ' ') ?: "AutoMod"
+                },
+            )
+        }
+        "automod.message.update" -> e.str("message_id")?.let { RawChat.AutoModResolved(it, e.str("status").orEmpty().lowercase()) }
         "channel.chat.notification" -> notification(e)
         "channel.chat.message_delete" -> e.str("message_id")?.let(RawChat::Deleted)
         "channel.chat.clear_user_messages" -> e.str("target_user_id")?.let { RawChat.ClearUser(it, null) }
@@ -297,6 +319,7 @@ class EventSubChatClient @Inject constructor(
 
     companion object {
         private const val DEFAULT_URL = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30"
+        private val AUTOMOD_TYPES = listOf("automod.message.hold", "automod.message.update")
         private val CHAT_TYPES = listOf(
             "channel.chat.message",
             "channel.chat.notification",

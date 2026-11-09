@@ -98,6 +98,7 @@ fun PlayerArea(
     onQuality: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    stats: lol.sinist3r.yip.core.playback.PlaybackStats? = null,
 ) {
     val host = LocalWatchHost.current
     val context = LocalContext.current
@@ -177,6 +178,9 @@ fun PlayerArea(
                 presentation.videoSizeDp,
             ),
         )
+        if (settings.showStatsOverlay && !inPip && stats != null) {
+            StatsOverlay(player, stats, state, isLive, Modifier.align(Alignment.TopStart).padding(top = 44.dp, start = 8.dp))
+        }
         if (presentation.coverSurface) Box(Modifier.fillMaxSize().background(Color.Black))
 
         if (state.audioOnly && !inPip) {
@@ -242,11 +246,6 @@ fun PlayerArea(
                         if (isLive && settings.showLatency) state.liveLatencyMs?.let { Pill("%.1fs".format(it / 1000f)) }
                         Spacer(Modifier.width(6.dp))
                         if (state.selected != null) Pill(state.selected!!.label) else if (state.qualities.isNotEmpty()) Pill("Auto")
-                        if (settings.showStatsOverlay) {
-                            Spacer(Modifier.width(6.dp))
-                            val fmt = (player as? androidx.media3.exoplayer.ExoPlayer)?.videoFormat
-                            fmt?.let { Pill("${it.width}x${it.height} ${it.frameRate.toInt()}fps ${(it.bitrate / 1000).coerceAtLeast(0)}kbps") }
-                        }
                         Spacer(Modifier.weight(1f))
                         IconButton(onClick = { muted = !muted; player.volume = if (muted) 0f else 1f }) {
                             Icon(if (muted) Icons.AutoMirrored.Outlined.VolumeOff else Icons.AutoMirrored.Outlined.VolumeUp, if (muted) "Unmute" else "Mute", tint = Color.White)
@@ -261,3 +260,38 @@ fun PlayerArea(
         }
     }
 }
+
+/** Small always-on panel for checking stream health. Updates once a second. */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
+private fun StatsOverlay(player: Player, stats: lol.sinist3r.yip.core.playback.PlaybackStats, state: PlaybackUiState, isLive: Boolean, modifier: Modifier) {
+    val lines by androidx.compose.runtime.produceState(emptyList<Pair<String, String>>(), player, stats, isLive) {
+        while (true) {
+            val exo = player as? androidx.media3.exoplayer.ExoPlayer
+            val f = exo?.videoFormat
+            value = buildList {
+                if (isLive) state.liveLatencyMs?.let { add("Delay" to "%.1fs".format(it / 1000f)) }
+                f?.let { add("Video" to "${it.width}×${it.height}" + (if (it.frameRate > 0) " @${it.frameRate.toInt()}" else "") + (it.codecs?.substringBefore('.')?.let { c -> " · $c" } ?: "")) }
+                val bitrate = stats.variantBps.takeIf { it > 0 } ?: f?.bitrate?.toLong()?.takeIf { it > 0 } ?: state.selected?.bandwidth?.toLong()
+                bitrate?.let { add("Bitrate" to mbps(it)) }
+                stats.networkBps.takeIf { it > 0 }?.let { add("Network" to mbps(it)) }
+                add("Buffer" to "%.1fs".format(player.totalBufferedDuration / 1000f))
+                add("Dropped" to "${stats.droppedFrames} frames")
+            }
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+    if (lines.isEmpty()) return
+    androidx.compose.foundation.layout.Column(
+        modifier.background(Color.Black.copy(alpha = 0.6f), androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        lines.forEach { (k, v) ->
+            Row {
+                Text(k, color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp, modifier = Modifier.width(56.dp))
+                Text(v, color = Color.White, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+            }
+        }
+    }
+}
+
+private fun mbps(bps: Long) = "%.1f Mbps".format(bps / 1_000_000.0)

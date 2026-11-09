@@ -10,6 +10,7 @@ dependencies {
     api(project(":core:network"))
     implementation(project(":core:datastore"))
     implementation(project(":core:database"))
+    implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.datastore)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.ktor.client.core)

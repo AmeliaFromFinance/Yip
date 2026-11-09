@@ -167,6 +167,19 @@ class TwitchAuthApi @Inject constructor(
             "moderator:read:chatters",
             "moderator:manage:shoutouts",
             "clips:edit",
+            // Stream manager
+            "channel:manage:broadcast",
+            "channel:edit:commercial",
+            "channel:read:ads",
+            "channel:manage:ads",
+            "moderator:manage:automod",
+            "moderator:manage:unban_requests",
+        )
+
+        /** Scopes the stream manager needs; older sign-ins don't have them. */
+        val STREAM_MANAGER_SCOPES = listOf(
+            "channel:manage:broadcast", "channel:edit:commercial", "channel:read:ads", "channel:manage:ads",
+            "moderator:read:chatters", "moderator:manage:automod", "moderator:manage:unban_requests",
         )
     }
 }

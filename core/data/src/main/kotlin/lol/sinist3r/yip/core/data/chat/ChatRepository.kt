@@ -73,6 +73,7 @@ class ChatSession internal constructor(
         scope.launch { repo.cosmetics.loadChannel(channelId) }
         scope.launch { repo.cosmetics.emoteChanges.collect { if (it.channelId == channelId) system(it.text) } }
         scope.launch { repo.cosmetics.cosmeticsUpdated.collect(::restyle) }
+        scope.launch { repo.pronouns.pronounsUpdated.collect(::restyle) }
         scope.launch { consume() }
         scope.launch { publisher() }
         scope.launch { transport() }
@@ -160,6 +161,8 @@ class ChatSession internal constructor(
                 }
                 is RawChat.ServerNotice -> system(ev.text)
                 is RawChat.JoinFailed -> Unit // handled in transport()
+                is RawChat.AutoModHeld -> append(ChatItem.AutoMod("automod-${ev.messageId}", kotlin.time.Clock.System.now(), ev.login, ev.displayName, ev.text, ev.reason))
+                is RawChat.AutoModResolved -> markAutoMod(ev.messageId, ev.status)
             }
         }
     }
@@ -191,9 +194,15 @@ class ChatSession internal constructor(
     private fun append(item: ChatItem) = synchronized(buffer) {
         if (!ids.add(item.id)) return@synchronized
         buffer.addLast(item)
+        (item as? ChatItem.Message ?: (item as? ChatItem.Notice)?.message)?.let { repo.mentions.onMessage(channelId, channelLogin, it) }
         val limit = repo.settings.settings.value.chat.messageLimit.coerceIn(50, 5000)
         while (buffer.size > limit) ids.remove(buffer.removeFirst().id)
         dirty = true
+    }
+
+    /** [messageId] is Twitch's id (without our "automod-" prefix). */
+    fun markAutoMod(messageId: String, status: String) = mutate { list ->
+        list.map { if (it is ChatItem.AutoMod && it.id == "automod-$messageId") it.copy(status = status) else it }
     }
 
     /** Applies a paint/badge that arrived after the user's messages were already shown. */
@@ -218,10 +227,11 @@ class ChatSession internal constructor(
     private fun ChatItem.Message.restyled(): ChatItem.Message {
         val s = repo.settings.settings.value
         val paint = if (s.thirdParty.seventvPaints != lol.sinist3r.yip.core.model.PaintMode.OFF) repo.cosmetics.paintFor(user.id) else null
-        if (!s.chat.showBadges) return copy(paint = paint)
+        val pronouns = if (s.chat.showPronouns) repo.pronouns.cached(user.login) else null
+        if (!s.chat.showBadges) return copy(paint = paint, pronouns = pronouns)
         // Keep the channel's own badges (Twitch, FFZ mod/VIP) and rebuild the third-party ones, as on first render.
         val own = badges.filter { it.source == lol.sinist3r.yip.core.model.BadgeSource.TWITCH || it.id == "ffz:mod" || it.id == "ffz:vip" }
-        return copy(paint = paint, badges = own + repo.cosmetics.extraBadges(user.id))
+        return copy(paint = paint, pronouns = pronouns, badges = own + repo.cosmetics.extraBadges(user.id))
     }
 
     private fun mutate(block: (List<ChatItem>) -> List<ChatItem>) = synchronized(buffer) {
@@ -259,9 +269,11 @@ class ChatRepository @Inject constructor(
     internal val irc: IrcChatClient,
     internal val bttvFfz: BttvFfzApi,
     internal val helix: HelixApi,
+    internal val mentions: MentionNotifier,
+    internal val pronouns: PronounRepository,
     @DefaultDispatcher private val dispatcher: CoroutineDispatcher,
 ) {
-    internal val pipeline = ChatPipeline(cosmetics)
+    internal val pipeline = ChatPipeline(cosmetics, pronouns)
     private val sessions = ConcurrentHashMap<String, Pair<ChatSession, Int>>()
 
     @Synchronized

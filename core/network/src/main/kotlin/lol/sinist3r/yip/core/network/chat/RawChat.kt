@@ -37,6 +37,8 @@ enum class RawNoticeKind { SUB, RESUB, GIFT, MYSTERY_GIFT, RAID, ANNOUNCEMENT, B
 sealed interface RawChat {
     data class Message(val msg: RawMessage) : RawChat
     /** Twitch refused the chat subscription; [reason] is Twitch's own wording when it gave one. */
+    data class AutoModHeld(val messageId: String, val login: String, val displayName: String, val text: String, val reason: String) : RawChat
+    data class AutoModResolved(val messageId: String, val status: String) : RawChat
     data class JoinFailed(val reason: String, val notAllowed: Boolean) : RawChat
     data class Notice(val id: String, val kind: RawNoticeKind, val systemText: String, val msg: RawMessage?, val timestamp: Instant) : RawChat
     data class Deleted(val messageId: String) : RawChat

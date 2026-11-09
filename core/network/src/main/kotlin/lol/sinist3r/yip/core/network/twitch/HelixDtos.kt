@@ -68,6 +68,34 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class HelixChannelInfo(
     val broadcasterId: String, val broadcasterLogin: String, val broadcasterName: String,
     val gameName: String? = null, val title: String? = null, val tags: List<String>? = null,
+    val gameId: String? = null, val broadcasterLanguage: String? = null,
+)
+
+// Stream manager
+@Serializable data class HelixMarker(val id: String = "", val positionSeconds: Int = 0, val description: String = "")
+@Serializable data class HelixCommercial(val length: Int = 0, val message: String = "", val retryAfter: Int = 0)
+/** Times are Unix seconds, 0 when none. Parsed by hand: Twitch's docs disagree on the field types. */
+data class HelixAdSchedule(
+    val nextAdAt: Long = 0, val lastAdAt: Long = 0, val duration: Int = 0,
+    val prerollFreeTime: Int = 0, val snoozeCount: Int = 0, val snoozeRefreshAt: Long = 0,
+) {
+    companion object {
+        fun parse(o: kotlinx.serialization.json.JsonObject?): HelixAdSchedule? {
+            o ?: return null
+            fun num(k: String) = (o[k] as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim().orEmpty()
+            fun time(k: String): Long {
+                val v = num(k)
+                if (v.isEmpty()) return 0
+                return v.toLongOrNull() ?: runCatching { java.time.OffsetDateTime.parse(v).toEpochSecond() }.getOrDefault(0)
+            }
+            fun int(k: String) = num(k).toDoubleOrNull()?.toInt() ?: 0
+            return HelixAdSchedule(time("next_ad_at"), time("last_ad_at"), int("duration"), int("preroll_free_time"), int("snooze_count"), time("snooze_refresh_at"))
+        }
+    }
+}
+@Serializable data class HelixUnbanRequest(
+    val id: String, val userId: String, val userLogin: String, val userName: String,
+    val text: String = "", val status: String = "", val createdAt: String = "",
 )
 
 @Serializable data class HelixSendResult(val messageId: String = "", val isSent: Boolean = false, val dropReason: HelixDropReason? = null)

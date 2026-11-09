@@ -33,6 +33,7 @@ sealed interface ChatItem {
         val tokens: List<ChatToken>,
         val badges: List<Badge>,
         val paint: Paint? = null,
+        val pronouns: String? = null,
         val isAction: Boolean = false,
         val replyParentLogin: String? = null,
         val replyParentText: String? = null,
@@ -55,6 +56,17 @@ sealed interface ChatItem {
     ) : ChatItem
 
     /** Client-side status lines (connected, slow mode on, timed out...). */
+    /** A message AutoMod is holding for moderator review. [status] is null while pending. */
+    data class AutoMod(
+        override val id: String,
+        override val timestamp: Instant,
+        val userLogin: String,
+        val userName: String,
+        val text: String,
+        val reason: String,
+        val status: String? = null,
+    ) : ChatItem
+
     data class System(
         override val id: String,
         override val timestamp: Instant,

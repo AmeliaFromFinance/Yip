@@ -19,7 +19,7 @@ import lol.sinist3r.yip.core.network.chat.RawPart
  * Turns transport messages into render-ready [ChatItem.Message]s. Runs off the main thread;
  * nothing here touches Compose.
  */
-class ChatPipeline(private val cosmetics: CosmeticsRepository) {
+class ChatPipeline(private val cosmetics: CosmeticsRepository, private val pronouns: PronounRepository? = null) {
 
     private val regexCache = ConcurrentHashMap<String, Regex?>()
 
@@ -31,6 +31,7 @@ class ChatPipeline(private val cosmetics: CosmeticsRepository) {
     ): ChatItem.Message? {
         if (isFiltered(raw, settings)) return null
         cosmetics.noteChatter(raw.userId)
+        pronouns?.note(raw.userId, raw.login)
         val personal = cosmetics.personalEmotes(raw.userId)
         val tokens = tokenize(raw.parts, channel.emotes, personal, settings)
         if (settings.filters.hideEmoteOnly && tokens.isNotEmpty() && tokens.all { it is ChatToken.EmoteToken || (it is ChatToken.Text && it.text.isBlank()) }) return null
@@ -45,6 +46,7 @@ class ChatPipeline(private val cosmetics: CosmeticsRepository) {
             tokens = tokens,
             badges = if (settings.chat.showBadges) badges(raw, channel) else emptyList(),
             paint = paint,
+            pronouns = if (settings.chat.showPronouns) pronouns?.cached(raw.login) else null,
             isAction = raw.isAction,
             replyParentLogin = raw.replyParentLogin,
             replyParentText = raw.replyParentText,
@@ -158,11 +160,16 @@ class ChatPipeline(private val cosmetics: CosmeticsRepository) {
             if (raw.replyParentLogin.equals(self, true) || mentionRegex(self).containsMatchIn(text)) return HighlightKind.MENTION
         }
         if (raw.login.lowercase() in s.filters.highlightUsers) return HighlightKind.USER
-        if (s.filters.highlightKeywords.any { text.contains(it, ignoreCase = true) }) return HighlightKind.KEYWORD
+        if (keywords(s.filters.highlightKeywords).matches(text)) return HighlightKind.KEYWORD
         if (raw.isHighlightedRedemption || raw.rewardId != null) return HighlightKind.REDEMPTION
         if (raw.isFirstMessage && s.chat.showFirstMessageTag) return HighlightKind.FIRST_MESSAGE
         return HighlightKind.NONE
     }
+
+    // Rebuilt only when the keyword list changes.
+    @Volatile private var keywordCache: Pair<List<String>, KeywordMatcher>? = null
+    private fun keywords(list: List<String>): KeywordMatcher =
+        keywordCache?.takeIf { it.first === list || it.first == list }?.second ?: KeywordMatcher(list).also { keywordCache = list to it }
 
     private val mentionCache = ConcurrentHashMap<String, Regex>()
     private fun mentionRegex(login: String) = mentionCache.getOrPut(login) { Regex("""(?i)(^|[^\w])@?${Regex.escape(login)}\b""") }

@@ -12,6 +12,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Live, VODs (with chapters and resume), clips
 - Quality picker, separate defaults for Wi-Fi and mobile data, remember per channel
 - Low-latency, balanced or stable buffering, with live latency shown on the player
+- Stats overlay: delay, resolution, bitrate, network speed, buffer and dropped frames
 - Background audio, audio-only mode, picture-in-picture, sleep timer, mini-player
 - Swipe for brightness and volume, double-tap to seek, pinch to fill
 - Landscape chat as an overlay, side panel or hidden
@@ -23,14 +24,18 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Badges from BTTV, FFZ, FFZ:AP, Chatterino, Chatterino Homies (incl. custom) and Moltorino
 - Recent messages on open, replies, mentions, first-message tags, sub/raid/redemption notices
 - Filters (bots, commands, users, words or regex) and highlights (keywords, users)
+- Pronouns next to names, from pronouns.alejo.io
+- Pings for mentions, keywords and highlighted users when that chat isn't on screen
 - Emote picker, emote and @name suggestions, Tab completion on keyboards
-- Moderation: timeouts, bans, deletes and slash commands
+- Moderation: timeouts, bans, deletes and slash commands; AutoMod holds in your own chat
 - VOD chat replay, synced to playback
 
 **Everything else**
 - Following, browse, categories, search, channel pages (videos, clips, schedule)
 - Go-live notifications with favourites, muting and quiet hours
 - Multiple accounts
+- Stream manager for your own channel: title, category, tags, markers, ads, unban requests, who's in chat
+- Updates itself from GitHub releases (checksum-verified)
 - Themes: system, light, dark, OLED black, eight accents including Material You
 - Searchable settings with import and export
 

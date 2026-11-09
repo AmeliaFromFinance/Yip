@@ -241,10 +241,16 @@ data class ChannelHeader(
     val loading: Boolean = true,
     val error: String? = null,
     val schedule: List<ScheduleSegment> = emptyList(),
+    val isMe: Boolean = false,
 )
 
 @HiltViewModel
-class ChannelViewModel @Inject constructor(savedState: SavedStateHandle, private val twitch: TwitchRepository, settingsRepo: SettingsRepository) : ViewModel() {
+class ChannelViewModel @Inject constructor(
+    savedState: SavedStateHandle,
+    private val twitch: TwitchRepository,
+    settingsRepo: SettingsRepository,
+    private val accounts: lol.sinist3r.yip.core.data.account.AccountRepository,
+) : ViewModel() {
     private val login: String = checkNotNull(savedState["login"])
     val settings = settingsRepo.settings
     private val _header = MutableStateFlow(ChannelHeader())
@@ -268,7 +274,7 @@ class ChannelViewModel @Inject constructor(savedState: SavedStateHandle, private
                     _header.value = ChannelHeader(loading = false, error = "Channel not found")
                     return@onSuccess
                 }
-                _header.value = ChannelHeader(info, loading = false)
+                _header.value = ChannelHeader(info, loading = false, isMe = info.user.id == accounts.state.value.active?.userId)
                 launch { _header.update { it.copy(following = twitch.isFollowing(info.user.id)) } }
                 launch { _header.update { it.copy(schedule = attempt { twitch.schedule(info.user.id) }.getOrDefault(emptyList())) } }
                 setPagers(info.user.id, info.user.login)

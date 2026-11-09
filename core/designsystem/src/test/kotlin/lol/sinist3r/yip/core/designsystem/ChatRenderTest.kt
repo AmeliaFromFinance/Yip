@@ -60,6 +60,9 @@ class ChatRenderTest {
         msg("4", "quietfern", 0xFF0000AA, listOf(ChatToken.Text("first time here, the engine stuff is so cool")), first = true),
         msg("5", "spammer", 0xFF00AA00, listOf(ChatToken.Text("this got deleted")), deleted = true),
         msg("6", "glyphbyte", null, listOf(ChatToken.Text("link: "), ChatToken.Link("https://yip.sinist3r.lol"))),
+        msg("7", "eepyAmelia", 0xFFF28C28, listOf(ChatToken.Text("pronouns sit before the name")), paint = paint).copy(pronouns = "She/They"),
+        ChatItem.AutoMod("automod-1", now, "rude_guy", "rude_guy", "some held message", "aggression"),
+        ChatItem.AutoMod("automod-2", now, "other", "other", "an allowed one", "swearing", status = "approved"),
         ChatItem.System("s", now, "Joined #pixelforge"),
     )
 
@@ -73,6 +76,8 @@ class ChatRenderTest {
             }
         }
         compose.onNodeWithText("Joined #pixelforge").assertExists()
+        compose.onNodeWithText("Allow").assertExists()
+        compose.onNodeWithText("Allowed").assertExists()
         compose.onRoot().captureRoboImage("build/screenshots/chat_$name.png")
     }
 

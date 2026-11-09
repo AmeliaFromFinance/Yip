@@ -1,5 +1,6 @@
 package lol.sinist3r.yip.feature.watch
 
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.runtime.produceState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.TextButton
@@ -163,6 +164,8 @@ fun QualitySheet(
     onSpeed: (Float) -> Unit,
     onSleep: (Int?) -> Unit,
     onDismiss: () -> Unit,
+    lowLatency: Boolean? = null,
+    onLowLatency: (Boolean) -> Unit = {},
 ) {
     // Fully expanded straight away: a sheet still settling eats the first tap.
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -176,6 +179,21 @@ fun QualitySheet(
                         subtitle = q.bandwidth?.let { "%.1f Mbps".format(it / 1_000_000.0) },
                         selected = !auto && selected?.id == q.id,
                     ) { onQuality(q) }
+                }
+            }
+            if (lowLatency != null) {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .toggleable(value = lowLatency, role = Role.Switch, onValueChange = onLowLatency)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Low latency", style = MaterialTheme.typography.bodyLarge)
+                        Text("Closer to live, may buffer more. Restarts the stream.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    androidx.compose.material3.Switch(checked = lowLatency, onCheckedChange = null)
                 }
             }
             if (showSpeed) {
@@ -263,18 +281,25 @@ fun UserCardSheet(
                     user?.createdAt?.let { Text("Account created ${it.toString().take(10)}", style = MaterialTheme.typography.bodySmall) }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(onClick = { onMention(card.login) }) { Text("Mention") }
                 OutlinedButton(onClick = { onOpenChannel(card.login) }) { Icon(Icons.Outlined.Person, null); Text(" Channel") }
                 user?.let { u -> OutlinedButton(onClick = { onBlock(u.id) }) { Icon(Icons.Outlined.Block, null); Text(" Block") } }
             }
             if (isModerator && user != null) {
                 Text("Moderation", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Timeouts and bans on separate lines; each wraps on narrow screens.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Timer, "Timeout", Modifier.padding(end = 4.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedButton(onClick = { onMod(ModAction.TIMEOUT_1M, user.id) }) { Text("1m") }
                     OutlinedButton(onClick = { onMod(ModAction.TIMEOUT_10M, user.id) }) { Text("10m") }
                     OutlinedButton(onClick = { onMod(ModAction.TIMEOUT_1H, user.id) }) { Text("1h") }
-                    OutlinedButton(onClick = { onMod(ModAction.BAN, user.id) }) { Icon(Icons.Outlined.Gavel, null); Text(" Ban") }
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    OutlinedButton(
+                        onClick = { onMod(ModAction.BAN, user.id) },
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    ) { Icon(Icons.Outlined.Gavel, null, Modifier.size(18.dp)); Text(" Ban") }
                     OutlinedButton(onClick = { onMod(ModAction.UNBAN, user.id) }) { Text("Unban") }
                 }
             }

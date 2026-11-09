@@ -36,6 +36,7 @@ jobs:
           YIP_KEY_PASSWORD: ${{ secrets.YIP_KEY_PASSWORD }}
           YIP_TWITCH_CLIENT_ID: ${{ secrets.YIP_TWITCH_CLIENT_ID }}
           YIP_CONFIG_PUBLIC_KEY: ${{ secrets.YIP_CONFIG_PUBLIC_KEY }}
+          YIP_UPDATE_REPO: ${{ github.repository }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           CODE=$(git rev-list --count HEAD)
