@@ -47,4 +47,12 @@ class RecentSearchRepositoryTest {
         assertTrue(repo.items.first().isEmpty())
         assertEquals(listOf("a"), store.state.value.items.map { it.key })
     }
+
+    @Test fun openingAResultReplacesItsQuery() = runBlocking {
+        repo.add(RecentSearch(RecentKind.QUERY, "xqc", "xqc"))
+        // What SearchViewModel.rememberResult does.
+        repo.remove(RecentSearch(RecentKind.QUERY, "XQC ".trim(), ""))
+        repo.add(ch("xqc"))
+        assertEquals(listOf(RecentKind.CHANNEL), store.state.value.items.map { it.kind })
+    }
 }

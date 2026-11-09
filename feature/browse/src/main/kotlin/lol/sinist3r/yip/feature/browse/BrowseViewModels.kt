@@ -188,10 +188,20 @@ class SearchViewModel @Inject constructor(
     fun forget(item: lol.sinist3r.yip.core.model.RecentSearch) = viewModelScope.launch { recentRepo.remove(item) }
     fun clearRecent() = viewModelScope.launch { recentRepo.clear() }
 
-    /** Saves what was typed once a result is picked, so it can be re-run later. */
+    /** Saves what was typed when the keyboard's search key is pressed. */
     fun rememberQuery() {
         val q = _query.value.trim()
         if (q.length >= 2) remember(lol.sinist3r.yip.core.model.RecentSearch(lol.sinist3r.yip.core.model.RecentKind.QUERY, q, q))
+    }
+
+    /**
+     * Opening a result replaces the query that found it: only the channel or category is kept.
+     * [query] is the search that was on screen when the result was tapped.
+     */
+    fun rememberResult(item: lol.sinist3r.yip.core.model.RecentSearch, query: String) = viewModelScope.launch {
+        val q = query.trim()
+        if (q.isNotEmpty()) recentRepo.remove(lol.sinist3r.yip.core.model.RecentSearch(lol.sinist3r.yip.core.model.RecentKind.QUERY, q, q))
+        recentRepo.add(item)
     }
     private val _query = MutableStateFlow("")
     val query = _query.asStateFlow()

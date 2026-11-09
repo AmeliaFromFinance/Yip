@@ -318,13 +318,11 @@ fun SearchScreen(nav: BrowseNavigator, onBack: (() -> Unit)?, viewModel: SearchV
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val recent by viewModel.recent.collectAsStateWithLifecycle()
     val openChannel = { c: lol.sinist3r.yip.core.model.Channel ->
-        viewModel.rememberQuery()
-        viewModel.remember(RecentSearch(RecentKind.CHANNEL, c.login, c.displayName, c.profileImageUrl))
+        viewModel.rememberResult(RecentSearch(RecentKind.CHANNEL, c.login, c.displayName, c.profileImageUrl), query)
         nav.openChannel(c.login)
     }
     val openCategory = { c: lol.sinist3r.yip.core.model.Category ->
-        viewModel.rememberQuery()
-        viewModel.remember(RecentSearch(RecentKind.CATEGORY, c.id, c.name, c.boxArt(72, 96)))
+        viewModel.rememberResult(RecentSearch(RecentKind.CATEGORY, c.id, c.name, c.boxArt(72, 96)), query)
         nav.openCategory(c.id, c.name)
     }
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -343,6 +341,9 @@ fun SearchScreen(nav: BrowseNavigator, onBack: (() -> Unit)?, viewModel: SearchV
                     trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { viewModel.onQuery("") }) { Icon(Icons.Outlined.Close, "Clear") } },
                     singleLine = true,
                     shape = MaterialTheme.shapes.large,
+                    // Pressing search without opening a result keeps the query for later.
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { viewModel.rememberQuery() }),
                     modifier = Modifier.weight(1f).focusRequester(focus),
                 )
             }

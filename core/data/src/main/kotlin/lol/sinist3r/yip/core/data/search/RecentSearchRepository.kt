@@ -27,7 +27,8 @@ class RecentSearchRepository @Inject constructor(
         }
     }
 
-    suspend fun remove(item: RecentSearch) = store.updateData { s -> RecentSearches(s.items.filterNot { it.kind == item.kind && it.key == item.key }) }
+    suspend fun remove(item: RecentSearch) =
+        store.updateData { s -> RecentSearches(s.items.filterNot { it.kind == item.kind && it.key.equals(item.key, ignoreCase = true) }) }
 
     suspend fun clear() = store.updateData { RecentSearches() }
 
