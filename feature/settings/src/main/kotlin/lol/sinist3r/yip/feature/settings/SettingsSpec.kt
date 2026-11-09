@@ -351,6 +351,8 @@ object SettingsSpec {
             Row.Toggle("Keep watch history", get = { it.data.keepWatchHistory }, set = { s, v -> s.copy(data = s.data.copy(keepWatchHistory = v)) }),
             Row.Slider("Keep history for", null, 7f..180f, 0, { "${it.toInt()} days" }, get = { it.data.historyDays.toFloat() }, set = { s, v -> s.copy(data = s.data.copy(historyDays = v.toInt())) }),
             Row.Action("Clear watch history", null, "clear_history", destructive = true),
+            Row.Toggle("Keep recent searches", "Channels, categories and searches you opened from Search", get = { it.data.keepRecentSearches }, set = { s, v -> s.copy(data = s.data.copy(keepRecentSearches = v)) }),
+            Row.Action("Clear recent searches", null, "clear_recent_searches", destructive = true),
             Row.Header("Backup"),
             Row.Action("Export settings", "Save every setting and filter to a file. Accounts aren't included.", "export"),
             Row.Action("Import settings", "Replace your settings with a saved file", "import"),

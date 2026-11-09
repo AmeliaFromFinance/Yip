@@ -221,8 +221,10 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
                 nav, startDestination = start, modifier = Modifier.fillMaxSize(),
                 enterTransition = { if (reduce) EnterTransition.None else fadeIn(tween(150)) },
                 exitTransition = { if (reduce) ExitTransition.None else fadeOut(tween(90)) },
-                popEnterTransition = { if (reduce) EnterTransition.None else fadeIn(tween(150)) },
-                popExitTransition = { if (reduce) ExitTransition.None else fadeOut(tween(90)) },
+                // Going back is instant. With predictive back the gesture scrubs the pop transition,
+                // so any fade here gets stretched across the whole swipe.
+                popEnterTransition = { EnterTransition.None },
+                popExitTransition = { ExitTransition.None },
             ) {
                 composable<FollowingRoute> { FollowingScreen(browseNav) }
                 composable<BrowseRoute> { BrowseScreen(browseNav) }

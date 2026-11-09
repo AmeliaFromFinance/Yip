@@ -176,8 +176,23 @@ class CategoryViewModel @Inject constructor(savedState: SavedStateHandle, twitch
 }
 
 @HiltViewModel
-class SearchViewModel @Inject constructor(private val twitch: TwitchRepository, settingsRepo: SettingsRepository) : ViewModel() {
+class SearchViewModel @Inject constructor(
+    private val twitch: TwitchRepository,
+    settingsRepo: SettingsRepository,
+    private val recentRepo: lol.sinist3r.yip.core.data.search.RecentSearchRepository,
+) : ViewModel() {
     val settings = settingsRepo.settings
+    val recent = recentRepo.items.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun remember(item: lol.sinist3r.yip.core.model.RecentSearch) = viewModelScope.launch { recentRepo.add(item) }
+    fun forget(item: lol.sinist3r.yip.core.model.RecentSearch) = viewModelScope.launch { recentRepo.remove(item) }
+    fun clearRecent() = viewModelScope.launch { recentRepo.clear() }
+
+    /** Saves what was typed once a result is picked, so it can be re-run later. */
+    fun rememberQuery() {
+        val q = _query.value.trim()
+        if (q.length >= 2) remember(lol.sinist3r.yip.core.model.RecentSearch(lol.sinist3r.yip.core.model.RecentKind.QUERY, q, q))
+    }
     private val _query = MutableStateFlow("")
     val query = _query.asStateFlow()
     private var channelPager: Pager<Channel>? = null

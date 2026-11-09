@@ -22,6 +22,7 @@ import kotlinx.serialization.json.Json
 import lol.sinist3r.yip.core.model.AccountSecrets
 import lol.sinist3r.yip.core.model.AccountsState
 import lol.sinist3r.yip.core.model.AppSettings
+import lol.sinist3r.yip.core.model.RecentSearches
 import timber.log.Timber
 
 internal val storeJson = Json {
@@ -80,6 +81,13 @@ object DataStoreModule {
         serializer = JsonSerializer(AccountsState.serializer(), AccountsState()),
         corruptionHandler = ReplaceFileCorruptionHandler { AccountsState() },
         produceFile = { File(context.filesDir, "datastore/accounts.json") },
+    )
+
+    @Provides @Singleton
+    fun recentSearches(@ApplicationContext context: Context): DataStore<RecentSearches> = DataStoreFactory.create(
+        serializer = JsonSerializer(RecentSearches.serializer(), RecentSearches()),
+        corruptionHandler = ReplaceFileCorruptionHandler { RecentSearches() },
+        produceFile = { File(context.filesDir, "datastore/recent_searches.json") },
     )
 
     @Provides @Singleton

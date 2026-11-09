@@ -1,5 +1,9 @@
 package lol.sinist3r.yip.feature.browse
 
+import lol.sinist3r.yip.core.model.RecentKind
+import lol.sinist3r.yip.core.model.RecentSearch
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -312,6 +316,17 @@ fun SearchScreen(nav: BrowseNavigator, onBack: (() -> Unit)?, viewModel: SearchV
     val query by viewModel.query.collectAsStateWithLifecycle()
     val channels by viewModel.channels.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val recent by viewModel.recent.collectAsStateWithLifecycle()
+    val openChannel = { c: lol.sinist3r.yip.core.model.Channel ->
+        viewModel.rememberQuery()
+        viewModel.remember(RecentSearch(RecentKind.CHANNEL, c.login, c.displayName, c.profileImageUrl))
+        nav.openChannel(c.login)
+    }
+    val openCategory = { c: lol.sinist3r.yip.core.model.Category ->
+        viewModel.rememberQuery()
+        viewModel.remember(RecentSearch(RecentKind.CATEGORY, c.id, c.name, c.boxArt(72, 96)))
+        nav.openCategory(c.id, c.name)
+    }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val focus = remember { FocusRequester() }
     // Pop the keyboard only when search was opened on purpose, not when tapping the Search tab.
@@ -339,7 +354,22 @@ fun SearchScreen(nav: BrowseNavigator, onBack: (() -> Unit)?, viewModel: SearchV
     }) { padding ->
         Box(Modifier.padding(padding)) {
             if (query.trim().length < 2) {
-                MessageState("Search Twitch", "Type at least two characters.", Icons.Outlined.Search)
+                if (recent.isEmpty()) {
+                    MessageState("Search Twitch", "Type at least two characters.", Icons.Outlined.Search)
+                } else {
+                    RecentSearchList(
+                        items = recent,
+                        onOpen = { r ->
+                            when (r.kind) {
+                                RecentKind.CHANNEL -> { viewModel.remember(r); nav.openChannel(r.key) }
+                                RecentKind.CATEGORY -> { viewModel.remember(r); nav.openCategory(r.key, r.label) }
+                                RecentKind.QUERY -> viewModel.onQuery(r.key)
+                            }
+                        },
+                        onRemove = viewModel::forget,
+                        onClear = viewModel::clearRecent,
+                    )
+                }
             } else if (tab == 0) {
                 val grid = rememberLazyGridState()
                 grid.OnNearEnd(onLoadMore = { viewModel.moreChannels() })
@@ -349,13 +379,44 @@ fun SearchScreen(nav: BrowseNavigator, onBack: (() -> Unit)?, viewModel: SearchV
                             headlineContent = { Text(c.displayName) },
                             supportingContent = { Text(listOfNotNull(if (c.isLive) "Live" else null, c.gameName, c.title).joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             leadingContent = { Avatar(c.profileImageUrl, null, 40.dp, live = c.isLive) },
-                            modifier = Modifier.clickable { nav.openChannel(c.login) },
+                            modifier = Modifier.clickable { openChannel(c) },
                         )
                     }
                 }
             } else {
-                CategoryGrid(categories, {}, { viewModel.moreCategories() }) { nav.openCategory(it.id, it.name) }
+                CategoryGrid(categories, {}, { viewModel.moreCategories() }) { openCategory(it) }
             }
+        }
+    }
+}
+
+@Composable
+private fun RecentSearchList(items: List<RecentSearch>, onOpen: (RecentSearch) -> Unit, onRemove: (RecentSearch) -> Unit, onClear: () -> Unit) {
+    androidx.compose.foundation.lazy.LazyColumn(contentPadding = PaddingValues(bottom = 8.dp)) {
+        item(key = "header") {
+            Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Recent", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                androidx.compose.material3.TextButton(onClick = onClear) { Text("Clear all") }
+            }
+        }
+        items(items.size, key = { "${items[it].kind}:${items[it].key}" }) { i ->
+            val r = items[i]
+            ListItem(
+                headlineContent = { Text(r.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                supportingContent = { Text(when (r.kind) { RecentKind.CHANNEL -> "Channel"; RecentKind.CATEGORY -> "Category"; RecentKind.QUERY -> "Search" }) },
+                leadingContent = {
+                    when (r.kind) {
+                        RecentKind.CHANNEL -> Avatar(r.imageUrl, null, 40.dp)
+                        RecentKind.CATEGORY -> coil3.compose.AsyncImage(
+                            model = r.imageUrl, contentDescription = null,
+                            modifier = Modifier.size(30.dp, 40.dp).clip(MaterialTheme.shapes.extraSmall),
+                        )
+                        RecentKind.QUERY -> Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.History, null) }
+                    }
+                },
+                trailingContent = { IconButton(onClick = { onRemove(r) }) { Icon(Icons.Outlined.Close, "Remove ${r.label}") } },
+                modifier = Modifier.clickable { onOpen(r) },
+            )
         }
     }
 }

@@ -268,6 +268,7 @@ data class ExperimentalSettings(
 data class DataSettings(
     val imageCacheMb: Int = 256,
     val keepWatchHistory: Boolean = true,
+    val keepRecentSearches: Boolean = true,
     val historyDays: Int = 30,
     val remoteConfigUrl: String = DEFAULT_CONFIG_URL,
     val verboseLogging: Boolean = false,

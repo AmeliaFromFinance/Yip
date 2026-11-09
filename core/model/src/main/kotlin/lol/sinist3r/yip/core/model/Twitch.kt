@@ -118,3 +118,17 @@ data class ScheduleSegment(
 )
 
 data class Page<T>(val items: List<T>, val cursor: String?)
+
+enum class RecentKind { CHANNEL, CATEGORY, QUERY }
+
+/** Something opened or searched from the search screen. [key] is a login, category id or query. */
+@Serializable
+data class RecentSearch(
+    val kind: RecentKind,
+    val key: String,
+    val label: String,
+    val imageUrl: String? = null,
+)
+
+@Serializable
+data class RecentSearches(val items: List<RecentSearch> = emptyList())
