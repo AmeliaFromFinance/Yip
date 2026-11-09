@@ -29,6 +29,8 @@ data class HistoryEntry(
 class HistoryRepository @Inject constructor(private val dao: HistoryDao, private val settings: SettingsRepository) {
 
     val recent: Flow<List<HistoryEntry>> = dao.recent().map { list -> list.map { it.toEntry() } }
+    /** Everything kept, for the Library screen. */
+    val all: Flow<List<HistoryEntry>> = dao.recent(500).map { list -> list.map { it.toEntry() } }
 
     suspend fun record(
         kind: HistoryKind, contentId: String, channelId: String, channelLogin: String, channelName: String,

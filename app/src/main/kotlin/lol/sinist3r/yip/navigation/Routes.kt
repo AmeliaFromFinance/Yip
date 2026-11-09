@@ -21,6 +21,7 @@ import kotlinx.serialization.Serializable
 )
 
 @Serializable data class MultiViewRoute(val logins: String)
+@Serializable data class LibraryRoute(val tab: Int = 0)
 @Serializable data object InboxRoute
 @Serializable data class WhisperRoute(val login: String)
 @Serializable data object LoginRoute

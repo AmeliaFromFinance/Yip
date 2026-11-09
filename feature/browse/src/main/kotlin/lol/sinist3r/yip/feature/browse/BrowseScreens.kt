@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -99,6 +100,7 @@ interface BrowseNavigator {
     fun openChat(login: String)
     fun openStreamManager()
     fun openInbox() {}
+    fun openLibrary() {}
 }
 
 internal fun gridCells(appearance: AppearanceSettings): GridCells = when {
@@ -132,6 +134,7 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
                         }
                     }
                     IconButton(onClick = nav::openSearch) { Icon(Icons.Outlined.Search, "Search") }
+                    IconButton(onClick = nav::openLibrary) { Icon(Icons.Outlined.VideoLibrary, "History and downloads") }
                     Box {
                         IconButton(onClick = { sortMenu = true }) { Icon(Icons.AutoMirrored.Filled.Sort, "Sort") }
                         DropdownMenu(sortMenu, onDismissRequest = { sortMenu = false }) {
@@ -168,7 +171,7 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     if (state.history.isNotEmpty()) {
-                        fullSpan("hdr-history") { SectionHeader("Continue watching") }
+                        fullSpan("hdr-history") { SectionHeader("Continue watching") { androidx.compose.material3.TextButton(onClick = nav::openLibrary) { Text("See all") } } }
                         fullSpan("history") { HistoryRow(state.history, nav::openHistory, viewModel::removeHistory) }
                     }
                     if (state.pinned.isNotEmpty()) {

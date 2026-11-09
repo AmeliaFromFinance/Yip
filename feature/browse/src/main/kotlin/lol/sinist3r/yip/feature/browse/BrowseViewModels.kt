@@ -112,7 +112,8 @@ class FollowingViewModel @Inject constructor(
             offline = s.offline.filterNot { it.login.lowercase() in pins },
             // Drop anything unpinned since the last fetch; live ones first.
             pinned = s.pinned.filter { it.login in pins }.sortedBy { if (it.stream != null) 0 else 1 },
-            history = if (st.general.continueWatching) h.take(12) else emptyList(),
+            // Finished videos drop out; they stay in Library → History.
+            history = if (st.general.continueWatching) h.filterNot { it.kind == lol.sinist3r.yip.core.database.HistoryKind.VOD && it.progress >= 0.95f }.take(12) else emptyList(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FollowingUiState())
 

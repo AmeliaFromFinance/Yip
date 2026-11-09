@@ -165,6 +165,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun openChat(login: String) = nav.navigate(WatchRoute("CHAT", login))
             override fun openStreamManager() = nav.navigate(StreamManagerRoute)
             override fun openInbox() = nav.navigate(InboxRoute)
+            override fun openLibrary() = nav.navigate(LibraryRoute())
             override fun addToMultiView(login: String) {
                 if (login !in multiQueue) multiQueue += login
                 scope.launch {
@@ -175,6 +176,13 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
                     }
                 }
             }
+        }
+    }
+    val libraryNav = remember {
+        object : lol.sinist3r.yip.feature.watch.LibraryNavigator {
+            override fun back() { nav.popBackStack() }
+            override fun openHistory(entry: HistoryEntry) = browseNav.openHistory(entry)
+            override fun openDownload(kind: String, contentId: String) = nav.navigate(WatchRoute(kind, contentId))
         }
     }
     val inboxNav = remember {
@@ -260,6 +268,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
                 composable<ChannelRoute> { ChannelScreen(browseNav, onBack = { nav.popBackStack() }, onFollowToggle = onFollow) }
                 composable<WatchRoute>(deepLinks = emptyList()) { WatchScreen(watchNav, inPip) }
                 composable<MultiViewRoute> { MultiViewScreen(watchNav) }
+                composable<LibraryRoute> { e -> lol.sinist3r.yip.feature.watch.LibraryScreen(libraryNav, startTab = e.toRoute<LibraryRoute>().tab) }
                 composable<InboxRoute> { lol.sinist3r.yip.feature.watch.InboxScreen(inboxNav) }
                 composable<WhisperRoute> { lol.sinist3r.yip.feature.watch.WhisperScreen(inboxNav) }
                 composable<SettingsRoute> { SettingsRoot(settingsNav, showBack = false) }

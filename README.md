@@ -10,6 +10,8 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 
 **Watching**
 - Live, VODs (with chapters and resume), clips
+- Download VODs and clips to watch offline
+- Library: full watch history and downloads; Continue watching skips finished videos
 - Quality picker, separate defaults for Wi-Fi and mobile data, remember per channel
 - Low-latency, balanced or stable buffering, with live latency shown on the player
 - Stats overlay: delay, resolution, bitrate, network speed, buffer and dropped frames

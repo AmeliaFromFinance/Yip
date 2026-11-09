@@ -105,6 +105,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     var showFilters by remember { mutableStateOf(false) }
     var showAddStream by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    var showDownload by remember { mutableStateOf(false) }
     var emoteCard by remember { mutableStateOf<Emote?>(null) }
     var showEmotes by remember { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<ChatItem.Message?>(null) }
@@ -178,6 +179,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onToggleMute = viewModel.playback::toggleMute,
             onMultiView = if (isLive && info.user != null) ({ showAddStream = true }) else null,
             onClip = if (isLive && signedIn && info.stream != null) ({ viewModel.createClip() }) else null,
+            onDownload = if (!isLive && viewModel.downloadId != null && playState.qualities.isNotEmpty()) ({ showDownload = true }) else null,
             onRetry = { if (info.error != null) viewModel.load() else viewModel.playback.retry() },
             modifier = mod,
         )
@@ -267,6 +269,13 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     clip?.let { ClipSheet(it, onDismiss = viewModel::dismissClip) }
     if (showAddStream) info.user?.let { u ->
         AddStreamSheet(exclude = setOf(u.login.lowercase()), onPick = { showAddStream = false; nav.openMultiView(listOf(u.login, it)) }, onDismiss = { showAddStream = false })
+    }
+    if (showDownload) {
+        val items by viewModel.downloadItems.collectAsStateWithLifecycle()
+        DownloadSheet(
+            playState.qualities, duration, items.firstOrNull { it.id == viewModel.downloadId },
+            onPick = viewModel::download, onRemove = viewModel::removeDownload, onDismiss = { showDownload = false },
+        )
     }
     if (showSearch) ChatSearchSheet(chat, options, actions, onDismiss = { showSearch = false })
     if (showFilters) ChatFiltersSheet(settings.filters, viewModel::updateFilters, onDismiss = { showFilters = false })

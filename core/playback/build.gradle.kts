@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.yip.android.library)
     alias(libs.plugins.yip.hilt)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 dependencies {

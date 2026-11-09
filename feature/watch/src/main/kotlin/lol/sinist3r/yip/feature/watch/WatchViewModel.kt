@@ -85,7 +85,29 @@ class WatchViewModel @Inject constructor(
     private val helix: HelixApi,
     private val replay: ReplaySession,
     private val mentions: lol.sinist3r.yip.core.data.chat.MentionNotifier,
+    private val downloads: lol.sinist3r.yip.core.playback.Downloads,
 ) : ViewModel() {
+
+    val downloadItems = downloads.items
+
+    /** Download id for this VOD or clip, or null for live. */
+    val downloadId: String? get() = when (kind) {
+        WatchKind.VOD -> downloads.id("VOD", target)
+        WatchKind.CLIP -> downloads.id("CLIP", target)
+        else -> null
+    }
+
+    fun download(q: lol.sinist3r.yip.core.model.StreamQuality) {
+        val src = playback.state.value.source ?: return
+        val (k, duration) = when (src) {
+            is PlaybackSource.Vod -> "VOD" to src.durationSeconds
+            is PlaybackSource.ClipSrc -> "CLIP" to 0L
+            else -> return
+        }
+        downloads.start(q.url, lol.sinist3r.yip.core.playback.DownloadMeta(k, target, src.title.ifBlank { _info.value.title }, src.channelLogin, src.channelName, src.thumbnailUrl, duration, q.label))
+    }
+
+    fun removeDownload() { downloadId?.let(downloads::remove) }
 
     fun resolveAutoMod(item: ChatItem.AutoMod, allow: Boolean) = viewModelScope.launch {
         val me = accounts.userId() ?: return@launch

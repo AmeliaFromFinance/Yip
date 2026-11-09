@@ -96,6 +96,7 @@ class PlaybackController @Inject constructor(
     private val settings: SettingsRepository,
     private val history: HistoryRepository,
     private val channelPrefs: ChannelPrefsDao,
+    private val downloads: Downloads,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var _player: ExoPlayer? = null
@@ -180,6 +181,13 @@ class PlaybackController @Inject constructor(
                         startWith(pickInitial(source.channelId, r.qualities), live = true)
                     }
                     is PlaybackSource.Vod -> {
+                        val offline = downloads.completed("VOD", source.videoId)
+                        if (offline != null) {
+                            playOffline(offline, source)
+                            val resume = source.startAtSeconds ?: if (settings.current().player.resumeVods) history.resumePosition(source.videoId) else null
+                            resume?.let { player.seekTo(it * 1000) }
+                            return@attempt
+                        }
                         val r = repo.resolveVod(source.videoId)
                         masterUrl = r.masterPlaylistUrl
                         _state.update { it.copy(qualities = r.qualities) }
@@ -188,6 +196,7 @@ class PlaybackController @Inject constructor(
                         resume?.let { player.seekTo(it * 1000) }
                     }
                     is PlaybackSource.ClipSrc -> {
+                        downloads.completed("CLIP", source.slug)?.let { playOffline(it, source); return@attempt }
                         val qualities = repo.resolveClip(source.slug)
                         if (qualities.isEmpty()) throw AppException(AppException.Kind.NOT_FOUND, "Clip unavailable")
                         _state.update { it.copy(qualities = qualities, auto = false) }
@@ -353,6 +362,14 @@ class PlaybackController @Inject constructor(
                 is PlaybackSource.ClipSrc -> Unit
             }
         }
+    }
+
+    private fun playOffline(download: androidx.media3.exoplayer.offline.Download, source: PlaybackSource) {
+        val label = StreamQuality("offline", "Downloaded", null, null, null, download.request.uri.toString())
+        _state.update { it.copy(qualities = listOf(label), selected = label, auto = false) }
+        player.setMediaSource(downloads.offlineSource(download, metadata(source)))
+        player.prepare()
+        player.play()
     }
 
     private fun metadata(src: PlaybackSource) = MediaMetadata.Builder()
