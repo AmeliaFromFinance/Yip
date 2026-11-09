@@ -12,7 +12,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -24,6 +23,7 @@ import coil3.request.CachePolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -73,6 +73,10 @@ internal class AnimatedPaint(private val drawable: Drawable, width: Int, height:
     private var users = 0
     private var job: Job? = null
 
+    // The loop belongs to the paint, not to a chat line: lines come and go as chat scrolls,
+    // and cancelling the first one's scope used to freeze every name sharing this paint.
+    private val loopScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
     init {
         drawable.setBounds(0, 0, width, height)
         renderFrame()
@@ -85,11 +89,11 @@ internal class AnimatedPaint(private val drawable: Drawable, width: Int, height:
     }
 
     // Main thread only: the bitmap is changed between frames, never while the UI is recording one.
-    fun acquire(scope: CoroutineScope) {
+    fun acquire() {
         users++
         if (job?.isActive == true) return
         (drawable as? Animatable)?.start()
-        job = scope.launch(Dispatchers.Main.immediate) {
+        job = loopScope.launch {
             while (isActive) {
                 delay(FRAME_MS)
                 renderFrame()
@@ -148,11 +152,10 @@ internal fun rememberAnimatedPaint(url: String?): AnimatedPaint? {
     LaunchedEffect(url) { if (url != null && paint == null) paint = AnimatedPaints.load(context, url) }
     val current = paint ?: return null
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val scope = rememberCoroutineScope()
     DisposableEffect(current, lifecycle) {
         var held = false
         fun hold(on: Boolean) {
-            if (on && !held) current.acquire(scope) else if (!on && held) current.release()
+            if (on && !held) current.acquire() else if (!on && held) current.release()
             held = on
         }
         val observer = LifecycleEventObserver { _, _ -> hold(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }

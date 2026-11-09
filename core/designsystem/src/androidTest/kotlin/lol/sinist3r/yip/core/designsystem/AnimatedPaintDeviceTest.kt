@@ -16,9 +16,6 @@ import coil3.gif.MovieDrawable
 import coil3.gif.repeatCount
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import lol.sinist3r.yip.core.designsystem.chat.AnimatedPaint
 import org.junit.Assert.assertTrue
@@ -60,15 +57,13 @@ class AnimatedPaintDeviceTest {
         val d = result.image.asDrawable(ctx.resources)
         lateinit var paint: AnimatedPaint
         inst.runOnMainSync { paint = AnimatedPaint(d, d.intrinsicWidth, d.intrinsicHeight) }
-        val scope = CoroutineScope(Dispatchers.Main)
-        inst.runOnMainSync { paint.acquire(scope) }
+        inst.runOnMainSync { paint.acquire() }
         val frames = HashSet<Int>()
         repeat(30) {
             Thread.sleep(40)
             inst.runOnMainSync { frames += paint.image.asAndroidBitmap().asSequence().hashCode() }
         }
         inst.runOnMainSync { paint.release() }
-        scope.cancel()
         assertTrue("only ${frames.size} distinct frames", frames.size > 3)
     }
 
