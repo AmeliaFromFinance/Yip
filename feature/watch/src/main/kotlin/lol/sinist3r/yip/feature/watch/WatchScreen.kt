@@ -200,7 +200,14 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val chatPane = @Composable { mod: Modifier, overlay: Boolean ->
         Column(mod) {
             if (!overlay) RoomStateBar(room, connection, points)
-            if (!overlay && !events.isEmpty) EventBanners(events)
+            if (!overlay && !events.isEmpty) {
+                val voted by viewModel.votedPolls.collectAsStateWithLifecycle()
+                val connected by viewModel.webConnected.collectAsStateWithLifecycle()
+                EventBanners(
+                    events,
+                    actions = if (connected) EventActions(voted, points, viewModel::votePoll, { pr, o, n -> viewModel.predict(pr, o, n) }) else null,
+                )
+            }
             raid?.let { r -> RaidBanner(r, onGo = { viewModel.dismissRaid(); nav.openLive(r.login) }, onDismiss = viewModel::dismissRaid) }
             ChatList(chat, options, actions, Modifier.weight(1f))
             if (isLive || chatOnly) {
@@ -373,6 +380,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onDismiss = viewModel::closeUser,
             note = settings.chat.userNotes[card.login.lowercase()],
             onSaveNote = { viewModel.saveNote(card.login, it) },
+            reasons = settings.chat.modReasons,
+            onModWithReason = { a, id, r -> viewModel.moderate(a, id, reason = r) },
             onWhisper = if (signedIn) ({ viewModel.closeUser(); nav.openWhisper(it) }) else null,
         )
     }

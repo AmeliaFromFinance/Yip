@@ -39,7 +39,11 @@ object RewardsParser {
         "MAX_PER_STREAM", "MAX_PER_STREAM_EXCEEDED", "MAX_PER_USER_PER_STREAM" -> "Limit reached for this stream"
         "DISABLED", "PAUSED", "NOT_IN_STOCK", "REWARD_DISABLED" -> "This reward isn't available right now"
         "PROPERTIES_MISMATCH" -> "The reward changed. Refresh and try again"
-        "FORBIDDEN", "USER_BANNED" -> "You can't redeem rewards in this channel"
+        "FORBIDDEN", "USER_BANNED" -> "You can't do that in this channel"
+        "EVENT_NOT_ACTIVE", "EVENT_LOCKED", "PREDICTION_LOCKED" -> "Predictions are closed"
+        "POLL_NOT_ACTIVE", "POLL_ENDED" -> "The poll has ended"
+        "MAX_POINTS_PER_EVENT", "OVER_MAX_POINTS" -> "That's more than the limit for this prediction"
+        "DUPLICATE_PREDICTION", "ALREADY_PREDICTED_DIFFERENT_OUTCOME" -> "You've already picked the other side"
         else -> "Twitch said: ${code.lowercase().replace('_', ' ')}"
     }
 }

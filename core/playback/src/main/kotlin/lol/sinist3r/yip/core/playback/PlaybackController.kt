@@ -218,6 +218,7 @@ class PlaybackController @Inject constructor(
 
     private suspend fun pickInitial(channelId: String, qualities: List<StreamQuality>): StreamQuality? {
         val s = settings.current().player
+        if (s.audioOnlyOnMobile && !isOnWifi()) qualities.firstOrNull { it.isAudioOnly }?.let { return it }
         if (s.rememberQualityPerChannel) {
             channelPrefs.get(channelId)?.qualityId?.let { id -> qualities.firstOrNull { it.id == id }?.let { return it } }
         }

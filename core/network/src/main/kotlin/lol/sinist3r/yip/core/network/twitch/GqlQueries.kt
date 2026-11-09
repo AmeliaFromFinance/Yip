@@ -95,9 +95,9 @@ internal object GqlQueries {
     val CHANNEL_EVENTS = """
         query ChannelEvents(${'$'}login: String!) {
           user(login: ${'$'}login) {
-            viewablePoll { id title status remainingDurationMilliseconds choices { title votes { total } } }
+            viewablePoll { id title status remainingDurationMilliseconds settings { communityPointsVotes { isEnabled cost } } choices { id title votes { total } } }
             channel {
-              activePredictionEvents { id title status createdAt predictionWindowSeconds outcomes { title color totalPoints totalUsers } }
+              activePredictionEvents { id title status createdAt predictionWindowSeconds outcomes { id title color totalPoints totalUsers } self { prediction { points outcome { id } } } }
               hypeTrain { execution { id isActive expiresAt progress { goal total progression level { value } } } }
             }
           }
@@ -116,6 +116,14 @@ internal object GqlQueries {
             }
           }
         }
+    """.trimIndent()
+
+    val VOTE_POLL = """
+        mutation Vote(${'$'}input: VoteInPollInput!) { voteInPoll(input: ${'$'}input) { error { code } } }
+    """.trimIndent()
+
+    val MAKE_PREDICTION = """
+        mutation Predict(${'$'}input: MakePredictionInput!) { makePrediction(input: ${'$'}input) { error { code } prediction { id } } }
     """.trimIndent()
 
     val REDEEM_REWARD = """

@@ -43,3 +43,14 @@ class ChannelEventsTest {
         assertTrue(parse("""{"user":null}""").isEmpty)
     }
 }
+
+class ChannelEventsVotingTest {
+    @Test fun readsIdsSettingsAndYourPick() {
+        val e = ChannelEventsParser.parse(Json.parseToJsonElement("""{"user":{"viewablePoll":{"id":"p","title":"T","status":"ACTIVE","remainingDurationMilliseconds":1000,"settings":{"communityPointsVotes":{"isEnabled":true,"cost":250}},"choices":[{"id":"c1","title":"A","votes":{"total":1}}]},
+            "channel":{"activePredictionEvents":[{"id":"e","title":"Win?","status":"ACTIVE","createdAt":"2026-11-09T20:00:00Z","predictionWindowSeconds":60,"outcomes":[{"id":"o1","title":"Yes","color":"BLUE","totalPoints":10,"totalUsers":1}],"self":{"prediction":{"points":500,"outcome":{"id":"o1"}}}}],"hypeTrain":{"execution":null}}}}""").jsonObject)
+        assertEquals("c1", e.poll!!.choices.single().id)
+        assertEquals(250, e.poll!!.pointsVoteCost)
+        assertEquals("o1", e.prediction!!.myOutcomeId)
+        assertEquals(500L, e.prediction!!.myPoints)
+    }
+}

@@ -22,9 +22,10 @@ object ChannelEventsParser {
         val status = o.str("status").orEmpty()
         // Twitch keeps showing a finished poll briefly; drop archived/terminated ones.
         if (status !in setOf("ACTIVE", "COMPLETED")) return null
-        val choices = o.arr("choices").mapNotNull { it as? JsonObject }.map { PollChoice(it.str("title").orEmpty(), it.obj("votes")?.int("total") ?: 0) }
+        val choices = o.arr("choices").mapNotNull { it as? JsonObject }.map { PollChoice(it.str("title").orEmpty(), it.obj("votes")?.int("total") ?: 0, it.str("id").orEmpty()) }
         val remaining = o.long("remainingDurationMilliseconds")
-        return ChannelPoll(o.str("id") ?: return null, o.str("title").orEmpty(), choices, remaining?.takeIf { it > 0 }?.let { now + it }, active = status == "ACTIVE")
+        val points = o.path("settings", "communityPointsVotes")?.takeIf { it.bool("isEnabled") == true }?.int("cost")
+        return ChannelPoll(o.str("id") ?: return null, o.str("title").orEmpty(), choices, remaining?.takeIf { it > 0 }?.let { now + it }, active = status == "ACTIVE", pointsVoteCost = points)
     }
 
     private fun prediction(channel: JsonObject?): Prediction? {
@@ -33,9 +34,13 @@ object ChannelEventsParser {
         val created = o.str("createdAt")?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
         val window = o.long("predictionWindowSeconds")
         val outcomes = o.arr("outcomes").mapNotNull { it as? JsonObject }.map {
-            PredictionOutcome(it.str("title").orEmpty(), it.str("color").orEmpty(), it.long("totalPoints") ?: 0, it.int("totalUsers") ?: 0)
+            PredictionOutcome(it.str("title").orEmpty(), it.str("color").orEmpty(), it.long("totalPoints") ?: 0, it.int("totalUsers") ?: 0, it.str("id").orEmpty())
         }
-        return Prediction(o.str("id") ?: return null, o.str("title").orEmpty(), status, if (created != null && window != null) created + window * 1000 else null, outcomes)
+        val mine = o.path("self", "prediction")
+        return Prediction(
+            o.str("id") ?: return null, o.str("title").orEmpty(), status, if (created != null && window != null) created + window * 1000 else null, outcomes,
+            myOutcomeId = mine?.obj("outcome")?.str("id"), myPoints = mine?.long("points"),
+        )
     }
 
     private fun hypeTrain(o: JsonObject?): HypeTrain? {

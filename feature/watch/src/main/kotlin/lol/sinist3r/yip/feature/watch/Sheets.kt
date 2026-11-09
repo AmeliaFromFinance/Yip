@@ -359,6 +359,9 @@ fun UserCardSheet(
     onMod: (ModAction, String) -> Unit,
     onDismiss: () -> Unit,
     note: lol.sinist3r.yip.core.model.UserNote? = null,
+    /** Preset reasons; the picked one goes with timeouts and bans. */
+    reasons: List<String> = emptyList(),
+    onModWithReason: ((ModAction, String, String?) -> Unit)? = null,
     onSaveNote: ((lol.sinist3r.yip.core.model.UserNote) -> Unit)? = null,
     onWhisper: ((String) -> Unit)? = null,
 ) {
@@ -385,17 +388,26 @@ fun UserCardSheet(
             }
             onSaveNote?.let { save -> UserNoteEditor(note ?: lol.sinist3r.yip.core.model.UserNote(), save) }
             if (isModerator && user != null) {
+                var reason by rememberSaveable(card.login) { mutableStateOf<String?>(null) }
+                val mod: (ModAction, String) -> Unit = { a, id -> onModWithReason?.invoke(a, id, reason) ?: onMod(a, id) }
                 Text("Moderation", style = MaterialTheme.typography.labelLarge)
+                if (reasons.isNotEmpty() && onModWithReason != null) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        reasons.forEach { r ->
+                            androidx.compose.material3.FilterChip(selected = reason == r, onClick = { reason = if (reason == r) null else r }, label = { Text(r) })
+                        }
+                    }
+                }
                 // Timeouts and bans on separate lines; each wraps on narrow screens.
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Timer, "Timeout", Modifier.padding(end = 4.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedButton(onClick = { onMod(ModAction.TIMEOUT_1M, user.id) }) { Text("1m") }
-                    OutlinedButton(onClick = { onMod(ModAction.TIMEOUT_10M, user.id) }) { Text("10m") }
-                    OutlinedButton(onClick = { onMod(ModAction.TIMEOUT_1H, user.id) }) { Text("1h") }
+                    OutlinedButton(onClick = { mod(ModAction.TIMEOUT_1M, user.id) }) { Text("1m") }
+                    OutlinedButton(onClick = { mod(ModAction.TIMEOUT_10M, user.id) }) { Text("10m") }
+                    OutlinedButton(onClick = { mod(ModAction.TIMEOUT_1H, user.id) }) { Text("1h") }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     OutlinedButton(
-                        onClick = { onMod(ModAction.BAN, user.id) },
+                        onClick = { mod(ModAction.BAN, user.id) },
                         colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     ) { Icon(Icons.Outlined.Gavel, null, Modifier.size(18.dp)); Text(" Ban") }
                     OutlinedButton(onClick = { onMod(ModAction.UNBAN, user.id) }) { Text("Unban") }

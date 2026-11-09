@@ -56,6 +56,29 @@ class PointsRepository @Inject constructor(private val gql: GqlApi, private val 
         )
     }
 
+    /** Null on success, otherwise why it failed. [extraVotes] spends channel points for more votes. */
+    suspend fun votePoll(poll: lol.sinist3r.yip.core.model.ChannelPoll, choice: lol.sinist3r.yip.core.model.PollChoice, extraVotes: Int = 0): String? {
+        if (accounts.webToken() == null) return CONNECT
+        val me = accounts.userId() ?: return CONNECT
+        return attempt { gql.votePoll(poll.id, choice.id, me, extraVotes) }.fold(
+            onSuccess = { it.obj("voteInPoll")?.obj("error")?.str("code")?.let(lol.sinist3r.yip.core.network.twitch.RewardsParser::errorText) },
+            onFailure = { it.message ?: "Couldn't vote" },
+        )
+    }
+
+    /** Null on success, otherwise why it failed. */
+    suspend fun predict(prediction: lol.sinist3r.yip.core.model.Prediction, outcome: lol.sinist3r.yip.core.model.PredictionOutcome, points: Int): String? {
+        if (accounts.webToken() == null) return CONNECT
+        return attempt { gql.makePrediction(prediction.id, outcome.id, points) }.fold(
+            onSuccess = { data ->
+                val r = data.obj("makePrediction")
+                r?.obj("error")?.str("code")?.let(lol.sinist3r.yip.core.network.twitch.RewardsParser::errorText)
+                    ?: if (r?.obj("prediction") != null) null else "Twitch didn't confirm the prediction"
+            },
+            onFailure = { it.message ?: "Couldn't predict" },
+        )
+    }
+
     /** Returns the new balance if a bonus was claimed. */
     suspend fun claimIfAvailable(channelLogin: String): Int? {
         val s = status(channelLogin) ?: return null
@@ -66,5 +89,7 @@ class PointsRepository @Inject constructor(private val gql: GqlApi, private val 
         }.onFailure { Timber.w(it, "claim failed") }.getOrNull()
     }
 }
+
+private const val CONNECT = "Connect twitch.tv under Settings → Accounts first"
 
 private fun JsonPrimitiveOf(s: String) = kotlinx.serialization.json.JsonPrimitive(s)

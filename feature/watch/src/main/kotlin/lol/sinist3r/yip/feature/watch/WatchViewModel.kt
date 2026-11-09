@@ -133,6 +133,22 @@ class WatchViewModel @Inject constructor(
             .onFailure { e -> session.value?.system("Couldn't ${if (allow) "allow" else "deny"} that message: ${e.message?.substringAfter(": ")?.take(120)}") }
     }
 
+    /** Polls voted in this session (Twitch doesn't tell us). */
+    private val _voted = MutableStateFlow<Set<String>>(emptySet())
+    val votedPolls = _voted.asStateFlow()
+
+    fun votePoll(poll: lol.sinist3r.yip.core.model.ChannelPoll, choice: lol.sinist3r.yip.core.model.PollChoice, extraVotes: Int = 0) = viewModelScope.launch {
+        val error = points.votePoll(poll, choice, extraVotes)
+        if (error == null) _voted.update { it + poll.id }
+        session.value?.system(error?.let { "Vote failed: $it" } ?: "Voted for ${choice.title}")
+    }
+
+    fun predict(p: lol.sinist3r.yip.core.model.Prediction, outcome: lol.sinist3r.yip.core.model.PredictionOutcome, amount: Int) = viewModelScope.launch {
+        val error = points.predict(p, outcome, amount)
+        session.value?.system(error?.let { "Prediction failed: $it" } ?: "Predicted ${"%,d".format(amount)} on ${outcome.title}")
+        if (error == null) _points.update { it?.minus(amount) }
+    }
+
     private val _rewards = MutableStateFlow<RewardsState?>(null)
     val rewards = _rewards.asStateFlow()
 
@@ -214,6 +230,8 @@ class WatchViewModel @Inject constructor(
     val settings: StateFlow<AppSettings> = settingsRepo.settings
     val playbackState = playback.state
     val signedIn = accounts.active.map { it != null }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    /** twitch.tv connected: voting, predictions, rewards. */
+    val webConnected = accounts.active.map { it?.hasWebToken == true }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _info = MutableStateFlow(WatchInfo())
     val info = _info.asStateFlow()
@@ -404,16 +422,16 @@ class WatchViewModel @Inject constructor(
 
     fun closeUser() { _userCard.value = null }
 
-    fun moderate(action: ModAction, userId: String, messageId: String? = null) = viewModelScope.launch {
+    fun moderate(action: ModAction, userId: String, messageId: String? = null, reason: String? = null) = viewModelScope.launch {
         val me = accounts.userId() ?: return@launch
         val ch = channelIdFlow.value ?: return@launch
         attempt {
             when (action) {
                 ModAction.DELETE -> helix.deleteMessage(ch, me, messageId)
-                ModAction.TIMEOUT_1M -> helix.ban(ch, me, userId, 60, null)
-                ModAction.TIMEOUT_10M -> helix.ban(ch, me, userId, 600, null)
-                ModAction.TIMEOUT_1H -> helix.ban(ch, me, userId, 3600, null)
-                ModAction.BAN -> helix.ban(ch, me, userId, null, null)
+                ModAction.TIMEOUT_1M -> helix.ban(ch, me, userId, 60, reason)
+                ModAction.TIMEOUT_10M -> helix.ban(ch, me, userId, 600, reason)
+                ModAction.TIMEOUT_1H -> helix.ban(ch, me, userId, 3600, reason)
+                ModAction.BAN -> helix.ban(ch, me, userId, null, reason)
                 ModAction.UNBAN -> helix.unban(ch, me, userId)
             }
         }.onFailure { session.value?.system("Moderation failed: ${it.message}") }

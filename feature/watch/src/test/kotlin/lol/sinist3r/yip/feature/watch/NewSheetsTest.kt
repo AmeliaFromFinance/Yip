@@ -79,15 +79,18 @@ class NewSheetsTest {
     @Test fun eventBanners() {
         val now = System.currentTimeMillis()
         val events = lol.sinist3r.yip.core.model.ChannelEvents(
-            poll = lol.sinist3r.yip.core.model.ChannelPoll("p", "Which game next?", listOf(lol.sinist3r.yip.core.model.PollChoice("Celeste", 30), lol.sinist3r.yip.core.model.PollChoice("Hades", 10)), now + 65_000, true),
+            poll = lol.sinist3r.yip.core.model.ChannelPoll("p", "Which game next?", listOf(lol.sinist3r.yip.core.model.PollChoice("Celeste", 30, "c1"), lol.sinist3r.yip.core.model.PollChoice("Hades", 10, "c2")), now + 65_000, true),
             prediction = lol.sinist3r.yip.core.model.Prediction("x", "Holt Rohat den Win?", lol.sinist3r.yip.core.model.PredictionStatus.ACTIVE, now + 90_000,
-                listOf(lol.sinist3r.yip.core.model.PredictionOutcome("Ja", "BLUE", 1_295_708, 60), lol.sinist3r.yip.core.model.PredictionOutcome("Ne", "PINK", 4_500_445, 111))),
+                listOf(lol.sinist3r.yip.core.model.PredictionOutcome("Ja", "BLUE", 1_295_708, 60, "o1"), lol.sinist3r.yip.core.model.PredictionOutcome("Ne", "PINK", 4_500_445, 111, "o2"))),
             hypeTrain = lol.sinist3r.yip.core.model.HypeTrain("h", 9, 2450, 7200, now + 200_000),
         )
-        themed { androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().androidx_bg()) { EventBanners(events) } }
+        val actions = EventActions(emptySet(), 12_000, { _, _, _ -> }, { _, _, _ -> })
+        themed { androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().androidx_bg()) { EventBanners(events, actions = actions) } }
         compose.onNodeWithText("Hype Train · level 9").assertIsDisplayed()
         compose.onNodeWithText("Which game next?").performClick()
-        compose.onNodeWithText("Celeste").assertIsDisplayed()
+        compose.onNodeWithText("tap a choice to vote", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Holt Rohat den Win?").performClick()
+        compose.onNodeWithText("Predict Ja").assertIsDisplayed()
         captureScreenRoboImage("build/screenshots/event_banners.png")
     }
 

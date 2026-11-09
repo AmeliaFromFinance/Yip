@@ -177,7 +177,11 @@ class TwitchRepository @Inject constructor(
         }
     }
 
-    suspend fun channelEvents(login: String): lol.sinist3r.yip.core.model.ChannelEvents = gql.channelEvents(login)
+    suspend fun channelEvents(login: String): lol.sinist3r.yip.core.model.ChannelEvents {
+        // Signed-in adds your own prediction; fall back to the public view if that fails.
+        if (accounts.webToken() != null) attempt { gql.channelEvents(login, authed = true) }.getOrNull()?.let { return it }
+        return gql.channelEvents(login)
+    }
 
     suspend fun channel(login: String? = null, id: String? = null): ChannelInfo? {
         if (signedInUserId() != null) {

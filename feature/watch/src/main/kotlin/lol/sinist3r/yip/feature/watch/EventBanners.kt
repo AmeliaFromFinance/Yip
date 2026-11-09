@@ -47,15 +47,23 @@ import lol.sinist3r.yip.core.model.HypeTrain
 import lol.sinist3r.yip.core.model.Prediction
 import lol.sinist3r.yip.core.model.PredictionStatus
 
-/** Compact cards above chat. Tap to expand, × to hide that event. View only: voting happens on twitch.tv. */
+/** What the cards can do; null means view only (no twitch.tv connection). */
+class EventActions(
+    val votedPolls: Set<String>,
+    val balance: Int?,
+    val onVote: (ChannelPoll, lol.sinist3r.yip.core.model.PollChoice, Int) -> Unit,
+    val onPredict: (Prediction, lol.sinist3r.yip.core.model.PredictionOutcome, Int) -> Unit,
+)
+
+/** Compact cards above chat. Tap to expand, × to hide that event. */
 @Composable
-fun EventBanners(events: ChannelEvents, modifier: Modifier = Modifier) {
+fun EventBanners(events: ChannelEvents, modifier: Modifier = Modifier, actions: EventActions? = null) {
     val hidden = remember { mutableStateListOf<String>() }
     val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(1000) } }
     Column(modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         events.hypeTrain?.takeIf { "ht:${it.id}" !in hidden }?.let { HypeTrainCard(it, now) { hidden += "ht:${it.id}" } }
-        events.prediction?.takeIf { "pr:${it.id}" !in hidden }?.let { PredictionCard(it, now) { hidden += "pr:${it.id}" } }
-        events.poll?.takeIf { "po:${it.id}" !in hidden }?.let { PollCard(it, now) { hidden += "po:${it.id}" } }
+        events.prediction?.takeIf { "pr:${it.id}" !in hidden }?.let { PredictionCard(it, now, actions) { hidden += "pr:${it.id}" } }
+        events.poll?.takeIf { "po:${it.id}" !in hidden }?.let { PollCard(it, now, actions) { hidden += "po:${it.id}" } }
     }
 }
 
@@ -102,7 +110,7 @@ private fun HypeTrainCard(h: HypeTrain, now: Long, onHide: () -> Unit) {
 }
 
 @Composable
-private fun PollCard(p: ChannelPoll, now: Long, onHide: () -> Unit) {
+private fun PollCard(p: ChannelPoll, now: Long, actions: EventActions?, onHide: () -> Unit) {
     val total = p.totalVotes.coerceAtLeast(1)
     val leader = p.choices.maxByOrNull { it.votes }
     val status = if (!p.active) "Ended" else p.endsAtMillis?.let { timeLeft(it, now) }
@@ -110,13 +118,31 @@ private fun PollCard(p: ChannelPoll, now: Long, onHide: () -> Unit) {
         Icons.Outlined.BarChart, p.title, status, onHide,
         details = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                val voted = actions != null && p.id in actions.votedPolls
+                val canVote = actions != null && p.active && !voted
                 p.choices.forEach { c ->
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
+                            .clickable(enabled = canVote, onClickLabel = "Vote for ${c.title}") { actions?.onVote(p, c, 0) },
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
                         Row { Text(c.title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium); Text("${pct(c.votes.toLong(), total.toLong())}%", style = MaterialTheme.typography.labelLarge) }
                         Bar(c.votes / total.toFloat())
+                        // Extra votes cost channel points, when the streamer allows it.
+                        if (voted && p.active && p.pointsVoteCost != null) {
+                            androidx.compose.material3.TextButton(onClick = { actions?.onVote(p, c, 1) }) { Text("+1 vote for ◆ ${"%,d".format(p.pointsVoteCost)}") }
+                        }
                     }
                 }
-                Text("${p.totalVotes} votes · vote on twitch.tv", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "${p.totalVotes} votes · " + when {
+                        actions == null -> "connect twitch.tv to vote"
+                        voted -> "you voted"
+                        p.active -> "tap a choice to vote"
+                        else -> "voting closed"
+                    },
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         },
     ) {
@@ -125,7 +151,8 @@ private fun PollCard(p: ChannelPoll, now: Long, onHide: () -> Unit) {
 }
 
 @Composable
-private fun PredictionCard(p: Prediction, now: Long, onHide: () -> Unit) {
+private fun PredictionCard(p: Prediction, now: Long, actions: EventActions?, onHide: () -> Unit) {
+    var predictOn by remember(p.id) { mutableStateOf<lol.sinist3r.yip.core.model.PredictionOutcome?>(null) }
     val total = p.totalPoints.coerceAtLeast(1)
     val status = when (p.status) {
         PredictionStatus.ACTIVE -> p.locksAtMillis?.let { timeLeft(it, now) } ?: "Open"
@@ -144,13 +171,52 @@ private fun PredictionCard(p: Prediction, now: Long, onHide: () -> Unit) {
                             Text("${pct(o.points, total)}% · ${compact(o.points)} pts · ${o.users} people", style = MaterialTheme.typography.labelMedium)
                         }
                         Bar(o.points / total.toFloat(), c)
+                        val mine = p.myOutcomeId == o.id
+                        if (mine) Text("Your pick · ◆ ${"%,d".format(p.myPoints ?: 0)}", style = MaterialTheme.typography.labelMedium, color = c)
+                        // Once you've picked, you can only add to the same side.
+                        if (actions != null && p.status == PredictionStatus.ACTIVE && (p.myOutcomeId == null || mine)) {
+                            androidx.compose.material3.TextButton(onClick = { predictOn = o }) { Text(if (mine) "Add points" else "Predict ${o.title}") }
+                        }
                     }
                 }
-                Text("Predict on twitch.tv", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    if (actions == null) "Connect twitch.tv to predict" else actions.balance?.let { "You have ◆ ${"%,d".format(it)}" } ?: "Uses your channel points",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         },
     ) {
         Text(p.outcomes.joinToString("  vs  ") { "${it.title} ${pct(it.points, total)}%" }, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+    predictOn?.let { o ->
+        var amount by remember(o.id) { mutableStateOf("") }
+        val bal = actions?.balance
+        val value = amount.toIntOrNull() ?: 0
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { predictOn = null },
+            title = { Text("Predict ${o.title}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    bal?.let { Text("You have ◆ ${"%,d".format(it)}", style = MaterialTheme.typography.bodyMedium) }
+                    androidx.compose.material3.OutlinedTextField(
+                        amount, { amount = it.filter(Char::isDigit).take(9) }, label = { Text("Points") }, singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(100, 1_000, 10_000).filter { bal == null || it <= bal }.forEach { n ->
+                            androidx.compose.material3.AssistChip(onClick = { amount = n.toString() }, label = { Text("%,d".format(n)) })
+                        }
+                        bal?.takeIf { it > 0 }?.let { b -> androidx.compose.material3.AssistChip(onClick = { amount = b.toString() }, label = { Text("All") }) }
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.FilledTonalButton(enabled = value > 0 && (bal == null || value <= bal), onClick = { predictOn = null; actions?.onPredict(p, o, value) }) {
+                    Text("Predict ◆ ${"%,d".format(value)}")
+                }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { predictOn = null }) { Text("Cancel") } },
+        )
     }
 }
 

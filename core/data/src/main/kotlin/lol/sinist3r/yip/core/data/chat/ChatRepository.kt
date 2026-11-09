@@ -164,7 +164,7 @@ class ChatSession internal constructor(
                         system(if (ev.durationSeconds != null) "$name was timed out for ${ev.durationSeconds}s" else "$name's messages were cleared")
                     }
                 }
-                RawChat.Clear -> { mutate { emptyList() }; system("Chat was cleared by a moderator") }
+                RawChat.Clear -> { mutate { emptyList() }; if (settings.chat.showModActions) system("Chat was cleared by a moderator") }
                 is RawChat.Room -> _room.update { r ->
                     r.copy(
                         emoteOnly = ev.emoteOnly ?: r.emoteOnly,

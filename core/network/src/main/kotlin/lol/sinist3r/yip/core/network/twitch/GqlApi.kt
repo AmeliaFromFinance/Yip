@@ -255,8 +255,32 @@ class GqlApi @Inject constructor(
     })
 
     suspend fun globalBadges() = query(GqlQueries.GLOBAL_BADGES)
-    suspend fun channelEvents(login: String): lol.sinist3r.yip.core.model.ChannelEvents =
-        ChannelEventsParser.parse(query(GqlQueries.CHANNEL_EVENTS, buildJsonObject { put("login", login.lowercase()) }))
+    /** [authed] adds your own prediction; needs the twitch.tv connection. */
+    suspend fun channelEvents(login: String, authed: Boolean = false): lol.sinist3r.yip.core.model.ChannelEvents {
+        val vars = buildJsonObject { put("login", login.lowercase()) }
+        return ChannelEventsParser.parse(if (authed) queryAuthed(GqlQueries.CHANNEL_EVENTS, vars) else query(GqlQueries.CHANNEL_EVENTS, vars))
+    }
+
+    suspend fun votePoll(pollId: String, choiceId: String, userId: String, pointsVotes: Int = 0): JsonObject =
+        queryAuthed(GqlQueries.VOTE_POLL, buildJsonObject {
+            putJsonObject("input") {
+                put("pollID", pollId)
+                put("choiceID", choiceId)
+                put("userID", userId)
+                put("voteID", java.util.UUID.randomUUID().toString())
+                if (pointsVotes > 0) putJsonObject("tokens") { put("channelPoints", pointsVotes) }
+            }
+        }, integrity = true)
+
+    suspend fun makePrediction(eventId: String, outcomeId: String, points: Int): JsonObject =
+        queryAuthed(GqlQueries.MAKE_PREDICTION, buildJsonObject {
+            putJsonObject("input") {
+                put("eventID", eventId)
+                put("outcomeID", outcomeId)
+                put("points", points)
+                put("transactionID", java.util.UUID.randomUUID().toString().replace("-", ""))
+            }
+        }, integrity = true)
 
     suspend fun channelBadges(channelId: String) = query(GqlQueries.CHANNEL_BADGES, buildJsonObject { put("id", channelId) })
 

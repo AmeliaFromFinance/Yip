@@ -99,6 +99,8 @@ data class PlayerSettings(
     val bufferProfile: BufferProfile = BufferProfile.BALANCED,
     /** Jump back to live when the delay grows well past the target. */
     val autoCatchUp: Boolean = true,
+    /** Start in audio-only when not on Wi-Fi. */
+    val audioOnlyOnMobile: Boolean = false,
     val backgroundAudio: Boolean = true,
     val autoPip: Boolean = true,
     val pauseOnHeadphonesUnplugged: Boolean = true,
@@ -162,8 +164,10 @@ data class ChatSettings(
     val alternateRows: Boolean = false,
     val separators: Boolean = false,
     val messageLimit: Int = 500,
-    val deletedMessages: DeletedMessages = DeletedMessages.STRIKE,
-    val showModActions: Boolean = true,
+    val deletedMessages: DeletedMessages = DeletedMessages.HIDE,
+    val showModActions: Boolean = false,
+    /** Quick reasons for timeouts and bans. */
+    val modReasons: List<String> = listOf("Spam", "Being rude", "Spoilers", "Self-promotion", "Off-topic"),
     val showFirstMessageTag: Boolean = true,
     val showReplies: Boolean = true,
     val showSubNotices: Boolean = true,
