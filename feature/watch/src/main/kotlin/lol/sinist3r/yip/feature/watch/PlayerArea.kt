@@ -116,7 +116,9 @@ fun PlayerArea(
         }
     }
     LaunchedEffect(gestureHint) { if (gestureHint != null) { delay(900); gestureHint = null } }
-    LaunchedEffect(Unit) {
+    // Only tick the seek bar while it's on screen; otherwise the whole player recomposed twice a second.
+    LaunchedEffect(controls, isLive) {
+        if (!controls || isLive) return@LaunchedEffect
         while (true) {
             position = player.currentPosition
             delay(500)

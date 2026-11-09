@@ -22,6 +22,8 @@ internal fun Project.configureKotlinAndroid(common: CommonExtension) {
         compileOptions.targetCompatibility = JavaVersion.VERSION_21
         testOptions.unitTests.isIncludeAndroidResources = true
     }
+    // Some modules only hold fixtures; Gradle 9 would otherwise fail the whole test run on them.
+    tasks.withType(org.gradle.api.tasks.testing.Test::class.java).configureEach { failOnNoDiscoveredTests.set(false) }
     extensions.configure<KotlinAndroidProjectExtension> {
         jvmToolchain(21)
         compilerOptions {

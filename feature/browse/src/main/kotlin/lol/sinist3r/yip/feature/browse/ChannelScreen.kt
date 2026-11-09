@@ -127,6 +127,8 @@ fun ChannelScreen(
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         PrimaryScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
                             listOf("About", "Videos", "Clips", "Schedule").forEachIndexed { i, t -> Tab(tab == i, { tab = i }, text = { Text(t) }) }
+                            // Opens a full-height chat screen; works whether or not the channel is live.
+                            Tab(false, { nav.openChat(info.user.login) }, text = { Text("Chat") })
                         }
                     }
                     when (tab) {

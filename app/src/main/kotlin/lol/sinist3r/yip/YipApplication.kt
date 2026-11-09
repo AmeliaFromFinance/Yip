@@ -21,7 +21,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import lol.sinist3r.yip.core.common.AppScope
 import lol.sinist3r.yip.core.common.LogBuffer
 import lol.sinist3r.yip.core.data.settings.SettingsRepository
@@ -34,10 +33,11 @@ import timber.log.Timber
 class YipApplication : Application(), Configuration.Provider, SingletonImageLoader.Factory {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
-    @Inject lateinit var okHttp: OkHttpClient
+    // Lazy so building the HTTP stack doesn't block the first frame; warmed on IO in onCreate.
+    @Inject lateinit var okHttp: dagger.Lazy<OkHttpClient>
     @Inject lateinit var settings: SettingsRepository
-    @Inject lateinit var remoteConfig: RemoteConfigSource
-    @Inject lateinit var accounts: lol.sinist3r.yip.core.data.account.AccountRepository
+    @Inject lateinit var remoteConfig: dagger.Lazy<RemoteConfigSource>
+    @Inject lateinit var accounts: dagger.Lazy<lol.sinist3r.yip.core.data.account.AccountRepository>
     @Inject @AppScope lateinit var scope: CoroutineScope
 
     override val workManagerConfiguration: Configuration
@@ -48,20 +48,21 @@ class YipApplication : Application(), Configuration.Provider, SingletonImageLoad
         Timber.plant(LogBuffer)
         if (BuildConfig.DEBUG) Timber.plant(Timber.DebugTree())
         createChannels()
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) { okHttp.get() }
         scope.launch {
             settings.settings.map { it.data.verboseLogging }.distinctUntilChanged().collect { LogBuffer.verbose = it || BuildConfig.DEBUG }
         }
         scope.launch {
             settings.settings.map { it.data.remoteConfigUrl }.distinctUntilChanged().collect {
-                remoteConfig.url = it
-                remoteConfig.refresh(force = true)
+                remoteConfig.get().url = it
+                remoteConfig.get().refresh(force = true)
             }
         }
         // Twitch asks apps to validate user tokens hourly.
         scope.launch {
             while (true) {
                 kotlinx.coroutines.delay(60 * 60 * 1000L)
-                if (accounts.userId() != null) accounts.validateActive()
+                if (accounts.get().userId() != null) accounts.get().validateActive()
             }
         }
         scope.launch {
@@ -72,10 +73,10 @@ class YipApplication : Application(), Configuration.Provider, SingletonImageLoad
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader {
-        val cacheMb = runBlocking { settings.current().data.imageCacheMb }.coerceIn(64, 1024)
+        val cacheMb = settings.settings.value.data.imageCacheMb.coerceIn(64, 1024)
         return ImageLoader.Builder(context)
             .components {
-                add(OkHttpNetworkFetcherFactory(callFactory = { okHttp }))
+                add(OkHttpNetworkFetcherFactory(callFactory = { okHttp.get() }))
                 add(AnimatedImageDecoder.Factory())
                 add(SvgDecoder.Factory())
             }

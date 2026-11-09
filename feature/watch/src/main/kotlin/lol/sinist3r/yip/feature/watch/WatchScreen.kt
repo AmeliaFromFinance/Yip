@@ -7,6 +7,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -107,8 +109,9 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         }
     }
 
-    DisposableEffect(settings.player.autoPip, settings.player.keepScreenOn) {
-        host?.setWatching(true, settings.player.autoPip, settings.player.keepScreenOn)
+    val chatOnly = viewModel.kind == WatchKind.CHAT
+    DisposableEffect(settings.player.autoPip, settings.player.keepScreenOn, chatOnly) {
+        if (!chatOnly) host?.setWatching(true, settings.player.autoPip, settings.player.keepScreenOn)
         onDispose { host?.setWatching(false, false, false) }
     }
     val context = LocalContext.current
@@ -119,7 +122,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         }
     }
     LaunchedEffect(settings.player.sleepTimerMinutes) {
-        if (settings.player.sleepTimerMinutes > 0 && playState.sleepAtMillis == null) viewModel.playback.setSleepTimer(settings.player.sleepTimerMinutes)
+        if (!chatOnly && settings.player.sleepTimerMinutes > 0 && playState.sleepAtMillis == null) viewModel.playback.setSleepTimer(settings.player.sleepTimerMinutes)
     }
 
     val src = playState.source
@@ -152,7 +155,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         Column(mod) {
             if (!overlay) RoomStateBar(room, connection, points)
             ChatList(chat, options, actions, Modifier.weight(1f))
-            if (isLive && !overlay) {
+            if ((isLive || chatOnly) && !overlay) {
                 Composer(
                     enabled = connection.connected && !connection.readOnly,
                     signedIn = signedIn,
@@ -175,12 +178,19 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         }
     }
 
-    if (inPip) {
+    if (inPip && !chatOnly) {
         player(Modifier.fillMaxSize())
         return
     }
 
-    if (landscape) {
+    if (chatOnly) {
+        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
+            ChatOnlyHeader(info, nav)
+            HorizontalDivider()
+            info.error?.let { Text(it, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
+            chatPane(Modifier.weight(1f), false)
+        }
+    } else if (landscape) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             when {
                 !chatEnabled || settings.player.landscapeChat == LandscapeChat.HIDDEN -> player(Modifier.fillMaxSize())
@@ -249,6 +259,23 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onUser = { viewModel.openUser(m.user.login) },
             onDismiss = { menuFor = null },
         )
+    }
+}
+
+@Composable
+private fun ChatOnlyHeader(info: WatchInfo, nav: WatchNavigator) {
+    Row(Modifier.fillMaxWidth().padding(end = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.IconButton(onClick = nav::back) {
+            androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, "Back")
+        }
+        val user = info.user
+        if (user != null) {
+            Avatar(user.profileImageUrl, user.displayName, 32.dp, live = info.stream != null)
+            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                Text(user.displayName, style = MaterialTheme.typography.titleSmall)
+                Text(if (info.stream != null) "Live" else "Offline chat", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else Spacer(Modifier.weight(1f))
     }
 }
 

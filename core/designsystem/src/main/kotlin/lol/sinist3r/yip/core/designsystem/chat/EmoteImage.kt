@@ -3,6 +3,7 @@ package lol.sinist3r.yip.core.designsystem.chat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -23,9 +24,13 @@ fun EmoteImage(emote: Emote, overlays: List<Emote> = emptyList(), animate: Boole
 @Composable
 private fun SingleEmote(emote: Emote, animate: Boolean) {
     val context = LocalContext.current
-    val request = ImageRequest.Builder(context)
-        .data(emote.url(2))
-        .apply { if (!animate && emote.animated) decoderFactory(BitmapFactoryDecoder.Factory()) }
-        .build()
+    // Built once per emote; rebuilding on every recomposition made Coil re-resolve each frame of a busy chat.
+    val request = remember(emote.id, emote.provider, animate) {
+        ImageRequest.Builder(context)
+            .data(emote.url(2))
+            .memoryCacheKey("${emote.provider}:${emote.id}:${if (animate) "a" else "s"}")
+            .apply { if (!animate && emote.animated) decoderFactory(BitmapFactoryDecoder.Factory()) }
+            .build()
+    }
     AsyncImage(model = request, contentDescription = emote.code, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
 }

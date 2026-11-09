@@ -36,6 +36,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -111,6 +117,8 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
     val scope = rememberCoroutineScope()
     val multiQueue = remember { mutableStateListOf<String>() }
     val playState by activity.playback.state.collectAsStateWithLifecycle()
+    // Chat-only screens count as "watching" for the nav bar, but keep the mini player visible.
+    val chatOnly = destination?.hasRoute<WatchRoute>() == true && runCatching { backStack?.toRoute<WatchRoute>()?.kind == "CHAT" }.getOrDefault(false)
     val onWatch = destination?.hasRoute<WatchRoute>() == true || destination?.hasRoute<MultiViewRoute>() == true
     val isTopLevel = topLevel.any { t -> destination?.hierarchy?.any { it.hasRoute(t.route::class) } == true }
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -148,6 +156,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             }
             override fun openLogin() = nav.navigate(LoginRoute)
             override fun openSearch() = nav.navigate(SearchRoute)
+            override fun openChat(login: String) = nav.navigate(WatchRoute("CHAT", login))
             override fun addToMultiView(login: String) {
                 if (!settings.experimental.multiView) return
                 if (login !in multiQueue) multiQueue += login
@@ -206,7 +215,15 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
 
     val content = @Composable {
         Box(Modifier.fillMaxSize()) {
-            NavHost(nav, startDestination = start, modifier = Modifier.fillMaxSize()) {
+            // Short fades instead of the 700 ms default; none at all with reduce motion on.
+            val reduce = settings.appearance.reduceMotion
+            NavHost(
+                nav, startDestination = start, modifier = Modifier.fillMaxSize(),
+                enterTransition = { if (reduce) EnterTransition.None else fadeIn(tween(150)) },
+                exitTransition = { if (reduce) ExitTransition.None else fadeOut(tween(90)) },
+                popEnterTransition = { if (reduce) EnterTransition.None else fadeIn(tween(150)) },
+                popExitTransition = { if (reduce) ExitTransition.None else fadeOut(tween(90)) },
+            ) {
                 composable<FollowingRoute> { FollowingScreen(browseNav) }
                 composable<BrowseRoute> { BrowseScreen(browseNav) }
                 composable<SearchRoute> { SearchScreen(browseNav, onBack = if (nav.previousBackStackEntry != null) ({ nav.popBackStack() }) else null) }
@@ -227,7 +244,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
                 composable<LogsRoute> { LogsScreen(onBack = { nav.popBackStack() }) }
             }
             val src = playState.source
-            if (!onWatch && src != null && settings.player.miniPlayer && !inPip) {
+            if ((!onWatch || chatOnly) && src != null && settings.player.miniPlayer && !inPip) {
                 MiniPlayer(
                     title = src.title.ifBlank { src.channelName },
                     channel = src.channelName,
@@ -248,9 +265,10 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
         }
     }
 
-    if (onWatch || inPip || !isTopLevel) {
-        content()
-    } else {
+    // The scaffold stays in the tree on every screen so the NavHost is never torn down and rebuilt;
+    // the bar is just hidden off top-level screens.
+    val adaptive = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(androidx.compose.material3.adaptive.currentWindowAdaptiveInfo())
+    run {
         NavigationSuiteScaffold(
             navigationSuiteItems = {
                 topLevel.forEach { t ->
@@ -269,7 +287,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
                     )
                 }
             },
-            layoutType = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(androidx.compose.material3.adaptive.currentWindowAdaptiveInfo()),
+            layoutType = if (onWatch || inPip || !isTopLevel) NavigationSuiteType.None else adaptive,
         ) { content() }
     }
 }

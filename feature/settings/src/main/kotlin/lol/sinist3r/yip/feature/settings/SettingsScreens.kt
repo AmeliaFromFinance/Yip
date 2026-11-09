@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -106,9 +107,12 @@ fun SettingsRoot(nav: SettingsNavigator, showBack: Boolean, viewModel: SettingsV
                 }
             } else {
                 val q = query.trim().lowercase()
-                val hits = SettingsSpec.pages.flatMap { p -> p.rows.filter { r -> r !is Row.Header && (r.title.lowercase().contains(q) || r.summary?.lowercase()?.contains(q) == true) }.map { p to it } }
+                val hits = SettingsSpec.pages.flatMap { p ->
+                    p.rows.withIndex().filter { (_, r) -> r !is Row.Header && (r.title.lowercase().contains(q) || r.summary?.lowercase()?.contains(q) == true) }
+                        .map { (i, r) -> Triple(p, i, r) }
+                }
                 if (hits.isEmpty()) item { Text("No settings match \"$query\"", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                items(hits, key = { (p, r) -> p.key + r.title }) { (p, r) ->
+                items(hits, key = { (p, i, _) -> "${p.key}-$i" }) { (p, _, r) ->
                     Column {
                         Text(p.title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
                         RowView(r, settings, viewModel::update, onAction = { nav.openPage(p.key) })
@@ -149,7 +153,8 @@ fun SettingsPage(key: String, nav: SettingsNavigator, viewModel: SettingsViewMod
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         LazyColumn(Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
-            items(page.rows, key = { it.title + it::class.simpleName }) { RowView(it, settings, viewModel::update, onAction) }
+            // Titles repeat across sections (e.g. "Emotes" under 7TV and BTTV), so key by position.
+            itemsIndexed(page.rows, key = { i, _ -> "${page.key}-$i" }) { _, row -> RowView(row, settings, viewModel::update, onAction) }
         }
     }
     confirm?.let { a ->

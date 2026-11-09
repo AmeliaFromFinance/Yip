@@ -137,7 +137,7 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val primary = MaterialTheme.colorScheme.primary
     val density = LocalDensity.current
-    val measurer = rememberTextMeasurer(cacheSize = 32)
+    val measurer = rememberTextMeasurer(cacheSize = 0) // result is already cached by the remember below
     val fontSize = chat.fontSizeSp.sp
     val emoteHeight = (chat.fontSizeSp * 2f * chat.emoteScale)
     val badgeSize = chat.fontSizeSp * 1.3f

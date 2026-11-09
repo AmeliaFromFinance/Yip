@@ -44,7 +44,8 @@ import lol.sinist3r.yip.core.network.twitch.HelixApi
 import lol.sinist3r.yip.core.playback.PlaybackController
 import lol.sinist3r.yip.core.playback.PlaybackSource
 
-enum class WatchKind { LIVE, VOD, CLIP }
+/** CHAT opens a channel's chat without the player, so it works when the channel is offline. */
+enum class WatchKind { LIVE, VOD, CLIP, CHAT }
 
 data class WatchInfo(
     val user: User? = null,
@@ -142,6 +143,13 @@ class WatchViewModel @Inject constructor(
                 } else {
                     playback.play(PlaybackSource.Live(ci.user.id, ci.user.login, ci.user.displayName, stream.title, stream.thumbnail(640, 360), stream.gameName))
                 }
+                afterChannelKnown(ci.user)
+            }.onFailure { _info.value = WatchInfo(error = it.message) }
+
+            WatchKind.CHAT -> attempt { twitch.channel(login = target) }.onSuccess { ci ->
+                if (ci == null) { _info.value = WatchInfo(error = "Channel not found"); return@onSuccess }
+                _info.value = WatchInfo(ci.user, ci.stream, ci.stream?.title.orEmpty())
+                startChat(ci.user.id, ci.user.login)
                 afterChannelKnown(ci.user)
             }.onFailure { _info.value = WatchInfo(error = it.message) }
 

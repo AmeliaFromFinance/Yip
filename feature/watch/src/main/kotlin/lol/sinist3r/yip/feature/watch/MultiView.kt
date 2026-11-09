@@ -205,6 +205,7 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
             TopAppBar(
                 title = { Text("Multi-view · ${tiles.size}") },
                 navigationIcon = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                windowInsets = androidx.compose.foundation.layout.WindowInsets(0),
             )
             grid(Modifier.fillMaxWidth())
             chat(Modifier.weight(1f))

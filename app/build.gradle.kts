@@ -45,6 +45,14 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("release").takeIf { it.storeFile != null }
         }
+        // Release code (R8, no debug overhead) signed with the debug key, so it installs for testing.
+        create("staging") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
     }
 
 

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -88,6 +89,7 @@ interface BrowseNavigator {
     fun openLogin()
     fun addToMultiView(login: String)
     fun openSearch()
+    fun openChat(login: String)
 }
 
 internal fun gridCells(appearance: AppearanceSettings): GridCells = when {
@@ -312,10 +314,11 @@ fun SearchScreen(nav: BrowseNavigator, onBack: (() -> Unit)?, viewModel: SearchV
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val focus = remember { FocusRequester() }
-    androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    // Pop the keyboard only when search was opened on purpose, not when tapping the Search tab.
+    androidx.compose.runtime.LaunchedEffect(Unit) { if (onBack != null) runCatching { focus.requestFocus() } }
     Scaffold(topBar = {
-        Column {
-            Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.statusBarsPadding()) {
+            Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 16.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 onBack?.let { IconButton(onClick = it) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }
                 OutlinedTextField(
                     value = query,
