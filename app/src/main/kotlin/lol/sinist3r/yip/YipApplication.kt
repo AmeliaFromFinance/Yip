@@ -37,6 +37,7 @@ class YipApplication : Application(), Configuration.Provider, SingletonImageLoad
     @Inject lateinit var okHttp: OkHttpClient
     @Inject lateinit var settings: SettingsRepository
     @Inject lateinit var remoteConfig: RemoteConfigSource
+    @Inject lateinit var accounts: lol.sinist3r.yip.core.data.account.AccountRepository
     @Inject @AppScope lateinit var scope: CoroutineScope
 
     override val workManagerConfiguration: Configuration
@@ -54,6 +55,13 @@ class YipApplication : Application(), Configuration.Provider, SingletonImageLoad
             settings.settings.map { it.data.remoteConfigUrl }.distinctUntilChanged().collect {
                 remoteConfig.url = it
                 remoteConfig.refresh(force = true)
+            }
+        }
+        // Twitch asks apps to validate user tokens hourly.
+        scope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(60 * 60 * 1000L)
+                if (accounts.userId() != null) accounts.validateActive()
             }
         }
         scope.launch {

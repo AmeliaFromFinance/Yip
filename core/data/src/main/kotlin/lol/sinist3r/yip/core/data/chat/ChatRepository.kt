@@ -50,6 +50,7 @@ class ChatSession internal constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val buffer = ArrayDeque<ChatItem>()
+    private val ids = HashSet<String>()
     private val incoming = Channel<RawChat>(Channel.UNLIMITED)
     @Volatile private var dirty = false
     private val knownChatters = LinkedHashSet<String>()
@@ -167,17 +168,20 @@ class ChatSession internal constructor(
 
     fun system(text: String) = append(ChatItem.System("sys-${System.nanoTime()}", Clock.System.now(), text))
 
+    /** Drops duplicates (history and live overlap); list keys must be unique. */
     private fun append(item: ChatItem) = synchronized(buffer) {
+        if (!ids.add(item.id)) return@synchronized
         buffer.addLast(item)
         val limit = repo.settings.settings.value.chat.messageLimit.coerceIn(50, 5000)
-        while (buffer.size > limit) buffer.removeFirst()
+        while (buffer.size > limit) ids.remove(buffer.removeFirst().id)
         dirty = true
     }
 
     private fun mutate(block: (List<ChatItem>) -> List<ChatItem>) = synchronized(buffer) {
         val next = block(buffer.toList())
         buffer.clear()
-        buffer.addAll(next)
+        ids.clear()
+        next.forEach { if (ids.add(it.id)) buffer.addLast(it) }
         dirty = true
     }
 

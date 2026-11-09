@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
@@ -269,8 +268,10 @@ class PlaybackController @Inject constructor(
         src?.let { _state.value = PlaybackUiState(); play(it) }
     }
 
+    /** Started from the foreground; Media3 promotes it to a foreground service once playing. */
     private fun startService() {
-        ContextCompat.startForegroundService(context, Intent(context, PlaybackService::class.java))
+        runCatching { context.startService(Intent(context, PlaybackService::class.java)) }
+            .onFailure { Timber.w(it, "Couldn't start playback service") }
     }
 
     private fun startTicker() {

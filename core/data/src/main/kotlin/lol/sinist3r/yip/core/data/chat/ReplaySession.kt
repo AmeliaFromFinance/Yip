@@ -64,7 +64,7 @@ class ReplaySession @Inject constructor(
         val s = settings.settings.value
         val limit = s.chat.messageLimit
         val visible = loaded.asSequence().filter { it.offset <= seconds }.toList().takeLast(limit)
-        _items.value = visible.mapNotNull { pipeline.process(it.raw, cos, s, null) }.toImmutableList()
+        _items.value = visible.mapNotNull { pipeline.process(it.raw, cos, s, null) }.distinctBy { it.id }.toImmutableList()
     }
 
     private suspend fun fetch(offset: Int?, cursor: String?) {
@@ -75,7 +75,7 @@ class ReplaySession @Inject constructor(
             val n = e.obj("node") ?: return@forEach
             parse(n)?.let { loaded += it }
         }
-        loaded.sortBy { it.offset }
+        loaded = ArrayList(loaded.distinctBy { it.raw.id }.sortedBy { it.offset })
         loadedUntil = loaded.lastOrNull()?.offset ?: loadedUntil
         nextCursor = if (comments?.obj("pageInfo")?.str("hasNextPage") == "true") edges.lastOrNull()?.str("cursor") else null
     }
