@@ -3,4 +3,7 @@
     <string name="app_name">Yip</string>
     <string name="channel_live">Live channels</string>
     <string name="channel_live_desc">When channels you follow go live</string>
+    <string name="widget_live">Live now</string>
+    <string name="widget_live_description">Who you follow is live, pinned favourites first</string>
+    <string name="tile_live">Yip live</string>
 </resources>

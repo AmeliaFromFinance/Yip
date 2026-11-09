@@ -112,6 +112,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     var insert by remember { mutableStateOf<String?>(null) }
 
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val twoPane = LocalConfiguration.current.let { isTablet(it) && it.screenWidthDp >= 840 }
     val animate = rememberAnimate(settings.chat.animateEmotes, settings.appearance.reduceMotion, settings.data.dataSaver)
     val options = remember(settings.chat, settings.thirdParty, animate) { ChatRenderOptions(settings.chat, settings.thirdParty, animate) }
     val actions = remember {
@@ -226,6 +227,21 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             HorizontalDivider()
             info.error?.let { Text(it, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
             chatPane(Modifier.weight(1f), false)
+        }
+    } else if (twoPane && host?.isFullscreenRequested() != true) {
+        // Tablets and unfolded foldables in landscape: player and chat side by side, bars visible.
+        Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Box(Modifier.background(Color.Black).statusBarsPadding()) { player(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) }
+                ChannelRow(info, nav, onFilters = { showFilters = true }, onSearch = { showSearch = true })
+                if (!chatEnabled) info.clipVodId?.let { vod ->
+                    TextButton(onClick = { nav.openVod(vod, info.clipVodOffset ?: 0) }, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Watch the full broadcast from this moment") }
+                }
+            }
+            if (chatEnabled) {
+                androidx.compose.material3.VerticalDivider()
+                chatPane(Modifier.width(380.dp).fillMaxHeight().safeDrawingPadding(), false)
+            }
         }
     } else if (landscape) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -386,3 +402,6 @@ private fun ChannelRow(info: WatchInfo, nav: WatchNavigator, onFilters: () -> Un
 private val OVERLAY_TOP_CLEARANCE = 56.dp
 private val OVERLAY_BOTTOM_CLEARANCE_LIVE = 64.dp
 private val OVERLAY_BOTTOM_CLEARANCE_VOD = 112.dp
+
+/** Tablets and unfolded foldables: the short side is at least 600dp. */
+fun isTablet(config: Configuration): Boolean = config.smallestScreenWidthDp >= 600

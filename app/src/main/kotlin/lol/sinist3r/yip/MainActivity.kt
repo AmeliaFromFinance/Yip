@@ -176,6 +176,8 @@ class MainActivity : ComponentActivity(), WatchHost {
         }
     }
 
+    override fun isFullscreenRequested(): Boolean = fullscreenOn
+
     override fun isFullscreen(): Boolean = !inPip && (fullscreenOn || resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
 
     override fun setBrightness(value: Float) {

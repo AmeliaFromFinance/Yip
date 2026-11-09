@@ -129,7 +129,9 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
         if (settings.notifications.enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
     // The PiP window is landscape-shaped; that isn't a rotation, so leave fullscreen alone.
-    LaunchedEffect(onWatch, landscape, inPip) { if (onWatch && !inPip) activity.setFullscreen(landscape && activity.isFullscreen()) }
+    // Tablets keep player and chat side by side in landscape, so rotating doesn't go fullscreen there.
+    val tablet = lol.sinist3r.yip.feature.watch.isTablet(LocalConfiguration.current)
+    LaunchedEffect(onWatch, landscape, inPip) { if (onWatch && !inPip && !tablet) activity.setFullscreen(landscape && activity.isFullscreen()) }
     activity.openSignInRequest = { nav.navigate(LoginRoute) }
 
     fun openLink(url: String) {

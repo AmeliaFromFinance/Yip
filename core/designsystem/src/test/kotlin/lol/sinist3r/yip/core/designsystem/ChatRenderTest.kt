@@ -85,3 +85,23 @@ class ChatRenderTest {
     @Test fun chatDark() = render(ThemeMode.DARK, "dark")
     @Test fun chatLight() = render(ThemeMode.LIGHT, "light")
 }
+
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [35])
+class ContrastTest {
+    private fun ratio(a: androidx.compose.ui.graphics.Color, b: androidx.compose.ui.graphics.Color) =
+        androidx.core.graphics.ColorUtils.calculateContrast(a.toArgbOpaque(), b.toArgbOpaque())
+    private fun androidx.compose.ui.graphics.Color.toArgbOpaque() = android.graphics.Color.argb(255, (red * 255).toInt(), (green * 255).toInt(), (blue * 255).toInt())
+
+    @org.junit.Test fun darkBlueOnDarkMeetsAA() {
+        val bg = androidx.compose.ui.graphics.Color(0xFF121110)
+        val out = lol.sinist3r.yip.core.designsystem.chat.withContrast(androidx.compose.ui.graphics.Color(0xFF0000AA), bg)
+        org.junit.Assert.assertTrue(ratio(out, bg) >= 4.5)
+    }
+
+    @org.junit.Test fun yellowOnLightMeetsAA() {
+        val bg = androidx.compose.ui.graphics.Color(0xFFFFFBF8)
+        val out = lol.sinist3r.yip.core.designsystem.chat.withContrast(androidx.compose.ui.graphics.Color(0xFFFFEB3B), bg)
+        org.junit.Assert.assertTrue(ratio(out, bg) >= 4.5)
+    }
+}

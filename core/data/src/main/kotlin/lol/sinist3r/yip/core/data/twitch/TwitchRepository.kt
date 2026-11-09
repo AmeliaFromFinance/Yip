@@ -49,12 +49,13 @@ class TwitchRepository @Inject constructor(
     private val gql: GqlApi,
     private val accounts: AccountRepository,
     private val settings: SettingsRepository,
+    private val liveSnapshot: lol.sinist3r.yip.core.data.live.LiveSnapshot,
 ) {
     private suspend fun signedInUserId(): String? = accounts.userId()
     private suspend fun languages() = settings.current().general.streamLanguages
 
     suspend fun followedLive(): List<LiveStream> {
-        val uid = signedInUserId() ?: return emptyList()
+        val uid = signedInUserId() ?: return emptyList<LiveStream>().also { liveSnapshot.signedOut() }
         val out = mutableListOf<LiveStream>()
         var cursor: String? = null
         do {
@@ -62,7 +63,7 @@ class TwitchRepository @Inject constructor(
             out += page.data.map { it.toModel() }
             cursor = page.pagination?.cursor
         } while (cursor != null && out.size < 500)
-        return withAvatars(out)
+        return withAvatars(out).also(liveSnapshot::save)
     }
 
     suspend fun followedChannels(): List<FollowedChannel> {

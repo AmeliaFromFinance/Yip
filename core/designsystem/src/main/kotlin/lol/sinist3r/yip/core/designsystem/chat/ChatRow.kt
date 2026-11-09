@@ -140,7 +140,7 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
     val tp = options.thirdParty
     val dark = YipTheme.extras.isDark
     val onSurface = MaterialTheme.colorScheme.onSurface
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val muted = if (chat.highContrast) onSurface else MaterialTheme.colorScheme.onSurfaceVariant
     val primary = MaterialTheme.colorScheme.primary
     val density = LocalDensity.current
     val measurer = rememberTextMeasurer(cacheSize = 0) // result is already cached by the remember below
@@ -149,7 +149,8 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
     val badgeSize = chat.fontSizeSp * 1.3f
     val baseStyle = TextStyle(fontSize = fontSize, lineHeight = (chat.fontSizeSp * chat.lineSpacing).sp, color = onSurface)
     val nameColor = if (chat.showNameColors) {
-        if (chat.readableColors) readableColor(m.user.colorArgb, dark, primary) else m.user.colorArgb?.let { Color(it) } ?: primary
+        val c = if (chat.readableColors || chat.highContrast) readableColor(m.user.colorArgb, dark, primary) else m.user.colorArgb?.let { Color(it) } ?: primary
+        if (chat.highContrast) withContrast(c, MaterialTheme.colorScheme.background) else c
     } else onSurface
     val deleted = m.isDeleted && chat.deletedMessages != DeletedMessages.HIDE
     if (m.isDeleted && chat.deletedMessages == DeletedMessages.HIDE) return
@@ -195,7 +196,8 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
             m.badges.forEachIndexed { i, b ->
                 val key = "badge$i"
                 inline[key] = InlineTextContent(Placeholder((badgeSize + 3).sp, badgeSize.sp, PlaceholderVerticalAlign.TextCenter)) { BadgeImage(b, badgeSize) }
-                appendInlineContentCompat(key)
+                // Screen readers speak the alternate text; the default is a replacement character.
+                appendInlineContentCompat(key, "${b.title}, ")
             }
             pronouns?.let { withStyle(SpanStyle(color = muted, fontSize = (chat.fontSizeSp - 2).sp)) { append("$it ") } }
             val nameSpan = if (paint != null) {

@@ -150,6 +150,8 @@ data class ChatSettings(
     val showPronouns: Boolean = true,
     val showNameColors: Boolean = true,
     val readableColors: Boolean = true,
+    /** Names meet 4.5:1 contrast; timestamps and other secondary text at full strength. */
+    val highContrast: Boolean = false,
     val usernameStyle: UsernameStyle = UsernameStyle.DISPLAY,
     val alternateRows: Boolean = false,
     val separators: Boolean = false,

@@ -77,6 +77,8 @@ interface WatchHost {
     fun enterPip()
     fun setFullscreen(on: Boolean)
     fun isFullscreen(): Boolean
+    /** True only when the user turned fullscreen on, ignoring orientation. */
+    fun isFullscreenRequested(): Boolean = isFullscreen()
     fun setBrightness(value: Float)
     fun currentBrightness(): Float
     fun setWatching(active: Boolean, autoPip: Boolean, keepScreenOn: Boolean)
@@ -117,8 +119,10 @@ fun PlayerArea(
     var position by remember { mutableLongStateOf(0L) }
     val presentation = rememberPresentationState(player)
 
+    // With TalkBack on, controls stay up so they can be found by touch.
+    val talkBack = remember { context.getSystemService(android.view.accessibility.AccessibilityManager::class.java)?.isTouchExplorationEnabled == true }
     LaunchedEffect(controls, state.playing) {
-        if (controls && state.playing) {
+        if (controls && state.playing && !talkBack) {
             delay(3500)
             controls = false
         }
@@ -275,7 +279,8 @@ fun PlayerArea(
                         IconButton(onClick = onToggleMute) {
                             Icon(if (muted) Icons.AutoMirrored.Outlined.VolumeOff else Icons.AutoMirrored.Outlined.VolumeUp, if (muted) "Unmute" else "Mute", tint = Color.White)
                         }
-                        val full = host?.isFullscreen() == true
+                        // Tablets show side-by-side in landscape, so only an explicit request counts there.
+                        val full = if (isTablet(androidx.compose.ui.platform.LocalConfiguration.current)) host?.isFullscreenRequested() == true else host?.isFullscreen() == true
                         IconButton(onClick = { host?.setFullscreen(!full) }) {
                             Icon(if (full) Icons.Outlined.FullscreenExit else Icons.Outlined.Fullscreen, if (full) "Exit fullscreen" else "Fullscreen", tint = Color.White)
                         }

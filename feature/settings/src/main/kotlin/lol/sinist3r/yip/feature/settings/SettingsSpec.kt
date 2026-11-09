@@ -149,6 +149,7 @@ object SettingsSpec {
             Row.Header("Accessibility"),
             Row.Toggle("Reduce motion", "Fewer animations, including animated emotes", get = { it.appearance.reduceMotion }, set = { s, v -> s.copy(appearance = s.appearance.copy(reduceMotion = v)) }),
             Row.Toggle("Labels on bottom bar", get = { it.appearance.bottomBarLabels }, set = { s, v -> s.copy(appearance = s.appearance.copy(bottomBarLabels = v)) }),
+            Row.Toggle("High-contrast chat", "Easier-to-read names and full-strength timestamps", get = { it.chat.highContrast }, set = { s, v -> s.copy(chat = s.chat.copy(highContrast = v)) }),
         ),
     )
 

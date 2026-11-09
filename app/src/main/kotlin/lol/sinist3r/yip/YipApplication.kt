@@ -19,6 +19,7 @@ import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import lol.sinist3r.yip.core.common.AppScope
@@ -40,6 +41,7 @@ class YipApplication : Application(), Configuration.Provider, SingletonImageLoad
     @Inject lateinit var remoteConfig: dagger.Lazy<RemoteConfigSource>
     @Inject lateinit var accounts: dagger.Lazy<lol.sinist3r.yip.core.data.account.AccountRepository>
     @Inject @AppScope lateinit var scope: CoroutineScope
+    @Inject lateinit var liveSnapshot: dagger.Lazy<lol.sinist3r.yip.core.data.live.LiveSnapshot>
     @Inject lateinit var whispers: dagger.Lazy<lol.sinist3r.yip.core.data.chat.WhisperRepository>
     @Inject lateinit var playback: dagger.Lazy<lol.sinist3r.yip.core.playback.PlaybackController>
 
@@ -67,6 +69,10 @@ class YipApplication : Application(), Configuration.Provider, SingletonImageLoad
                 kotlinx.coroutines.delay(60 * 60 * 1000L)
                 if (accounts.get().userId() != null) accounts.get().validateActive()
             }
+        }
+        // Keep the widget and Quick Settings tile in step with what the app last saw.
+        scope.launch {
+            liveSnapshot.get().data.drop(1).collect { lol.sinist3r.yip.live.refreshLiveSurfaces(this@YipApplication) }
         }
         // Whispers arrive while Yip is on screen or playing in the background.
         // Main thread: lifecycle observers can't be added from a background thread (crashed on launch).

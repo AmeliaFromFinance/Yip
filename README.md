@@ -51,6 +51,9 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Stream manager for your own channel: title, category, tags, markers, ads, unban requests, who's in chat
 - Updates itself from GitHub releases (checksum-verified)
 - Themes: system, light, dark, OLED black, eight accents including Material You
+- Home screen widget and Quick Settings tile showing who's live
+- Tablet and foldable layout: player and chat side by side
+- Accessibility: high-contrast chat, screen reader labels, controls stay up with TalkBack
 - Searchable settings with import and export
 - Move settings to another device by QR code or file
 - "What's new" after each update

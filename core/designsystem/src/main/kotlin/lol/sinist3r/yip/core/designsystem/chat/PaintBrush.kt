@@ -75,3 +75,19 @@ fun readableColor(argb: Long?, dark: Boolean, fallback: Color): Color {
     if (!dark && hsl[2] > 0.5f) hsl[2] = 0.35f + (hsl[2] - 0.5f) * 0.3f
     return Color(androidx.core.graphics.ColorUtils.HSLToColor(hsl))
 }
+
+/** Nudges lightness until [fg] reaches [minRatio] contrast on [bg] (WCAG AA for text is 4.5). */
+fun withContrast(fg: Color, bg: Color, minRatio: Double = 4.5): Color {
+    fun argb(c: Color) = android.graphics.Color.argb(255, (c.red * 255).toInt(), (c.green * 255).toInt(), (c.blue * 255).toInt())
+    val back = argb(bg)
+    if (androidx.core.graphics.ColorUtils.calculateContrast(argb(fg), back) >= minRatio) return fg
+    val hsl = FloatArray(3)
+    androidx.core.graphics.ColorUtils.colorToHSL(argb(fg), hsl)
+    val lighten = androidx.core.graphics.ColorUtils.calculateLuminance(back) < 0.5
+    repeat(20) {
+        hsl[2] = (hsl[2] + if (lighten) 0.05f else -0.05f).coerceIn(0f, 1f)
+        val c = androidx.core.graphics.ColorUtils.HSLToColor(hsl)
+        if (androidx.core.graphics.ColorUtils.calculateContrast(c, back) >= minRatio) return Color(c)
+    }
+    return Color(androidx.core.graphics.ColorUtils.HSLToColor(hsl))
+}
