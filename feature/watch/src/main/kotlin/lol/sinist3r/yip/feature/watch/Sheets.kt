@@ -1,5 +1,16 @@
 package lol.sinist3r.yip.feature.watch
 
+import androidx.compose.runtime.produceState
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.FilterChip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -153,39 +164,75 @@ fun QualitySheet(
     onSleep: (Int?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        LazyColumn(Modifier.padding(bottom = 24.dp)) {
-            item { Text("Quality", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp)) }
-            if (showAuto) item {
-                ListItem(headlineContent = { Text("Auto") }, trailingContent = { if (auto) Icon(Icons.Outlined.Check, null) }, modifier = Modifier.clickable { onQuality(null) })
-            }
-            items(qualities, key = { it.id }) { q ->
-                ListItem(
-                    headlineContent = { Text(q.label + if (q.isSource) " (source)" else "") },
-                    supportingContent = q.bandwidth?.let { { Text("%.1f Mbps".format(it / 1_000_000.0)) } },
-                    trailingContent = { if (!auto && selected?.id == q.id) Icon(Icons.Outlined.Check, null) },
-                    modifier = Modifier.clickable { onQuality(q) },
-                )
+    // Fully expanded straight away: a sheet still settling eats the first tap.
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+            SheetTitle("Quality")
+            Column(Modifier.selectableGroup()) {
+                if (showAuto) OptionRow("Auto", null, selected = auto) { onQuality(null) }
+                qualities.forEach { q ->
+                    OptionRow(
+                        title = q.label + if (q.isSource) " (source)" else "",
+                        subtitle = q.bandwidth?.let { "%.1f Mbps".format(it / 1_000_000.0) },
+                        selected = !auto && selected?.id == q.id,
+                    ) { onQuality(q) }
+                }
             }
             if (showSpeed) {
-                item { Text("Speed", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp)) }
-                item {
-                    Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        speeds.forEach { s ->
-                            if (s == speed) FilledTonalButton(onClick = { onSpeed(s) }) { Text("${s}x") } else OutlinedButton(onClick = { onSpeed(s) }) { Text("${s}x") }
-                        }
+                SheetTitle("Speed")
+                FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    speeds.forEach { s -> FilterChip(selected = s == speed, onClick = { onSpeed(s) }, label = { Text("${s}x") }) }
+                }
+            }
+            SheetTitle("Sleep timer")
+            FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(15, 30, 60, 90).forEach { m -> OutlinedButton(onClick = { onSleep(m) }) { Text("$m min") } }
+            }
+            if (sleepAtMillis != null) {
+                // Ticks while the sheet is open.
+                val left by produceState(minutesLeft(sleepAtMillis), sleepAtMillis) {
+                    while (true) { value = minutesLeft(sleepAtMillis); kotlinx.coroutines.delay(15_000) }
+                }
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                ) {
+                    Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Timer, null)
+                        Text(
+                            if (left < 1) "Stopping in under a minute" else "Stops in $left min",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f).padding(start = 12.dp),
+                        )
+                        TextButton(onClick = { onSleep(null) }) { Text("Turn off") }
                     }
                 }
             }
-            item { Text("Sleep timer", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(16.dp)) }
-            item {
-                val left = sleepAtMillis?.let { ((it - System.currentTimeMillis()) / 60_000).coerceAtLeast(0) }
-                Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(15, 30, 60, 90).forEach { m -> OutlinedButton(onClick = { onSleep(m) }) { Text("${m}m") } }
-                    if (sleepAtMillis != null) FilledTonalButton(onClick = { onSleep(null) }) { Icon(Icons.Outlined.Timer, null); Text(" ${left}m · Off") }
-                }
-            }
         }
+    }
+}
+
+private fun minutesLeft(at: Long): Long = ((at - System.currentTimeMillis()) / 60_000).coerceAtLeast(0)
+
+@Composable
+private fun SheetTitle(text: String) = Text(text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp))
+
+/** Whole row is the touch target, at least 56dp tall. */
+@Composable
+private fun OptionRow(title: String, subtitle: String?, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            subtitle?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        if (selected) Icon(Icons.Outlined.Check, "Selected", tint = MaterialTheme.colorScheme.primary)
     }
 }
 

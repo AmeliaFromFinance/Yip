@@ -1,5 +1,8 @@
 package lol.sinist3r.yip.feature.watch
 
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -66,15 +69,49 @@ import lol.sinist3r.yip.core.model.ChatItem
 import lol.sinist3r.yip.core.model.Emote
 import lol.sinist3r.yip.core.model.RoomState
 
-/** Newest message at the bottom; auto-follows unless the user scrolls up. */
+/**
+ * Newest message at the bottom. Follows new messages until the user drags the list; then it
+ * pauses (like Twitch) until they tap the pill or scroll back down to the newest message.
+ */
 @Composable
 fun ChatList(items: ImmutableList<ChatItem>, options: ChatRenderOptions, actions: ChatActions, modifier: Modifier = Modifier) {
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    val atBottom by remember { derivedStateOf { state.firstVisibleItemIndex <= 1 } }
-    var seenCount by remember { mutableIntStateOf(items.size) }
-    LaunchedEffect(atBottom, items.size) { if (atBottom) seenCount = items.size }
-    val unseen = (items.size - seenCount).coerceAtLeast(0)
+    var following by remember { mutableStateOf(true) }
+    var dragging by remember { mutableStateOf(false) }
+    // Newest message seen when chat paused; counts what arrived since.
+    var pausedAt by remember { mutableStateOf<String?>(null) }
+    val latest by rememberUpdatedState(items)
+
+    LaunchedEffect(state) {
+        state.interactionSource.interactions.collect { i ->
+            when (i) {
+                is DragInteraction.Start -> {
+                    dragging = true
+                    if (following) {
+                        following = false
+                        pausedAt = latest.lastOrNull()?.id
+                    }
+                }
+                is DragInteraction.Stop, is DragInteraction.Cancel -> dragging = false
+            }
+        }
+    }
+    // Back at the newest message by hand: resume.
+    LaunchedEffect(state) {
+        snapshotFlow { state.firstVisibleItemIndex == 0 && state.firstVisibleItemScrollOffset == 0 && !state.isScrollInProgress }
+            .collect { atNewest -> if (atNewest && !dragging && !following) following = true }
+    }
+    val newest = items.lastOrNull()?.id
+    LaunchedEffect(newest, following) {
+        if (following && items.isNotEmpty() && !dragging) state.scrollToItem(0)
+    }
+    val unseen = remember(items, pausedAt, following) {
+        if (following) 0 else {
+            val idx = items.indexOfLast { it.id == pausedAt }
+            if (idx < 0) items.size else items.size - 1 - idx
+        }
+    }
 
     Box(modifier) {
         LazyColumn(
@@ -89,11 +126,21 @@ fun ChatList(items: ImmutableList<ChatItem>, options: ChatRenderOptions, actions
                 ChatRow(items[idx], options, actions, alternate = idx % 2 == 1)
             }
         }
-        AnimatedVisibility(!atBottom, Modifier.align(Alignment.BottomCenter).padding(10.dp), enter = fadeIn(), exit = fadeOut()) {
-            SmallFloatingActionButton(onClick = { scope.launch { state.animateScrollToItem(0) } }) {
+        AnimatedVisibility(!following, Modifier.align(Alignment.BottomCenter).padding(10.dp), enter = fadeIn(), exit = fadeOut()) {
+            SmallFloatingActionButton(onClick = {
+                following = true
+                scope.launch { state.scrollToItem(0) }
+            }) {
                 Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.ArrowDownward, null, Modifier.size(16.dp))
-                    Text(if (unseen > 0) " $unseen new" else " Latest", style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        when {
+                            unseen >= 999 -> " 999+ new messages"
+                            unseen > 0 -> " $unseen new message" + if (unseen == 1) "" else "s"
+                            else -> " Chat paused due to scroll"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                    )
                 }
             }
         }
