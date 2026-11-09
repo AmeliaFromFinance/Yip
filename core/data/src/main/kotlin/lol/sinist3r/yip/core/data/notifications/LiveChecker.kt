@@ -9,7 +9,8 @@ import lol.sinist3r.yip.core.database.LiveNotifiedEntity
 import lol.sinist3r.yip.core.database.NotifiedDao
 import lol.sinist3r.yip.core.model.LiveStream
 
-data class LiveAlert(val stream: LiveStream, val categoryChanged: Boolean)
+/** [categoryAlert]: fired because of a category alert, not a channel follow setting. */
+data class LiveAlert(val stream: LiveStream, val categoryChanged: Boolean, val categoryAlert: Boolean = false)
 
 /** Finds followed channels that went live since the last check. No server involved. */
 @Singleton
@@ -36,7 +37,13 @@ class LiveChecker @Inject constructor(
                 else -> null
             }
             dao.upsert(LiveNotifiedEntity(s.userId, s.id, s.gameName, System.currentTimeMillis()))
-            result?.takeIf { allowed }
+            // Category alerts: went live in, or moved into, a watched category. Muted channels still stay quiet.
+            val enteredCategory = s.gameName?.lowercase() in n.categoryAlerts && (prev == null || prev.streamId != s.id || prev.categoryName != s.gameName)
+            when {
+                result != null && allowed -> result
+                enteredCategory && login !in n.muted -> LiveAlert(s, categoryChanged = prev?.streamId == s.id, categoryAlert = true)
+                else -> null
+            }
         }
         // The very first check only records state; otherwise everyone already live would ping at once.
         if (firstRun || inQuietHours(n.quietHoursEnabled, n.quietStartMinutes, n.quietEndMinutes)) return emptyList()

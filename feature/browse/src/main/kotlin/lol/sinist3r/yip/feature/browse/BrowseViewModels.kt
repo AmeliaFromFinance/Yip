@@ -99,7 +99,9 @@ class FollowingViewModel @Inject constructor(
     val settingsRepo: SettingsRepository,
     inbox: lol.sinist3r.yip.core.data.chat.MentionInbox,
     whispers: lol.sinist3r.yip.core.data.chat.WhisperRepository,
+    private val web: lol.sinist3r.yip.core.data.web.WebFeatures,
 ) : ViewModel() {
+    val followedCategories = web.followedCategories
     /** Unread mentions plus whispers, for the inbox badge. */
     val inboxUnread: StateFlow<Int> = combine(inbox.unread, whispers.unread) { a, b -> a + b }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
     private val _state = MutableStateFlow(FollowingUiState())
@@ -153,6 +155,7 @@ class FollowingViewModel @Inject constructor(
             }
             _state.update { it.copy(loading = true, error = null) }
             launch { history.pruneDeletedVods(twitch::vodExists) }
+            launch { web.refreshCategories() }
             val live = attempt { twitch.followedLive() }
             val offline = if (settings.value.general.showOfflineFollowed) attempt { twitch.followedChannels() }.getOrDefault(emptyList()) else emptyList()
             launch { refreshPinned() }
@@ -211,10 +214,45 @@ class BrowseViewModel @Inject constructor(twitch: TwitchRepository, private val 
 }
 
 @HiltViewModel
-class CategoryViewModel @Inject constructor(savedState: SavedStateHandle, twitch: TwitchRepository, settingsRepo: SettingsRepository) : ViewModel() {
+class CategoryViewModel @Inject constructor(
+    savedState: SavedStateHandle,
+    twitch: TwitchRepository,
+    private val settingsRepo: SettingsRepository,
+    private val web: lol.sinist3r.yip.core.data.web.WebFeatures,
+    accounts: lol.sinist3r.yip.core.data.account.AccountRepository,
+) : ViewModel() {
     val categoryId: String = checkNotNull(savedState["id"])
     val categoryName: String = savedState["name"] ?: ""
     val settings = settingsRepo.settings
+    val webConnected = accounts.active.map { it?.hasWebToken == true }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val followed = web.followedCategories.map { list -> list.any { it.id == categoryId } }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val messages = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 2)
+
+    fun toggleFollow() = viewModelScope.launch {
+        val follow = !followed.value
+        web.setFollowingCategory(lol.sinist3r.yip.core.model.FollowedCategory(categoryId, categoryName, null), follow)
+            ?.let { messages.tryEmit(it) } ?: messages.tryEmit(if (follow) "Following $categoryName" else "Unfollowed $categoryName")
+    }
+
+    fun toggleAlert() = viewModelScope.launch {
+        val key = categoryName.lowercase()
+        var on = false
+        settingsRepo.update { s ->
+            val list = s.notifications.categoryAlerts
+            on = key !in list
+            s.copy(notifications = s.notifications.copy(categoryAlerts = if (on) list + key else list - key))
+        }
+        val enabled = settingsRepo.current().notifications.enabled
+        messages.tryEmit(
+            when {
+                !on -> "Alerts off for $categoryName"
+                enabled -> "You'll be alerted when someone you follow streams $categoryName"
+                else -> "Alert saved. Turn on go-live notifications in Settings for it to work"
+            },
+        )
+    }
+
+    init { viewModelScope.launch { if (web.followedCategories.value.isEmpty()) web.refreshCategories() } }
     private val pager = Pager(viewModelScope) { twitch.categoryStreams(categoryId, it) }
     val streams = combine(pager.state, settings) { p, s -> p.copy(items = p.items.filterNot { st -> s.isHiddenChannel(st.userLogin) }) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Paged())

@@ -49,6 +49,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Following with pinned favourites at the top, browse, categories, search, channel pages (videos, clips, schedule)
 - Hide channels or categories from browse, filter by language
 - Long-press a stream for quick actions: pin, multi-view, hide
+- Category alerts: get notified when someone you follow streams a chosen category
 - Go-live notifications for everyone or just pinned favourites, with muting and quiet hours
 - Multiple accounts
 - Stream manager for your own channel: title, category, tags, markers, ads, unban requests, who's in chat
@@ -64,6 +65,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 **Opt-in and experimental** (all off by default)
 - Ad handling: swaps to an ad-free stream copy during ad breaks, or uses proxy servers you add yourself
 - Channel points: balance, auto-claim and redeeming rewards; follow and unfollow in the app (need the optional twitch.tv connection)
+- Follow categories and claim Drops (twitch.tv connection)
 
 ## Building
 

@@ -262,6 +262,8 @@ data class NotificationSettings(
     val notifyCategoryChange: Boolean = false,
     val pingMentions: Boolean = true,
     val pingWhispers: Boolean = true,
+    /** Lowercase category names: alert when someone you follow streams one. */
+    val categoryAlerts: List<String> = emptyList(),
     val pingKeywords: Boolean = false,
     val pingHighlightUsers: Boolean = false,
 )

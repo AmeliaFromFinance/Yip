@@ -326,6 +326,8 @@ object SettingsSpec {
             Row.Note("When chat isn't on screen", "Notifies while you're on another screen, in picture-in-picture, or outside the app with a stream still running."),
             Row.Toggle("Mentions", "Someone @'s you or replies to you", get = { it.notifications.pingMentions }, set = { s, v -> s.copy(notifications = s.notifications.copy(pingMentions = v)) }),
             Row.Toggle("Whispers", "Private messages, while Yip is open or playing", get = { it.notifications.pingWhispers }, set = { s, v -> s.copy(notifications = s.notifications.copy(pingWhispers = v)) }),
+            Row.Words("Category alerts", "Alert when someone you follow streams one of these, even if they aren't a pinned favourite. Tap the bell on a category page to add.", "Category name",
+                get = { it.notifications.categoryAlerts }, set = { s, v -> s.copy(notifications = s.notifications.copy(categoryAlerts = v)) }),
             Row.Toggle("Highlight keywords", "Set under Filters and highlights", get = { it.notifications.pingKeywords }, set = { s, v -> s.copy(notifications = s.notifications.copy(pingKeywords = v)) }),
             Row.Toggle("Highlighted users", "Set under Filters and highlights", get = { it.notifications.pingHighlightUsers }, set = { s, v -> s.copy(notifications = s.notifications.copy(pingHighlightUsers = v)) }),
             Row.Action("System notification settings", "Sound, vibration and importance", "system_notifications"),

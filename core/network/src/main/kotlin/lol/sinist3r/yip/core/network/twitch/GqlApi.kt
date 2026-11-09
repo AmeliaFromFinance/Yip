@@ -261,6 +261,18 @@ class GqlApi @Inject constructor(
         return ChannelEventsParser.parse(if (authed) queryAuthed(GqlQueries.CHANNEL_EVENTS, vars) else query(GqlQueries.CHANNEL_EVENTS, vars))
     }
 
+    suspend fun followedGames(): List<lol.sinist3r.yip.core.model.FollowedCategory> = WebFeaturesParser.followedGames(queryAuthed(GqlQueries.FOLLOWED_GAMES))
+
+    suspend fun setFollowingGame(gameId: String, follow: Boolean) {
+        queryAuthed(if (follow) GqlQueries.FOLLOW_GAME else GqlQueries.UNFOLLOW_GAME, buildJsonObject { put("id", gameId) }, integrity = true)
+    }
+
+    suspend fun drops(): List<lol.sinist3r.yip.core.model.DropCampaign> = WebFeaturesParser.drops(queryAuthed(GqlQueries.DROPS))
+
+    /** Twitch's status, e.g. ELIGIBLE_FOR_ALL on success. */
+    suspend fun claimDrop(claimId: String): String? =
+        queryAuthed(GqlQueries.CLAIM_DROP, buildJsonObject { put("id", claimId) }, integrity = true).obj("claimDropRewards")?.str("status")
+
     suspend fun votePoll(pollId: String, choiceId: String, userId: String, pointsVotes: Int = 0): JsonObject =
         queryAuthed(GqlQueries.VOTE_POLL, buildJsonObject {
             putJsonObject("input") {

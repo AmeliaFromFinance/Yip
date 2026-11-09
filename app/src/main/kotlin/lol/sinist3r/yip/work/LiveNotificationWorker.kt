@@ -51,7 +51,12 @@ class LiveNotificationWorker @AssistedInject constructor(
             val s = a.stream
             val intent = Intent(Intent.ACTION_VIEW, "https://www.twitch.tv/${s.userLogin}".toUri(), applicationContext, MainActivity::class.java)
             val pi = PendingIntent.getActivity(applicationContext, s.userId.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            val title = if (a.categoryChanged) "${s.userName} switched to ${s.gameName}" else "${s.userName} is live"
+            val title = when {
+                a.categoryAlert && a.categoryChanged -> "${s.userName} switched to ${s.gameName}"
+                a.categoryAlert -> "${s.userName} is streaming ${s.gameName}"
+                a.categoryChanged -> "${s.userName} switched to ${s.gameName}"
+                else -> "${s.userName} is live"
+            }
             val n = NotificationCompat.Builder(applicationContext, YipApplication.CHANNEL_LIVE)
                 .setSmallIcon(R.drawable.ic_notification)
                 .setContentTitle(title)

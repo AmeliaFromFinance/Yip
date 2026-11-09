@@ -118,6 +118,35 @@ internal object GqlQueries {
         }
     """.trimIndent()
 
+    val FOLLOWED_GAMES = """
+        query FollowedGames { currentUser { followedGames(first: 100, type: ALL) { nodes { id name displayName boxArtURL } } } }
+    """.trimIndent()
+
+    val FOLLOW_GAME = """
+        mutation FollowGame(${'$'}id: ID!) { followGame(input: { gameID: ${'$'}id }) { __typename } }
+    """.trimIndent()
+
+    val UNFOLLOW_GAME = """
+        mutation UnfollowGame(${'$'}id: ID!) { unfollowGame(input: { gameID: ${'$'}id }) { __typename } }
+    """.trimIndent()
+
+    val DROPS = """
+        query Drops {
+          currentUser {
+            inventory {
+              dropCampaignsInProgress {
+                id name endAt game { id displayName boxArtURL }
+                timeBasedDrops { id name requiredMinutesWatched benefitEdges { benefit { name imageAssetURL } } self { currentMinutesWatched isClaimed dropInstanceID } }
+              }
+            }
+          }
+        }
+    """.trimIndent()
+
+    val CLAIM_DROP = """
+        mutation ClaimDrop(${'$'}id: ID!) { claimDropRewards(input: { dropInstanceID: ${'$'}id }) { status } }
+    """.trimIndent()
+
     val VOTE_POLL = """
         mutation Vote(${'$'}input: VoteInPollInput!) { voteInPoll(input: ${'$'}input) { error { code } } }
     """.trimIndent()

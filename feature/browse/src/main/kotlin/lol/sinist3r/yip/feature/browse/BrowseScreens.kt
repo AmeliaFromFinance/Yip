@@ -33,6 +33,11 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
@@ -119,6 +124,7 @@ private fun LazyGridScope.fullSpan(key: String, content: @Composable () -> Unit)
 fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val categories by viewModel.followedCategories.collectAsStateWithLifecycle()
     var sortMenu by remember { mutableStateOf(false) }
     var quick by remember { mutableStateOf<QuickTarget?>(null) }
     quick?.let { t ->
@@ -175,6 +181,19 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
                     if (state.history.isNotEmpty()) {
                         fullSpan("hdr-history") { SectionHeader("Continue watching") { androidx.compose.material3.TextButton(onClick = nav::openLibrary) { Text("See all") } } }
                         fullSpan("history") { HistoryRow(state.history, nav::openHistory, viewModel::removeHistory) }
+                    }
+                    if (categories.isNotEmpty()) {
+                        fullSpan("hdr-categories") { SectionHeader("Followed categories") }
+                        fullSpan("categories") {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(categories, key = { it.id }) { c ->
+                                    Column(Modifier.width(96.dp).clip(MaterialTheme.shapes.medium).clickable(onClickLabel = "Open ${c.name}") { nav.openCategory(c.id, c.name) }) {
+                                        AsyncImage(c.boxArtUrl, null, Modifier.fillMaxWidth().aspectRatio(3f / 4f).clip(MaterialTheme.shapes.medium))
+                                        Text(c.name, style = MaterialTheme.typography.labelMedium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                                    }
+                                }
+                            }
+                        }
                     }
                     if (state.pinned.isNotEmpty()) {
                         fullSpan("hdr-pinned") { SectionHeader("Pinned") }
@@ -388,12 +407,25 @@ internal fun CategoryGrid(paged: Paged<Category>, onRefresh: () -> Unit, onMore:
 fun CategoryScreen(nav: BrowseNavigator, onBack: () -> Unit, viewModel: CategoryViewModel = hiltViewModel()) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val streams by viewModel.streams.collectAsStateWithLifecycle()
+    val followed by viewModel.followed.collectAsStateWithLifecycle()
+    val connected by viewModel.webConnected.collectAsStateWithLifecycle()
+    val alert = viewModel.categoryName.lowercase() in settings.notifications.categoryAlerts
+    val snackbar = remember { androidx.compose.material3.SnackbarHostState() }
+    LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(it) } }
     Scaffold(topBar = {
         TopAppBar(
             title = { Text(viewModel.categoryName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            actions = {
+                IconButton(onClick = viewModel::toggleAlert) {
+                    Icon(if (alert) Icons.Filled.NotificationsActive else Icons.Outlined.NotificationsNone, if (alert) "Turn off alerts for this category" else "Alert me when someone I follow streams this")
+                }
+                if (connected) IconButton(onClick = viewModel::toggleFollow) {
+                    Icon(if (followed) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, if (followed) "Unfollow category" else "Follow category")
+                }
+            },
         )
-    }) { padding ->
+    }, snackbarHost = { androidx.compose.material3.SnackbarHost(snackbar) }) { padding ->
         Box(Modifier.padding(padding)) { StreamGrid(streams, settings.appearance, viewModel::refresh, viewModel::more, nav, allowHideCategory = false) }
     }
 }
