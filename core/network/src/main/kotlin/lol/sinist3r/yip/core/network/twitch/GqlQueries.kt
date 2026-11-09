@@ -104,6 +104,26 @@ internal object GqlQueries {
         }
     """.trimIndent()
 
+    /** Field names checked against gql.twitch.tv. Works signed out; "self" needs the twitch.tv connection. */
+    val CHANNEL_REWARDS = """
+        query ChannelRewards(${'$'}login: String!) {
+          channel(name: ${'$'}login) {
+            id
+            self { communityPoints { balance } }
+            communityPointsSettings {
+              isEnabled name
+              customRewards { id title cost prompt isUserInputRequired isEnabled isPaused isInStock isSubOnly backgroundColor image { url } defaultImage { url } cooldownExpiresAt }
+            }
+          }
+        }
+    """.trimIndent()
+
+    val REDEEM_REWARD = """
+        mutation Redeem(${'$'}input: RedeemCommunityPointsCustomRewardInput!) {
+          redeemCommunityPointsCustomReward(input: ${'$'}input) { error { code } redemption { id } }
+        }
+    """.trimIndent()
+
     val CHANNEL_BADGES = """
         query ChannelBadges(${'$'}id: ID) { user(id: ${'$'}id) { broadcastBadges { setID version title imageURL(size: QUADRUPLE) } } }
     """.trimIndent()

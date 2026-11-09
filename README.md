@@ -62,7 +62,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 
 **Opt-in and experimental** (all off by default)
 - Ad handling: swaps to an ad-free stream copy during ad breaks, or uses proxy servers you add yourself
-- Channel points balance and auto-claim, one-tap follow (needs the optional twitch.tv connection)
+- Channel points: balance, auto-claim and redeeming rewards; follow and unfollow in the app (need the optional twitch.tv connection)
 
 ## Building
 

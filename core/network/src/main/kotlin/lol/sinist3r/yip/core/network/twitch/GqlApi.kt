@@ -56,6 +56,24 @@ class GqlApi @Inject constructor(
         return send(body, authenticated = false)
     }
 
+    /** Raw query/mutation as the twitch.tv-connected user. */
+    suspend fun queryAuthed(document: String, variables: JsonObject = JsonObject(emptyMap()), integrity: Boolean = false): JsonObject {
+        val body = buildJsonObject {
+            put("query", document)
+            put("variables", variables)
+        }
+        return send(body, authenticated = true, integrity = integrity)
+    }
+
+    /** [authed] adds your balance; needs the twitch.tv connection. */
+    suspend fun channelRewards(login: String, authed: Boolean): lol.sinist3r.yip.core.model.ChannelRewards? {
+        val vars = buildJsonObject { put("login", login.lowercase()) }
+        return RewardsParser.parse(if (authed) queryAuthed(GqlQueries.CHANNEL_REWARDS, vars) else query(GqlQueries.CHANNEL_REWARDS, vars))
+    }
+
+    suspend fun redeemReward(input: JsonObject): JsonObject =
+        queryAuthed(GqlQueries.REDEEM_REWARD, buildJsonObject { put("input", input) }, integrity = true)
+
     suspend fun persisted(
         operation: String,
         variables: JsonObject,

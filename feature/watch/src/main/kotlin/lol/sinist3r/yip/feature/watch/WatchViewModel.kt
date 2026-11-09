@@ -133,6 +133,30 @@ class WatchViewModel @Inject constructor(
             .onFailure { e -> session.value?.system("Couldn't ${if (allow) "allow" else "deny"} that message: ${e.message?.substringAfter(": ")?.take(120)}") }
     }
 
+    private val _rewards = MutableStateFlow<RewardsState?>(null)
+    val rewards = _rewards.asStateFlow()
+
+    fun openRewards() {
+        val login = _info.value.user?.login ?: return
+        _rewards.value = RewardsState.Loading
+        viewModelScope.launch {
+            _rewards.value = points.rewards(login).fold({ RewardsState.Ready(it) }, { RewardsState.Failed(it.message ?: "Couldn't load rewards") })
+        }
+    }
+
+    fun redeem(reward: lol.sinist3r.yip.core.model.CustomReward, text: String?) {
+        val ready = _rewards.value as? RewardsState.Ready ?: return
+        _rewards.value = ready.copy(busy = reward.id, message = null)
+        viewModelScope.launch {
+            val error = points.redeem(ready.data.channelId, reward, text)
+            val fresh = _info.value.user?.login?.let { points.rewards(it).getOrNull() } ?: ready.data
+            _rewards.value = RewardsState.Ready(fresh, message = error ?: "Redeemed ${reward.title}")
+            if (error == null) fresh.balance?.let { _points.value = it }
+        }
+    }
+
+    fun closeRewards() { _rewards.value = null }
+
     private val _clip = MutableStateFlow<ClipState?>(null)
     val clip = _clip.asStateFlow()
 

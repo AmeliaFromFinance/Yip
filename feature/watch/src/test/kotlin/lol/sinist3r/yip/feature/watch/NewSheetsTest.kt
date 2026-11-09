@@ -90,6 +90,18 @@ class NewSheetsTest {
         compose.onNodeWithText("Celeste").assertIsDisplayed()
         captureScreenRoboImage("build/screenshots/event_banners.png")
     }
+
+    @Test fun rewardsSheet() {
+        fun r(id: String, title: String, cost: Int, input: Boolean = false, ok: Boolean = true, sub: Boolean = false, color: String = "#9147FF") =
+            lol.sinist3r.yip.core.model.CustomReward(id, title, cost, if (input) "Tell me what to play" else null, input, ok, sub, color, null, null)
+        val data = lol.sinist3r.yip.core.model.ChannelRewards("1", "Eepy points", true, 12_450, listOf(
+            r("a", "Hydrate!", 500), r("b", "Song request", 2_000, input = true), r("c", "Pick the next game", 25_000),
+            r("d", "VIP for a week", 100_000, sub = true, color = "#F28C28"), r("e", "Run an ad", 300, ok = false),
+        ))
+        themed { RewardsSheet(RewardsState.Ready(data, message = "Redeemed Hydrate!"), onRedeem = { _, _ -> }, onConnect = {}, onDismiss = {}) }
+        compose.onNodeWithText("Eepy points").assertIsDisplayed()
+        captureScreenRoboImage("build/screenshots/rewards.png")
+    }
 }
 
 @androidx.compose.runtime.Composable

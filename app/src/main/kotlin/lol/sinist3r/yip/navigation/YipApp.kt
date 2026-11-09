@@ -202,6 +202,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun openVod(videoId: String, offsetSeconds: Int) = nav.navigate(WatchRoute("VOD", videoId, offsetSeconds))
             override fun openLink(url: String) = openLink(url)
             override fun openWhisper(login: String) = nav.navigate(WhisperRoute(login))
+            override fun openConnectWeb() = nav.navigate(ConnectWebRoute)
             override fun openLive(login: String) {
                 nav.popBackStack()
                 nav.navigate(WatchRoute("LIVE", login))
@@ -226,7 +227,11 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
         scope.launch {
             when (val r = activity.follows.setFollowing(channelId, follow)) {
                 FollowResult.Done -> snackbar.showSnackbar(if (follow) "Following $login" else "Unfollowed $login")
-                FollowResult.NeedsWeb -> CustomTabsIntent.Builder().build().launchUrl(activity, Uri.parse("https://www.twitch.tv/$login"))
+                // Following needs the twitch.tv connection; offer it rather than bouncing to the browser.
+                FollowResult.NeedsWeb -> {
+                    val r = snackbar.showSnackbar("Connect twitch.tv to follow from Yip", actionLabel = "Connect", withDismissAction = true, duration = SnackbarDuration.Long)
+                    if (r == SnackbarResult.ActionPerformed) nav.navigate(ConnectWebRoute)
+                }
                 is FollowResult.Failed -> snackbar.showSnackbar(r.reason)
             }
         }

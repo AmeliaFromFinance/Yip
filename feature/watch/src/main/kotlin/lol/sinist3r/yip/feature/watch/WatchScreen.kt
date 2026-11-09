@@ -4,6 +4,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Toll
 import androidx.compose.material.icons.outlined.SpeakerNotesOff
 import android.content.res.Configuration
 import android.net.ConnectivityManager
@@ -65,6 +66,7 @@ interface WatchNavigator {
     /** Replaces this screen with another live stream. */
     fun openLive(login: String) {}
     fun openWhisper(login: String) {}
+    fun openConnectWeb() {}
 }
 
 @Composable
@@ -241,7 +243,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         Row(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 Box(Modifier.background(Color.Black).statusBarsPadding()) { player(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) }
-                ChannelRow(info, nav, onFilters = { showFilters = true }, onSearch = { showSearch = true })
+                ChannelRow(info, nav, onFilters = { showFilters = true }, onSearch = { showSearch = true }, onRewards = if (isLive) viewModel::openRewards else null)
                 if (!chatEnabled) info.clipVodId?.let { vod ->
                     TextButton(onClick = { nav.openVod(vod, info.clipVodOffset ?: 0) }, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Watch the full broadcast from this moment") }
                 }
@@ -290,7 +292,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     } else {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             Box(Modifier.background(Color.Black).statusBarsPadding()) { player(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) }
-            ChannelRow(info, nav, onFilters = { showFilters = true }, onSearch = { showSearch = true })
+            ChannelRow(info, nav, onFilters = { showFilters = true }, onSearch = { showSearch = true }, onRewards = if (isLive) viewModel::openRewards else null)
             HorizontalDivider()
             if (chatEnabled) {
                 chatPane(Modifier.weight(1f), false)
@@ -316,6 +318,10 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             playState.qualities, duration, items.firstOrNull { it.id == viewModel.downloadId },
             onPick = { viewModel.download(it) }, onRemove = viewModel::removeDownload, onDismiss = { showDownload = false },
         )
+    }
+    val rewards by viewModel.rewards.collectAsStateWithLifecycle()
+    rewards?.let { r ->
+        RewardsSheet(r, onRedeem = { reward, text -> viewModel.redeem(reward, text) }, onConnect = { viewModel.closeRewards(); nav.openConnectWeb() }, onDismiss = viewModel::closeRewards)
     }
     if (showSearch) ChatSearchSheet(chat, options, actions, onDismiss = { showSearch = false })
     if (showFilters) ChatFiltersSheet(settings.filters, viewModel::updateFilters, onDismiss = { showFilters = false })
@@ -403,7 +409,7 @@ private fun ChatOnlyHeader(info: WatchInfo, nav: WatchNavigator, onFilters: () -
 }
 
 @Composable
-private fun ChannelRow(info: WatchInfo, nav: WatchNavigator, onFilters: () -> Unit, onSearch: () -> Unit) {
+private fun ChannelRow(info: WatchInfo, nav: WatchNavigator, onFilters: () -> Unit, onSearch: () -> Unit, onRewards: (() -> Unit)? = null) {
     val user = info.user ?: return
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -418,6 +424,7 @@ private fun ChannelRow(info: WatchInfo, nav: WatchNavigator, onFilters: () -> Un
                 Text("${s.viewerCount.compactCount()} watching · ${s.gameName.orEmpty()} · $up", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
         }
+        onRewards?.let { androidx.compose.material3.IconButton(onClick = it) { Icon(Icons.Outlined.Toll, "Channel points and rewards") } }
         androidx.compose.material3.IconButton(onClick = onSearch) { Icon(Icons.Outlined.Search, "Search chat") }
         androidx.compose.material3.IconButton(onClick = onFilters) { Icon(Icons.Outlined.FilterAlt, "Chat filters") }
         TextButton(onClick = { nav.openChannel(user.login) }) { Text("Channel") }
