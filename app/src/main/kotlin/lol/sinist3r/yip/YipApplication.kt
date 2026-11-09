@@ -69,7 +69,8 @@ class YipApplication : Application(), Configuration.Provider, SingletonImageLoad
             }
         }
         // Whispers arrive while Yip is on screen or playing in the background.
-        scope.launch {
+        // Main thread: lifecycle observers can't be added from a background thread (crashed on launch).
+        scope.launch(kotlinx.coroutines.Dispatchers.Main) {
             val visible = kotlinx.coroutines.flow.MutableStateFlow(false)
             androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(androidx.lifecycle.LifecycleEventObserver { _, _ ->
                 visible.value = androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)

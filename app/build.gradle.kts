@@ -70,6 +70,8 @@ android {
 }
 
 dependencies {
+    testImplementation(libs.junit4)
+    testImplementation(libs.robolectric)
     implementation(project(":core:model"))
     implementation(project(":core:common"))
     implementation(project(":core:network"))
