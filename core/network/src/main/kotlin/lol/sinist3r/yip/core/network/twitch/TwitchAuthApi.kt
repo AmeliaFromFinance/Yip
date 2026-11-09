@@ -66,21 +66,21 @@ class TwitchAuthApi @Inject constructor(
 ) {
     val clientId: String get() = BuildConfig.TWITCH_CLIENT_ID
 
-    suspend fun startDeviceFlow(scopes: List<String>): DeviceCodeResponse {
+    suspend fun startDeviceFlow(scopes: List<String>, client: String = clientId): DeviceCodeResponse {
         val res = http.submitForm(
             "https://id.twitch.tv/oauth2/device",
             Parameters.build {
-                append("client_id", clientId)
+                append("client_id", client)
                 append("scopes", scopes.joinToString(" "))
             },
         )
         return json.decodeFromString(res.bodyAsText())
     }
 
-    suspend fun pollDeviceFlow(deviceCode: String, scopes: List<String>): DevicePollResult {
+    suspend fun pollDeviceFlow(deviceCode: String, scopes: List<String>, client: String = clientId): DevicePollResult {
         val res = postToken(
             Parameters.build {
-                append("client_id", clientId)
+                append("client_id", client)
                 append("scopes", scopes.joinToString(" "))
                 append("device_code", deviceCode)
                 append("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
@@ -178,6 +178,13 @@ class TwitchAuthApi @Inject constructor(
         )
 
         /** Scopes the stream manager needs; older sign-ins don't have them. */
+        /**
+         * Twitch's own TV app. Its tokens work with twitch.tv's web API, and it supports sign-in
+         * with a code, so connecting twitch.tv needs no embedded browser.
+         */
+        const val TV_CLIENT_ID = "ue6666qo983tsx6so1t0vnawi233wa"
+        val TV_SCOPES = listOf("channel_read", "chat:read", "user_blocks_edit", "user_blocks_read", "user_follows_edit", "user_read")
+
         val STREAM_MANAGER_SCOPES = listOf(
             "channel:manage:broadcast", "channel:edit:commercial", "channel:read:ads", "channel:manage:ads",
             "moderator:read:chatters", "moderator:manage:automod", "moderator:manage:unban_requests",

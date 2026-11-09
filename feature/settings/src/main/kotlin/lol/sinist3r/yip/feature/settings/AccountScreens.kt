@@ -50,6 +50,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -181,6 +186,23 @@ class ConnectWebViewModel @Inject constructor(private val accounts: AccountRepos
     val result = MutableStateFlow<String?>(null)
     @Volatile private var handled = false
 
+    /** Sign-in with a code (default). */
+    val code = MutableStateFlow<lol.sinist3r.yip.core.data.account.DeviceLoginState?>(null)
+    private var codeJob: kotlinx.coroutines.Job? = null
+
+    init { startCode() }
+
+    fun startCode() {
+        codeJob?.cancel()
+        codeJob = viewModelScope.launch {
+            accounts.webDeviceLogin().collect { st ->
+                code.value = st
+                if (st is lol.sinist3r.yip.core.data.account.DeviceLoginState.Success) result.value = "ok"
+            }
+        }
+    }
+
+    /** From the twitch.tv login page fallback. */
     fun onToken(token: String, clientId: String?) {
         if (handled) return
         handled = true
@@ -196,58 +218,123 @@ class ConnectWebViewModel @Inject constructor(private val accounts: AccountRepos
     }
 }
 
-@SuppressLint("SetJavaScriptEnabled")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectWebScreen(onDone: () -> Unit, onBack: () -> Unit, viewModel: ConnectWebViewModel = hiltViewModel()) {
     val result by viewModel.result.collectAsStateWithLifecycle()
+    val code by viewModel.code.collectAsStateWithLifecycle()
+    var usePage by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(result) { if (result == "ok") onDone() }
+    Scaffold(topBar = { TopAppBar(title = { Text("Connect twitch.tv") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) }) { padding ->
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            result?.takeIf { it != "ok" }?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
+            if (usePage) {
+                TwitchLoginPage(viewModel::onToken, Modifier.weight(1f))
+                TextButton(onClick = { usePage = false }, modifier = Modifier.padding(8.dp)) { Text("Use a code instead") }
+            } else {
+                CodeLogin(code, onRetry = viewModel::startCode, onUsePage = { usePage = true })
+            }
+        }
+    }
+}
+
+@Composable
+private fun CodeLogin(state: lol.sinist3r.yip.core.data.account.DeviceLoginState?, onRetry: () -> Unit, onUsePage: () -> Unit) {
+    val uri = LocalUriHandler.current
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Used for channel points, rewards and following. Sign in with the same Twitch account as Yip.", style = MaterialTheme.typography.bodyMedium)
+        when (state) {
+            null, lol.sinist3r.yip.core.data.account.DeviceLoginState.Starting -> androidx.compose.material3.CircularProgressIndicator()
+            is lol.sinist3r.yip.core.data.account.DeviceLoginState.WaitingForUser -> {
+                Text("1. Open twitch.tv/activate (on this phone or any device)\n2. Enter this code", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    state.userCode, style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.semantics { contentDescription = "Code ${state.userCode.toCharArray().joinToString(" ")}" },
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.FilledTonalButton(onClick = { uri.openUri("${state.verificationUri}?device-code=${state.userCode}") }) { Text("Open twitch.tv/activate") }
+                    androidx.compose.material3.OutlinedButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(state.userCode)) }) { Text("Copy code") }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Text("Waiting for you to approve…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            is lol.sinist3r.yip.core.data.account.DeviceLoginState.Failed -> {
+                Text(state.reason, color = MaterialTheme.colorScheme.error)
+                androidx.compose.material3.FilledTonalButton(onClick = onRetry) { Text("Get a new code") }
+            }
+            is lol.sinist3r.yip.core.data.account.DeviceLoginState.Success -> Text("Connected", color = MaterialTheme.colorScheme.primary)
+        }
+        TextButton(onClick = onUsePage) { Text("Log in on the twitch.tv page instead") }
+    }
+}
+
+/** Fallback: twitch.tv's own login page, reading the session token once logged in. */
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun TwitchLoginPage(onToken: (String, String?) -> Unit, modifier: Modifier = Modifier) {
+    var progress by remember { mutableIntStateOf(0) }
+    var error by remember { mutableStateOf<String?>(null) }
     DisposableEffect(Unit) {
         onDispose {
             // Don't leave a twitch.tv session lying around in the WebView.
             CookieManager.getInstance().removeAllCookies(null)
         }
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("Connect twitch.tv") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) }) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            result?.takeIf { it != "ok" }?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { ctx ->
-                    CookieManager.getInstance().removeAllCookies(null)
-                    WebView(ctx).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.allowFileAccess = false
-                        settings.allowContentAccess = false
-                        webViewClient = object : WebViewClient() {
-                            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                                if (request.url.host == "gql.twitch.tv") {
-                                    val auth = request.requestHeaders.entries.firstOrNull { it.key.equals("Authorization", true) }?.value
-                                    val token = auth?.removePrefix("OAuth ")?.trim()
-                                    if (!token.isNullOrBlank() && token != "undefined") {
-                                        val clientId = request.requestHeaders.entries.firstOrNull { it.key.equals("Client-Id", true) }?.value
-                                        viewModel.onToken(token, clientId)
-                                    }
-                                }
-                                return null
-                            }
-
-                            override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
-                                CookieManager.getInstance().getCookie("https://www.twitch.tv")?.split(';')
-                                    ?.map { it.trim() }?.firstOrNull { it.startsWith("auth-token=") }
-                                    ?.removePrefix("auth-token=")?.takeIf { it.isNotBlank() }
-                                    ?.let { viewModel.onToken(it, null) }
-                            }
-
-                            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                                request.url.host?.endsWith("twitch.tv") != true // keep the user on Twitch
-                        }
-                        loadUrl("https://www.twitch.tv/login")
+    Column(modifier) {
+        if (progress in 1..99) androidx.compose.material3.LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { ctx ->
+                CookieManager.getInstance().removeAllCookies(null)
+                WebView(ctx).apply {
+                    // White while loading, so a slow page isn't mistaken for a blank screen.
+                    setBackgroundColor(android.graphics.Color.WHITE)
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.allowFileAccess = false
+                    settings.allowContentAccess = false
+                    // twitch.tv refuses some embedded-browser user agents; drop the WebView marker.
+                    settings.userAgentString = settings.userAgentString.replace("; wv", "")
+                    CookieManager.getInstance().setAcceptCookie(true)
+                    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                    webChromeClient = object : android.webkit.WebChromeClient() {
+                        override fun onProgressChanged(view: WebView, newProgress: Int) { progress = newProgress }
                     }
-                },
-            )
-        }
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                            if (request.url.host == "gql.twitch.tv") {
+                                val auth = request.requestHeaders.entries.firstOrNull { it.key.equals("Authorization", true) }?.value
+                                val token = auth?.removePrefix("OAuth ")?.trim()
+                                if (!token.isNullOrBlank() && token != "undefined") {
+                                    val clientId = request.requestHeaders.entries.firstOrNull { it.key.equals("Client-Id", true) }?.value
+                                    onToken(token, clientId)
+                                }
+                            }
+                            return null
+                        }
+
+                        override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                            CookieManager.getInstance().getCookie("https://www.twitch.tv")?.split(';')
+                                ?.map { it.trim() }?.firstOrNull { it.startsWith("auth-token=") }
+                                ?.removePrefix("auth-token=")?.takeIf { it.isNotBlank() }
+                                ?.let { onToken(it, null) }
+                        }
+
+                        override fun onReceivedError(view: WebView, request: WebResourceRequest, err: android.webkit.WebResourceError) {
+                            if (request.isForMainFrame) error = "twitch.tv didn't load (${err.description}). Try the code option."
+                        }
+
+                        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
+                            request.url.host?.endsWith("twitch.tv") != true // keep the user on Twitch
+                    }
+                    loadUrl("https://www.twitch.tv/login")
+                }
+            },
+        )
     }
 }
 

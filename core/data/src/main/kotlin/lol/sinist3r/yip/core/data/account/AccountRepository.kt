@@ -89,12 +89,13 @@ class AccountRepository @Inject constructor(
     // region WebTokenProvider (experimental GQL features)
 
     override suspend fun webToken(): String? = activeId()?.let { secrets(it)?.webToken }
+    override suspend fun webClientId(): String? = activeId()?.let { secrets(it)?.webClientId }
 
     override suspend fun integrityToken(forceRefresh: Boolean): IntegrityToken? {
         val cached = integrity
         if (!forceRefresh && cached != null && cached.expiresAtMillis > System.currentTimeMillis() + 30_000) return cached
         val cfg = config.current()
-        return integritySource.get().fetch(webToken(), cfg.clientId, deviceId = cached?.deviceId ?: randomDeviceId())
+        return integritySource.get().fetch(webToken(), webClientId() ?: cfg.clientId, deviceId = cached?.deviceId ?: randomDeviceId())
             .also { integrity = it }
     }
 
@@ -119,6 +120,46 @@ class AccountRepository @Inject constructor(
                 is DevicePollResult.Success -> {
                     val account = completeLogin(r.token)
                     emit(account?.let(DeviceLoginState::Success) ?: DeviceLoginState.Failed("Signed in, but couldn't load your profile."))
+                    return@flow
+                }
+                DevicePollResult.SlowDown -> interval += 5
+                DevicePollResult.Expired -> break
+                is DevicePollResult.Denied -> { emit(DeviceLoginState.Failed("Login was declined.")); return@flow }
+                DevicePollResult.Pending, null -> Unit
+            }
+        }
+        emit(DeviceLoginState.Failed("The code expired. Try again."))
+    }
+
+    /**
+     * Connects twitch.tv with a code entered at twitch.tv/activate, using Twitch's TV app client.
+     * Must be the same Twitch account Yip is signed in with.
+     */
+    fun webDeviceLogin(): Flow<DeviceLoginState> = flow {
+        emit(DeviceLoginState.Starting)
+        val client = TwitchAuthApi.TV_CLIENT_ID
+        val start = attempt { auth.startDeviceFlow(TwitchAuthApi.TV_SCOPES, client) }.getOrElse {
+            emit(DeviceLoginState.Failed("Couldn't reach Twitch. Check your connection."))
+            return@flow
+        }
+        val expiresAt = System.currentTimeMillis() + start.expiresIn * 1000L
+        emit(DeviceLoginState.WaitingForUser(start.userCode, start.verificationUri, expiresAt))
+        var interval = start.interval.coerceAtLeast(1)
+        while (System.currentTimeMillis() < expiresAt) {
+            delay(interval.seconds)
+            when (val r = attempt { auth.pollDeviceFlow(start.deviceCode, TwitchAuthApi.TV_SCOPES, client) }.getOrNull()) {
+                is DevicePollResult.Success -> {
+                    val v = attempt { auth.validate(r.token.accessToken) }.getOrNull()
+                    val active = state.value.active
+                    when {
+                        v == null -> emit(DeviceLoginState.Failed("Twitch didn't accept the login. Try again."))
+                        active != null && v.userId != active.userId ->
+                            emit(DeviceLoginState.Failed("That code was used by ${v.login}, but Yip is signed in as ${active.login}. Use the same account."))
+                        else -> {
+                            connectWebToken(r.token.accessToken, client)
+                            emit(active?.let(DeviceLoginState::Success) ?: DeviceLoginState.Failed("Sign in to Yip first."))
+                        }
+                    }
                     return@flow
                 }
                 DevicePollResult.SlowDown -> interval += 5

@@ -14,6 +14,8 @@ interface TokenProvider {
 /** Supplies the optional twitch.tv web token used for GQL-only features. */
 interface WebTokenProvider {
     suspend fun webToken(): String?
+    /** Client the web token was issued to; GQL must send the same one. */
+    suspend fun webClientId(): String? = null
     suspend fun integrityToken(forceRefresh: Boolean = false): IntegrityToken?
 }
 
