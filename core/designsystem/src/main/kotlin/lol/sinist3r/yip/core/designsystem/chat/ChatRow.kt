@@ -50,6 +50,7 @@ import lol.sinist3r.yip.core.model.ChatToken
 import lol.sinist3r.yip.core.model.DeletedMessages
 import lol.sinist3r.yip.core.model.Emote
 import lol.sinist3r.yip.core.model.HighlightKind
+import lol.sinist3r.yip.core.model.PaintFunction
 import lol.sinist3r.yip.core.model.PaintMode
 import lol.sinist3r.yip.core.model.ThirdPartySettings
 import lol.sinist3r.yip.core.model.TimestampStyle
@@ -155,7 +156,8 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
     }
     val time = m.timeLabel(chat.timestamps, chat.timestampSeconds)
 
-    val (text, inline) = remember(m, options, nameColor, dark) {
+    val paintImage = rememberPaintImage(m.paint?.takeIf { it.function == PaintFunction.URL && tp.seventvPaints != PaintMode.OFF }?.imageUrl)
+    val (text, inline) = remember(m, options, nameColor, dark, paintImage) {
         val inline = HashMap<String, InlineTextContent>()
         val paint = m.paint?.takeIf { tp.seventvPaints != PaintMode.OFF }
         // Position the paint gradient over the name only.
@@ -184,7 +186,7 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
             }
             val nameSpan = if (paint != null) {
                 SpanStyle(
-                    brush = paint.toBrush(prefixPx, 0f, nameWidth.coerceAtLeast(1f), lineH),
+                    brush = paint.toBrush(prefixPx, 0f, nameWidth.coerceAtLeast(1f), lineH, paintImage),
                     shadow = if (tp.seventvPaintShadows && tp.seventvPaints == PaintMode.ANIMATED) paint.primaryShadow(1f) else null,
                     fontWeight = FontWeight.Bold,
                 )

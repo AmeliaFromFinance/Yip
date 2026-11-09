@@ -144,7 +144,7 @@ If you change the script in `auth/index.html`, update its hash in the Content-Se
 | --- | --- |
 | `app` | Activity, navigation, notifications, picture-in-picture |
 | `core:model` | Data classes, including the full settings schema |
-| `core:network` | Twitch Helix, GQL, OAuth, EventSub and IRC chat, 7TV/BTTV/FFZ, signed config |
+| `core:network` | Twitch Helix, GQL, OAuth, EventSub and IRC chat, 7TV (API v4, EventAPI), BTTV/FFZ, signed config |
 | `core:data` | Repositories: accounts, browsing, playback, emotes, chat pipeline |
 | `core:playback` | Media3 player, background service, playlist hook |
 | `core:datastore` | Settings and encrypted account storage |

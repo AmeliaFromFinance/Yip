@@ -30,6 +30,7 @@ class ChatPipeline(private val cosmetics: CosmeticsRepository) {
         selfLogin: String?,
     ): ChatItem.Message? {
         if (isFiltered(raw, settings)) return null
+        cosmetics.noteChatter(raw.userId)
         val personal = cosmetics.personalEmotes(raw.userId)
         val tokens = tokenize(raw.parts, channel.emotes, personal, settings)
         if (settings.filters.hideEmoteOnly && tokens.isNotEmpty() && tokens.all { it is ChatToken.EmoteToken || (it is ChatToken.Text && it.text.isBlank()) }) return null

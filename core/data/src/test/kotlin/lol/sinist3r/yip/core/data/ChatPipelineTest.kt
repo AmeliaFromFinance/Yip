@@ -24,6 +24,7 @@ class ChatPipelineTest {
         every { personalEmotes(any()) } returns emptyMap()
         every { paintFor(any()) } returns null
         every { extraBadges(any()) } returns emptyList()
+        every { noteChatter(any()) } returns Unit
     }
     private val pipeline = ChatPipeline(cosmetics)
     private fun emote(code: String, zw: Boolean = false) = Emote(code, code, EmoteProvider.SEVENTV, listOf("https://x/$code"), zeroWidth = zw)

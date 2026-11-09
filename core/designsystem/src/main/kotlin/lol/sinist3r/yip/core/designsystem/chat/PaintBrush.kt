@@ -1,6 +1,11 @@
 package lol.sinist3r.yip.core.designsystem.chat
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.Shader
+import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
@@ -16,7 +21,8 @@ import lol.sinist3r.yip.core.model.PaintFunction
  * Builds a Compose brush for a 7TV paint spanning [left, left+width] x [top, top+height] in
  * text-layout pixels. CSS angles: 0deg points up, 90deg points right.
  */
-fun Paint.toBrush(left: Float, top: Float, width: Float, height: Float): Brush {
+fun Paint.toBrush(left: Float, top: Float, width: Float, height: Float, image: ImageBitmap? = null): Brush {
+    if (function == PaintFunction.URL && image != null) return imageBrush(image, left, top, width, height)
     val colors = stops.map { Color(it.argb) }
     if (colors.size < 2 || function == PaintFunction.URL && stops.isEmpty()) {
         return SolidColor(Color(fallbackArgb ?: stops.firstOrNull()?.argb ?: 0xFFFFFFFF))
@@ -44,6 +50,14 @@ fun Paint.toBrush(left: Float, top: Float, width: Float, height: Float): Brush {
                 tileMode = tile,
             )
         }
+    }
+}
+
+/** Scales the paint image to cover the name box and repeats it sideways for long names. */
+private fun imageBrush(image: ImageBitmap, left: Float, top: Float, width: Float, height: Float): Brush = object : ShaderBrush() {
+    override fun createShader(size: Size): Shader = ImageShader(image, TileMode.Repeated, TileMode.Clamp).apply {
+        val scale = maxOf(height / image.height, width / image.width)
+        setLocalMatrix(android.graphics.Matrix().apply { setScale(scale, scale); postTranslate(left, top) })
     }
 }
 

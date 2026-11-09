@@ -1,9 +1,21 @@
 package lol.sinist3r.yip.core.data.cosmetics
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import lol.sinist3r.yip.core.common.IoDispatcher
+import lol.sinist3r.yip.core.model.PaintMode
+import lol.sinist3r.yip.core.network.cosmetics.SevenTvStyle
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -56,6 +68,12 @@ data class ChannelCosmetics(
 
 data class EmoteChange(val channelId: String, val text: String)
 
+@Serializable
+private data class SevenTvCatalogue(val paints: List<Paint>, val badges: List<Badge>)
+
+private const val STYLE_TTL_MS = 10 * 60 * 1000L
+private const val CATALOGUE_TTL_MS = 24 * 60 * 60 * 1000L
+
 fun twitchEmote(id: String, code: String) = Emote(
     id = id,
     code = code,
@@ -76,7 +94,10 @@ class CosmeticsRepository @Inject constructor(
     private val gql: GqlApi,
     private val accounts: AccountRepository,
     private val settings: SettingsRepository,
+    private val json: Json,
+    @ApplicationContext private val context: Context,
     @AppScope private val scope: CoroutineScope,
+    @IoDispatcher private val io: CoroutineDispatcher,
 ) {
     private val globalsMutex = Mutex()
     private var globalsLoaded = false
@@ -100,6 +121,16 @@ class CosmeticsRepository @Inject constructor(
     private val changes = MutableSharedFlow<EmoteChange>(extraBufferCapacity = 32)
     val emoteChanges: SharedFlow<EmoteChange> = changes.asSharedFlow()
 
+    // 7TV chatter lookups (v4): batched, cached for STYLE_TTL, results pushed to open chats.
+    private val lookedUp = ConcurrentHashMap<String, Long>() // twitch user id -> last lookup
+    private val pendingLookups = Channel<String>(Channel.UNLIMITED)
+    private val catalogueMutex = Mutex()
+    @Volatile private var catalogueLoaded = false
+    private val updated = MutableSharedFlow<Set<String>>(extraBufferCapacity = 64)
+
+    /** Twitch user ids whose paint or 7TV badge changed; open chats restyle their messages. */
+    val cosmeticsUpdated: SharedFlow<Set<String>> = updated.asSharedFlow()
+
     private data class RawChannel(
         val seventv: List<Emote> = emptyList(),
         val bttv: List<Emote> = emptyList(),
@@ -114,6 +145,7 @@ class CosmeticsRepository @Inject constructor(
 
     init {
         scope.launch { seventvEvents.stream.collect(::onSevenTvEvent) }
+        scope.launch(io) { lookupLoop() }
     }
 
     fun channel(channelId: String): StateFlow<ChannelCosmetics> =
@@ -143,7 +175,7 @@ class CosmeticsRepository @Inject constructor(
         )
         raw[channelId] = rc
         publish(channelId, tp)
-        if (tp.seventvLiveUpdates || tp.seventvPaints != lol.sinist3r.yip.core.model.PaintMode.OFF || tp.seventvBadges || tp.seventvPersonalEmotes) {
+        if (tp.seventvLiveUpdates || tp.seventvPaints != PaintMode.OFF || tp.seventvBadges || tp.seventvPersonalEmotes) {
             seventvEvents.watchChannel(channelId, rc.setId.takeIf { tp.seventvLiveUpdates }, rc.sevenTvUserId.takeIf { tp.seventvLiveUpdates })
         }
     }
@@ -246,10 +278,86 @@ class CosmeticsRepository @Inject constructor(
 
     fun paintFor(userId: String): Paint? = userPaint[userId]?.let(paints::get)
 
+    fun sevenTvBadge(userId: String): Badge? =
+        if (settings.settings.value.thirdParty.seventvBadges) userBadge[userId]?.let(sevenTvBadges::get) else null
+
+    /** Queues a 7TV style lookup for a chatter unless one ran recently. Cheap; call per message. */
+    fun noteChatter(userId: String) {
+        if (userId.isEmpty()) return
+        val tp = settings.settings.value.thirdParty
+        if (tp.seventvPaints == PaintMode.OFF && !tp.seventvBadges && !tp.seventvPersonalEmotes) return
+        val now = System.currentTimeMillis()
+        val last = lookedUp[userId]
+        if (last != null && now - last < STYLE_TTL_MS) return
+        lookedUp[userId] = now
+        if (lookedUp.size > 20_000) lookedUp.clear()
+        pendingLookups.trySend(userId)
+    }
+
+    private suspend fun lookupLoop() {
+        while (true) {
+            val first = pendingLookups.receive()
+            delay(250) // let a burst (history load, busy chat) collect into one request
+            val batch = linkedSetOf(first)
+            while (batch.size < SevenTvApi.MAX_STYLE_BATCH) batch += pendingLookups.tryReceive().getOrNull() ?: break
+            ensureCatalogue()
+            attempt { seventv.styles(batch) }
+                .onSuccess { applyStyles(batch, it) }
+                .onFailure { e -> Timber.w(e, "7TV style lookup failed"); batch.forEach(lookedUp::remove) }
+        }
+    }
+
+    private suspend fun applyStyles(batch: Set<String>, styles: Map<String, SevenTvStyle>) {
+        val changed = HashSet<String>()
+        for (uid in batch) {
+            val st = styles[uid]
+            st?.paintId?.let { if (!paints.containsKey(it)) attempt { seventv.paint(it) }.getOrNull()?.let { p -> paints[p.id] = p } }
+            st?.badgeId?.let { if (!sevenTvBadges.containsKey(it)) attempt { seventv.badge(it) }.getOrNull()?.let { b -> sevenTvBadges[it] = b } }
+            if (setOrClear(userPaint, uid, st?.paintId)) changed += uid
+            if (setOrClear(userBadge, uid, st?.badgeId)) changed += uid
+            // Personal emotes need an active subscription; equipped cosmetics are the public signal for that.
+            val personal = st?.personalSetId?.takeIf { st.paintId != null || st.badgeId != null }
+            if (personal != null) {
+                userPersonalSets.getOrPut(uid) { ConcurrentHashMap.newKeySet() } += personal
+                if (!personalSets.containsKey(personal)) {
+                    attempt { seventv.emoteSet(personal, personal = true) }.getOrNull()?.let { (_, emotes) -> personalSets[personal] = emotes }
+                }
+            }
+        }
+        if (changed.isNotEmpty()) updated.tryEmit(changed)
+    }
+
+    private fun setOrClear(map: ConcurrentHashMap<String, String>, key: String, value: String?): Boolean =
+        if (value == null) map.remove(key) != null else map.put(key, value) != value
+
+    /** Paint and badge definitions, cached on disk for a day (the paint list is ~1 MB). */
+    private suspend fun ensureCatalogue() = catalogueMutex.withLock {
+        if (catalogueLoaded) return@withLock
+        val file = File(context.cacheDir, "7tv_catalogue.json")
+        val cached = withContext(io) {
+            attempt {
+                if (System.currentTimeMillis() - file.lastModified() > CATALOGUE_TTL_MS) null
+                else json.decodeFromString<SevenTvCatalogue>(file.readText())
+            }.getOrNull()
+        }
+        val cat = cached ?: coroutineScope {
+            val p = async { attempt { seventv.paints() }.getOrNull() }
+            val b = async { attempt { seventv.badges() }.getOrNull() }
+            val fresh = SevenTvCatalogue(p.await() ?: return@coroutineScope null, b.await() ?: return@coroutineScope null)
+            withContext(io) { attempt { file.writeText(json.encodeToString(SevenTvCatalogue.serializer(), fresh)) } }
+            fresh
+        }
+        if (cat == null) return@withLock // retry on the next batch
+        cat.paints.forEach { paints.putIfAbsent(it.id, it) }
+        cat.badges.forEach { sevenTvBadges.putIfAbsent(it.id.removePrefix("7tv:"), it) }
+        catalogueLoaded = true
+        Timber.i("7TV catalogue: %d paints, %d badges", cat.paints.size, cat.badges.size)
+    }
+
     fun extraBadges(userId: String): List<Badge> {
         val tp = settings.settings.value.thirdParty
         val out = mutableListOf<Badge>()
-        if (tp.seventvBadges) userBadge[userId]?.let(sevenTvBadges::get)?.let(out::add)
+        sevenTvBadge(userId)?.let(out::add)
         userBadgeSets.forEach { set ->
             set.users[userId]?.forEach { id ->
                 val b = set.badges[id] ?: return@forEach
@@ -278,8 +386,14 @@ class CosmeticsRepository @Inject constructor(
             is SevenTvEvent.PaintDefined -> paints[ev.paint.id] = ev.paint
             is SevenTvEvent.BadgeDefined -> sevenTvBadges[ev.badge.id.removePrefix("7tv:")] = ev.badge
             is SevenTvEvent.Entitlement -> when (ev.kind) {
-                "PAINT" -> if (ev.granted) userPaint[ev.twitchUserId] = ev.refId else userPaint.remove(ev.twitchUserId, ev.refId)
-                "BADGE" -> if (ev.granted) userBadge[ev.twitchUserId] = ev.refId else userBadge.remove(ev.twitchUserId, ev.refId)
+                "PAINT" -> {
+                    if (ev.granted) userPaint[ev.twitchUserId] = ev.refId else userPaint.remove(ev.twitchUserId, ev.refId)
+                    updated.tryEmit(setOf(ev.twitchUserId))
+                }
+                "BADGE" -> {
+                    if (ev.granted) userBadge[ev.twitchUserId] = ev.refId else userBadge.remove(ev.twitchUserId, ev.refId)
+                    updated.tryEmit(setOf(ev.twitchUserId))
+                }
                 "EMOTE_SET" -> if (ev.granted) {
                     userPersonalSets.getOrPut(ev.twitchUserId) { ConcurrentHashMap.newKeySet() } += ev.refId
                     if (!personalSets.containsKey(ev.refId)) scope.launch {
