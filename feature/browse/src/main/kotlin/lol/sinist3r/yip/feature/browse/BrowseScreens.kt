@@ -61,6 +61,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -241,6 +243,14 @@ private fun HistoryRow(entries: List<HistoryEntry>, onOpen: (HistoryEntry) -> Un
                     )
                     IconButton(onClick = { onRemove(e.key) }, modifier = Modifier.align(Alignment.TopEnd)) { Icon(Icons.Outlined.Close, "Remove from history") }
                     if (e.progress > 0f) LinearProgressIndicator(progress = { e.progress }, Modifier.align(Alignment.BottomCenter).fillMaxWidth(), drawStopIndicator = {})
+                    if (e.durationSeconds > 0) {
+                        val left = ((e.durationSeconds - e.positionSeconds) / 60).coerceAtLeast(1)
+                        Text(
+                            if (left >= 60) "${left / 60}h ${left % 60}m left" else "${left}m left",
+                            style = MaterialTheme.typography.labelSmall, color = Color.White,
+                            modifier = Modifier.align(Alignment.BottomStart).padding(6.dp).background(Color.Black.copy(alpha = 0.6f), MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp),
+                        )
+                    }
                 }
                 Text(e.channelName, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                 Text(e.title, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)

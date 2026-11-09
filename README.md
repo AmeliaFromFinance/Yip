@@ -11,7 +11,8 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 **Watching**
 - Live, VODs (with chapters and resume), clips
 - Download VODs and clips to watch offline
-- Library: full watch history and downloads; Continue watching skips finished videos
+- Library: full watch history and downloads
+- Continue watching: unfinished VODs only, resumes where you stopped, drops deleted VODs
 - Quality picker, separate defaults for Wi-Fi and mobile data, remember per channel
 - Low-latency, balanced or stable buffering, with live latency shown on the player
 - Uses Twitch's low-latency segments, a jump-to-live button and auto catch-up

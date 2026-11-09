@@ -165,6 +165,18 @@ class TwitchRepository @Inject constructor(
 
     data class ChannelInfo(val user: User, val stream: LiveStream?)
 
+    /** True/false once Twitch answers; null if it couldn't be checked (signed out, offline). */
+    suspend fun vodExists(id: String): Boolean? {
+        if (signedInUserId() == null) return null
+        return try {
+            helix.videos(ids = listOf(id)).data.isNotEmpty()
+        } catch (e: lol.sinist3r.yip.core.common.AppException) {
+            if (e.kind == lol.sinist3r.yip.core.common.AppException.Kind.NOT_FOUND) false else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     suspend fun channelEvents(login: String): lol.sinist3r.yip.core.model.ChannelEvents = gql.channelEvents(login)
 
     suspend fun channel(login: String? = null, id: String? = null): ChannelInfo? {

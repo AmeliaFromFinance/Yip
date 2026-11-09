@@ -105,15 +105,15 @@ class FollowingViewModel @Inject constructor(
     private val _state = MutableStateFlow(FollowingUiState())
     val settings: StateFlow<AppSettings> = settingsRepo.settings
 
-    val state: StateFlow<FollowingUiState> = combine(_state, history.recent, settings) { s, h, st ->
+    val state: StateFlow<FollowingUiState> = combine(_state, history.continueWatching, settings) { s, h, st ->
         val pins = st.notifications.favourites
         s.copy(
             live = s.live.filterNot { it.userLogin.lowercase() in pins }.sortedWith(st.general.followingSort),
             offline = s.offline.filterNot { it.login.lowercase() in pins },
             // Drop anything unpinned since the last fetch; live ones first.
             pinned = s.pinned.filter { it.login in pins }.sortedBy { if (it.stream != null) 0 else 1 },
-            // Finished videos drop out; they stay in Library → History.
-            history = if (st.general.continueWatching) h.filterNot { it.kind == lol.sinist3r.yip.core.database.HistoryKind.VOD && it.progress >= 0.95f }.take(12) else emptyList(),
+            // Unfinished VODs only; everything stays in Library → History.
+            history = if (st.general.continueWatching) h.take(12) else emptyList(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FollowingUiState())
 
@@ -152,6 +152,7 @@ class FollowingViewModel @Inject constructor(
                 return@launch
             }
             _state.update { it.copy(loading = true, error = null) }
+            launch { history.pruneDeletedVods(twitch::vodExists) }
             val live = attempt { twitch.followedLive() }
             val offline = if (settings.value.general.showOfflineFollowed) attempt { twitch.followedChannels() }.getOrDefault(emptyList()) else emptyList()
             launch { refreshPinned() }

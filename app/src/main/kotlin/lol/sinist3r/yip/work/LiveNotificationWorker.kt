@@ -35,10 +35,13 @@ class LiveNotificationWorker @AssistedInject constructor(
     private val checker: LiveChecker,
     private val accounts: AccountRepository,
     private val settings: SettingsRepository,
+    private val history: lol.sinist3r.yip.core.data.history.HistoryRepository,
+    private val twitch: lol.sinist3r.yip.core.data.twitch.TwitchRepository,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
         if (accounts.userId() == null) return Result.success()
+        attempt { history.pruneDeletedVods(twitch::vodExists) }
         val alerts = attempt { checker.check() }.getOrElse { return Result.retry() }
         if (alerts.isEmpty()) return Result.success()
         if (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return Result.success()

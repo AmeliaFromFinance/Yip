@@ -159,7 +159,8 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun openClip(clip: Clip) = nav.navigate(WatchRoute("CLIP", clip.id, clip.vodOffset ?: -1, null, clip.title, clip.videoId))
             override fun openHistory(entry: HistoryEntry) = when (entry.kind) {
                 HistoryKind.LIVE -> nav.navigate(WatchRoute("LIVE", entry.channelLogin))
-                HistoryKind.VOD -> nav.navigate(WatchRoute("VOD", entry.contentId))
+                // Pick up exactly where it was left.
+                HistoryKind.VOD -> nav.navigate(WatchRoute("VOD", entry.contentId, entry.positionSeconds.toInt()))
                 HistoryKind.CLIP -> nav.navigate(WatchRoute("CLIP", entry.contentId))
             }
             override fun openLogin() = nav.navigate(LoginRoute)
