@@ -117,12 +117,15 @@ class MainActivity : ComponentActivity(), WatchHost {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         inPip = isInPictureInPictureMode
-        // Expanding the PiP window brings back the normal screen, not the fullscreen it may have started from.
-        if (!isInPictureInPictureMode && fullscreenOn) setFullscreen(false)
+        // Drop fullscreen on the way in, so expanding goes straight back to the normal screen.
+        if (fullscreenOn) setFullscreen(false)
     }
 
     override fun onStop() {
         super.onStop()
+        // Coming back from the notification or recents should land on the normal screen. Screen-off keeps fullscreen.
+        val screenOn = getSystemService(android.os.PowerManager::class.java)?.isInteractive != false
+        if (!inPip && !isChangingConfigurations && screenOn && fullscreenOn) setFullscreen(false)
         // Leaving the app without PiP and without background audio: pause.
         if (!inPip && !isChangingConfigurations && !settings.settings.value.player.backgroundAudio) playback.player.pause()
     }
@@ -139,7 +142,7 @@ class MainActivity : ComponentActivity(), WatchHost {
         }
     }
 
-    override fun isFullscreen(): Boolean = fullscreenOn || resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    override fun isFullscreen(): Boolean = !inPip && (fullscreenOn || resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
 
     override fun setBrightness(value: Float) {
         window.attributes = window.attributes.apply { screenBrightness = value }

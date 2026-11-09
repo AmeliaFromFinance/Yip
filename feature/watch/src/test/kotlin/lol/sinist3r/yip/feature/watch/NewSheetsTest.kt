@@ -56,4 +56,15 @@ class NewSheetsTest {
         compose.onNodeWithText("Audio only").assertIsDisplayed()
         captureScreenRoboImage("build/screenshots/quality_sheet.png")
     }
+
+    @Test fun emotePicker() {
+        val twitch = listOf(
+            Emote("1", "eepyHi", EmoteProvider.TWITCH, listOf("https://example.invalid/a"), isChannel = true),
+            Emote("2", "Kappa", EmoteProvider.TWITCH, listOf("https://example.invalid/b")),
+        )
+        themed { EmotePickerSheet(null, twitch, emptyList(), false, onPick = {}, onDismiss = {}) }
+        compose.onNodeWithText("This channel").assertIsDisplayed()
+        compose.onNodeWithText("3rd Party").assertIsDisplayed()
+        captureScreenRoboImage("build/screenshots/emote_picker.png")
+    }
 }

@@ -57,6 +57,8 @@ interface WatchNavigator {
     fun openChannel(login: String)
     fun openVod(videoId: String, offsetSeconds: Int)
     fun openLink(url: String)
+    /** Replaces this screen with multi-view. */
+    fun openMultiView(logins: List<String>) {}
 }
 
 @Composable
@@ -95,6 +97,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
 
     var showQuality by remember { mutableStateOf(false) }
     var showFilters by remember { mutableStateOf(false) }
+    var showAddStream by remember { mutableStateOf(false) }
     var emoteCard by remember { mutableStateOf<Emote?>(null) }
     var showEmotes by remember { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<ChatItem.Message?>(null) }
@@ -166,6 +169,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onQuality = { showQuality = true },
             stats = viewModel.playback.stats,
             onToggleMute = viewModel.playback::toggleMute,
+            onMultiView = if (isLive && settings.experimental.multiView && info.user != null) ({ showAddStream = true }) else null,
             onRetry = { if (info.error != null) viewModel.load() else viewModel.playback.retry() },
             modifier = mod,
         )
@@ -249,6 +253,9 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         }
     }
 
+    if (showAddStream) info.user?.let { u ->
+        AddStreamSheet(exclude = setOf(u.login.lowercase()), onPick = { showAddStream = false; nav.openMultiView(listOf(u.login, it)) }, onDismiss = { showAddStream = false })
+    }
     if (showFilters) ChatFiltersSheet(settings.filters, viewModel::updateFilters, onDismiss = { showFilters = false })
     if (showQuality) QualitySheet(
         qualities = playState.qualities,

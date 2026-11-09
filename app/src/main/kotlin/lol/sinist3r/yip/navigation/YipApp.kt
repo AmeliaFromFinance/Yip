@@ -128,7 +128,8 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
     LaunchedEffect(settings.notifications.enabled) {
         if (settings.notifications.enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
-    LaunchedEffect(onWatch, landscape) { if (onWatch) activity.setFullscreen(landscape && activity.isFullscreen()) }
+    // The PiP window is landscape-shaped; that isn't a rotation, so leave fullscreen alone.
+    LaunchedEffect(onWatch, landscape, inPip) { if (onWatch && !inPip) activity.setFullscreen(landscape && activity.isFullscreen()) }
     activity.openSignInRequest = { nav.navigate(LoginRoute) }
 
     fun openLink(url: String) {
@@ -177,6 +178,10 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun openChannel(login: String) = nav.navigate(ChannelRoute(login))
             override fun openVod(videoId: String, offsetSeconds: Int) = nav.navigate(WatchRoute("VOD", videoId, offsetSeconds))
             override fun openLink(url: String) = openLink(url)
+            override fun openMultiView(logins: List<String>) {
+                nav.popBackStack()
+                nav.navigate(MultiViewRoute(logins.joinToString(",")))
+            }
         }
     }
     val settingsNav = remember {

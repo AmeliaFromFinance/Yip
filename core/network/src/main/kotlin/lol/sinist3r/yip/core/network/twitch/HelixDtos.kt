@@ -1,5 +1,6 @@
 package lol.sinist3r.yip.core.network.twitch
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
@@ -50,7 +51,12 @@ import kotlinx.serialization.json.JsonObject
 
 @Serializable data class HelixBadgeSet(val setId: String, val versions: List<HelixBadgeVersion>)
 @Serializable data class HelixBadgeVersion(
-    val id: String, val imageUrl1x: String, val imageUrl2x: String, val imageUrl4x: String, val title: String? = null,
+    val id: String,
+    // Snake-case naming gives "image_url1x"; Twitch sends "image_url_1x".
+    @SerialName("image_url_1x") val imageUrl1x: String,
+    @SerialName("image_url_2x") val imageUrl2x: String,
+    @SerialName("image_url_4x") val imageUrl4x: String,
+    val title: String? = null,
 )
 
 @Serializable data class HelixEmote(

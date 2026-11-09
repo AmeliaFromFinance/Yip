@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -51,7 +52,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -92,22 +93,9 @@ fun EmotePickerSheet(
     onLongPress: (Emote) -> Unit = {},
 ) {
     val all = cosmetics?.emotes?.values.orEmpty()
-    val tabs = remember(cosmetics, twitchEmotes, recent, favourites) {
-        buildList {
-            if (favourites.isNotEmpty()) {
-                val byKey = (all + twitchEmotes).associateBy { it.favouriteKey }
-                // Only favourites usable here; order as favourited.
-                add("Favourites" to favourites.mapNotNull(byKey::get))
-            }
-            if (recent.isNotEmpty()) add("Recent" to recent)
-            add("Channel" to (all.filter { it.isChannel } + twitchEmotes.filter { it.isChannel }).distinctBy { it.code })
-            add("7TV" to all.filter { it.provider == EmoteProvider.SEVENTV })
-            add("BTTV" to all.filter { it.provider == EmoteProvider.BTTV })
-            add("FFZ" to all.filter { it.provider == EmoteProvider.FFZ })
-            add("Twitch" to twitchEmotes)
-        }.filter { it.second.isNotEmpty() }
-    }
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val tabs = remember(cosmetics, twitchEmotes, recent, favourites) { emoteTabs(all, twitchEmotes, recent, favourites) }
+    // Open on the first tab with something in it.
+    var tab by rememberSaveable { mutableIntStateOf(tabs.indexOfFirst { t -> t.sections.any { it.emotes.isNotEmpty() } }.coerceAtLeast(0)) }
     var query by remember { mutableStateOf("") }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.heightIn(max = 520.dp)) {
@@ -119,25 +107,66 @@ fun EmotePickerSheet(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             )
             if (query.isBlank() && tabs.isNotEmpty()) {
-                PrimaryScrollableTabRow(selectedTabIndex = tab.coerceIn(0, tabs.lastIndex), edgePadding = 8.dp) {
-                    tabs.forEachIndexed { i, (name, list) -> Tab(tab == i, { tab = i }, text = { Text("$name ${list.size}") }) }
+                PrimaryTabRow(selectedTabIndex = tab.coerceIn(0, tabs.lastIndex)) {
+                    tabs.forEachIndexed { i, t ->
+                        // Default tab padding clips "Favourites" on narrow phones.
+                        Tab(tab == i, { tab = i }, selectedContentColor = MaterialTheme.colorScheme.primary, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant) {
+                            Text(t.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false, modifier = Modifier.padding(horizontal = 2.dp, vertical = 14.dp))
+                        }
+                    }
                 }
             }
-            val list = if (query.isNotBlank()) {
-                (all + twitchEmotes).filter { it.code.contains(query, true) }.distinctBy { it.code }.sortedBy { it.code.length }
+            val sections = if (query.isNotBlank()) {
+                listOf(EmoteSection(null, (all + twitchEmotes).filter { it.code.contains(query, true) }.distinctBy { it.code }.sortedBy { it.code.length }))
             } else {
-                tabs.getOrNull(tab)?.second.orEmpty().sortedBy { it.code.lowercase() }
+                tabs.getOrNull(tab.coerceIn(0, tabs.lastIndex.coerceAtLeast(0)))?.sections.orEmpty()
             }
             LazyVerticalGrid(GridCells.Adaptive(48.dp), contentPadding = PaddingValues(12.dp), modifier = Modifier.fillMaxWidth()) {
-                items(list, key = { it.provider.name + it.id + it.code }) { e ->
-                    EmoteImage(
-                        e, animate = animate,
-                        modifier = Modifier.size(44.dp).padding(4.dp).combinedClickable(onClick = { onPick(e) }, onLongClick = { onLongPress(e) }),
-                    )
+                if (sections.all { it.emotes.isEmpty() }) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Text("Nothing here yet", Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                sections.forEach { sec ->
+                    if (sec.title != null && sec.emotes.isNotEmpty()) {
+                        item(span = { GridItemSpan(maxLineSpan) }, key = "h:" + sec.title) {
+                            Text(
+                                sec.title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp),
+                            )
+                        }
+                    }
+                    items(sec.emotes, key = { sec.title + it.provider.name + it.id + it.code }) { e ->
+                        EmoteImage(
+                            e, animate = animate,
+                            modifier = Modifier.size(44.dp).padding(4.dp).combinedClickable(onClick = { onPick(e) }, onLongClick = { onLongPress(e) }),
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+data class EmoteSection(val title: String?, val emotes: List<Emote>)
+data class EmoteTab(val name: String, val sections: List<EmoteSection>)
+
+/** Favourites, Recent, Twitch (this channel first), 3rd Party (7TV, BTTV, FFZ; channel emotes first). */
+fun emoteTabs(all: Collection<Emote>, twitchEmotes: List<Emote>, recent: List<Emote>, favourites: List<String>): List<EmoteTab> {
+    fun List<Emote>.alpha() = distinctBy { it.code }.sortedBy { it.code.lowercase() }
+    val byKey = (all + twitchEmotes).associateBy { it.favouriteKey }
+    val twitch = twitchEmotes.filter { it.provider == EmoteProvider.TWITCH }
+    val (channelTwitch, otherTwitch) = twitch.partition { it.isChannel }
+    fun provider(p: EmoteProvider, title: String): EmoteSection {
+        val (ch, global) = all.filter { it.provider == p }.partition { it.isChannel }
+        return EmoteSection(title, ch.alpha() + global.alpha())
+    }
+    return listOf(
+        EmoteTab("Favourites", listOf(EmoteSection(null, favourites.mapNotNull(byKey::get)))),
+        EmoteTab("Recent", listOf(EmoteSection(null, recent))),
+        EmoteTab("Twitch", listOf(EmoteSection("This channel", channelTwitch.alpha()), EmoteSection("Your emotes", (otherTwitch.alpha() - channelTwitch.toSet()))).filter { it.emotes.isNotEmpty() }),
+        EmoteTab("3rd Party", listOf(provider(EmoteProvider.SEVENTV, "7TV"), provider(EmoteProvider.BTTV, "BTTV"), provider(EmoteProvider.FFZ, "FFZ")).filter { it.emotes.isNotEmpty() }),
+    )
 }
 
 

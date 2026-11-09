@@ -17,7 +17,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Notification controls: play, pause and mute without opening the app
 - Swipe for brightness and volume, double-tap to seek, pinch to fill
 - Landscape chat as an overlay, side panel or hidden
-- Multi-view: up to four streams at once, tap one to hear it
+- Multi-view: up to four streams at once with chat for each. Start it from any stream, tap one to hear it
 
 **Chat**
 - 7TV, BTTV and FFZ emotes with live 7TV updates, personal emotes and zero-width overlays
@@ -29,7 +29,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Emote card: long-press an emote to see it large, its source and creator, and favourite it
 - Pronouns next to names, from pronouns.alejo.io
 - Pings for mentions, keywords and highlighted users when that chat isn't on screen
-- Emote picker, emote and @name suggestions, Tab completion on keyboards
+- Emote picker (Favourites, Recent, Twitch, 3rd Party), emote and @name suggestions, Tab completion on keyboards
 - Moderation: timeouts, bans, deletes and slash commands; AutoMod holds in your own chat and channels you moderate
 - VOD chat replay, synced to playback
 

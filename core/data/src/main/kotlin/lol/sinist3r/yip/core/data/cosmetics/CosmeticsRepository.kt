@@ -219,6 +219,8 @@ class CosmeticsRepository @Inject constructor(
     }
 
     private suspend fun ensureGlobals() = globalsMutex.withLock {
+        // A failed badge fetch shouldn't stick for the whole session.
+        if (globalsLoaded && globalTwitchBadges.isEmpty()) globalTwitchBadges = attempt { twitchGlobalBadges() }.getOrDefault(emptyMap())
         if (globalsLoaded) return@withLock
         coroutineScope {
             val tb = async { attempt { twitchGlobalBadges() }.getOrDefault(emptyMap()) }
