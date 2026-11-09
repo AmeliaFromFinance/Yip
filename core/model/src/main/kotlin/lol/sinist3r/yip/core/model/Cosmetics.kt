@@ -75,6 +75,13 @@ object TwitchEmoteGroups {
     )
     val events: Set<String> = byType.values.toSet() - TWITCH
 
+    /** What unlocks one of a channel's own emotes: "Tier 1/2/3", "Bits" or "Follower". */
+    fun unlockLabel(emoteType: String?, tier: String?): String = when (emoteType) {
+        "bitstier" -> "Bits"
+        "follower" -> "Follower"
+        else -> when (tier) { "2000" -> "Tier 2"; "3000" -> "Tier 3"; else -> "Tier 1" }
+    }
+
     /** Event emotes go by type; channel emotes by owner; the rest are Twitch's. */
     fun of(emoteType: String?, ownerName: String?): String =
         byType[emoteType] ?: ownerName?.takeIf { it.isNotBlank() } ?: TWITCH

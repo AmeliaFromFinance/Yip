@@ -40,7 +40,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Raid prompt: jump to the channel being raided in one tap
 - Poll, prediction and Hype Train cards above chat (view only)
 - Pings for mentions, keywords and highlighted users when that chat isn't on screen
-- Emote picker (Favourites, Recent, Twitch, 3rd Party), emote and @name suggestions, Tab completion on keyboards
+- Emote picker (Favourites, Recent, Twitch, 3rd Party) with locked tiers greyed out, emote and @name suggestions, Tab completion on keyboards
 - Moderation: timeouts, bans, deletes and slash commands; AutoMod holds in your own chat and channels you moderate
 - VOD chat replay, synced to playback
 

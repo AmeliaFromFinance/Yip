@@ -65,7 +65,12 @@ class NewSheetsTest {
             Emote("1", "eepyHi", EmoteProvider.TWITCH, listOf("https://example.invalid/a"), isChannel = true),
             Emote("2", "Kappa", EmoteProvider.TWITCH, listOf("https://example.invalid/b")),
         )
-        themed { EmotePickerSheet(null, twitch, emptyList(), false, onPick = {}, onDismiss = {}) }
+        val cos = lol.sinist3r.yip.core.data.cosmetics.ChannelCosmetics("1", emotes = mapOf(
+            "eepyT2" to Emote("3", "eepyT2", EmoteProvider.TWITCH, listOf("https://example.invalid/c"), isChannel = true, group = "Tier 2"),
+            "eepyBits" to Emote("4", "eepyBits", EmoteProvider.TWITCH, listOf("https://example.invalid/d"), isChannel = true, group = "Bits"),
+        ))
+        themed { EmotePickerSheet(cos, twitch, emptyList(), false, onPick = {}, onDismiss = {}, channelName = "eepyAmelia") }
+        compose.onNodeWithText("Tier 2 · locked").assertIsDisplayed()
         compose.onNodeWithText("This channel").assertIsDisplayed()
         compose.onNodeWithText("3rd Party").assertIsDisplayed()
         captureScreenRoboImage("build/screenshots/emote_picker.png")

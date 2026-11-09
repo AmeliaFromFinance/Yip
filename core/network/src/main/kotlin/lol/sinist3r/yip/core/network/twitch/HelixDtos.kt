@@ -62,6 +62,8 @@ import kotlinx.serialization.json.JsonObject
 @Serializable data class HelixEmote(
     val id: String, val name: String, val format: List<String> = emptyList(), val scale: List<String> = emptyList(),
     val themeMode: List<String> = emptyList(), val emoteType: String? = null, val emoteSetId: String? = null, val ownerId: String? = null,
+    /** "1000", "2000" or "3000" for sub emotes. */
+    val tier: String? = null,
 )
 @Serializable data class HelixEmotePage(val data: List<HelixEmote> = emptyList(), val template: String? = null, val pagination: Pagination? = null)
 

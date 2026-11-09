@@ -142,6 +142,8 @@ data class ChatSettings(
     val favouriteEmotes: List<String> = emptyList(),
     /** Keyed by lowercase login. */
     val userNotes: Map<String, UserNote> = emptyMap(),
+    /** Show channel emotes you haven't unlocked (greyed out) in the picker. */
+    val showLockedEmotes: Boolean = true,
     val fontSizeSp: Float = 13.5f,
     val lineSpacing: Float = 1.35f,
     val emoteScale: Float = 1f,

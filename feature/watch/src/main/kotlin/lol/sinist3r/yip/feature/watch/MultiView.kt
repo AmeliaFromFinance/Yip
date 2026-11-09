@@ -348,6 +348,8 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
             onDismiss = { showEmotes = false },
             favourites = settings.chat.favouriteEmotes,
             onLongPress = { emoteCard = it },
+            showLocked = settings.chat.showLockedEmotes,
+            channelName = tiles.firstOrNull { it.chat == selected }?.displayName,
         )
     }
     emoteCard?.let { e ->

@@ -65,6 +65,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
@@ -93,9 +97,24 @@ fun EmotePickerSheet(
     onDismiss: () -> Unit,
     favourites: List<String> = emptyList(),
     onLongPress: (Emote) -> Unit = {},
+    showLocked: Boolean = true,
+    channelName: String? = null,
 ) {
     val all = cosmetics?.emotes?.values.orEmpty()
-    val tabs = remember(cosmetics, twitchEmotes, recent, favourites) { emoteTabs(all, twitchEmotes, recent, favourites) }
+    val tabs = remember(cosmetics, twitchEmotes, recent, favourites, showLocked) { emoteTabs(all, twitchEmotes, recent, favourites, showLocked) }
+    val lockedCodes = remember(tabs) { tabs.flatMap { it.sections }.filter { it.locked }.flatMap { it.emotes }.associateBy { it.code } }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val onTap: (Emote) -> Unit = { e ->
+        val lock = lockedCodes[e.code]
+        if (lock != null && e.provider == EmoteProvider.TWITCH) {
+            val how = when (val g = lock.group ?: "Tier 1") {
+                "Follower" -> "Follow ${channelName ?: "this channel"} to use ${e.code}"
+                "Bits" -> "${e.code} unlocks by cheering bits in ${channelName ?: "this channel"}"
+                else -> "Subscribe to ${channelName ?: "this channel"} at $g to use ${e.code}"
+            }
+            android.widget.Toast.makeText(context, how, android.widget.Toast.LENGTH_SHORT).show()
+        } else onPick(e)
+    }
     // Open on the first tab with something in it.
     var tab by rememberSaveable { mutableIntStateOf(tabs.indexOfFirst { t -> t.sections.any { it.emotes.isNotEmpty() } }.coerceAtLeast(0)) }
     var query by remember { mutableStateOf("") }
@@ -139,10 +158,16 @@ fun EmotePickerSheet(
                         }
                     }
                     items(sec.emotes, key = { sec.title + it.provider.name + it.id + it.code }) { e ->
-                        EmoteImage(
-                            e, animate = animate,
-                            modifier = Modifier.size(44.dp).padding(4.dp).combinedClickable(onClick = { onPick(e) }, onLongClick = { onLongPress(e) }),
-                        )
+                        val locked = e.provider == EmoteProvider.TWITCH && e.code in lockedCodes
+                        Box(
+                            Modifier.size(44.dp).combinedClickable(
+                                onClickLabel = if (locked) "Locked: how to unlock" else "Insert",
+                                onClick = { onTap(e) }, onLongClick = { onLongPress(e) },
+                            ),
+                        ) {
+                            EmoteImage(e, animate = animate && !locked, modifier = Modifier.fillMaxSize().padding(4.dp).alpha(if (locked) 0.35f else 1f))
+                            if (locked) Icon(Icons.Outlined.Lock, "Locked", Modifier.size(14.dp).align(Alignment.BottomEnd), tint = MaterialTheme.colorScheme.onSurface)
+                        }
                     }
                 }
             }
@@ -150,7 +175,7 @@ fun EmotePickerSheet(
     }
 }
 
-data class EmoteSection(val title: String?, val emotes: List<Emote>)
+data class EmoteSection(val title: String?, val emotes: List<Emote>, val locked: Boolean = false)
 data class EmoteTab(val name: String, val sections: List<EmoteSection>)
 
 /**
@@ -158,17 +183,24 @@ data class EmoteTab(val name: String, val sections: List<EmoteSection>)
  * Twitch: this channel, then one section per channel you have emotes from, then events (Hype Train, Prime...), then Twitch's own.
  * 3rd Party: 7TV, BTTV, FFZ, channel emotes first.
  */
-fun emoteTabs(all: Collection<Emote>, twitchEmotes: List<Emote>, recent: List<Emote>, favourites: List<String>): List<EmoteTab> {
+fun emoteTabs(all: Collection<Emote>, twitchEmotes: List<Emote>, recent: List<Emote>, favourites: List<String>, showLocked: Boolean = true): List<EmoteTab> {
     fun List<Emote>.alpha() = distinctBy { it.code }.sortedBy { it.code.lowercase() }
     val byKey = (all + twitchEmotes).associateBy { it.favouriteKey }
     val twitch = twitchEmotes.filter { it.provider == EmoteProvider.TWITCH }
     val (mine, others) = twitch.partition { it.isChannel }
-    // The channel's own Twitch emotes, including tiers you don't have yet; yours win on duplicates.
-    val channelTwitch = mine + all.filter { it.provider == EmoteProvider.TWITCH && it.isChannel }
+    val owned = twitch.map { it.code }.toSet()
+    // The channel's full set. Until your own list loads (or when signed out) nothing is marked locked.
+    val channelAll = all.filter { it.provider == EmoteProvider.TWITCH && it.isChannel }
+    val (usableExtra, locked) = if (twitch.isEmpty()) channelAll to emptyList() else channelAll.partition { it.code in owned }
+    val channelTwitch = mine + usableExtra
     val usable = channelTwitch.map { it.code }.toSet()
     val groups = others.filter { it.code !in usable }.groupBy { it.group ?: TwitchEmoteGroups.TWITCH }
     val order = compareBy<String>({ when (it) { TwitchEmoteGroups.TWITCH -> 2; in TwitchEmoteGroups.events -> 1; else -> 0 } }, { it.lowercase() })
-    val twitchSections = listOf(EmoteSection("This channel", channelTwitch.alpha())) +
+    val lockOrder = listOf("Follower", "Tier 1", "Tier 2", "Tier 3", "Bits")
+    val lockedSections = if (!showLocked) emptyList() else locked.groupBy { it.group ?: "Tier 1" }.entries
+        .sortedBy { lockOrder.indexOf(it.key).let { i -> if (i < 0) 99 else i } }
+        .map { (label, list) -> EmoteSection("$label · locked", list.alpha(), locked = true) }
+    val twitchSections = listOf(EmoteSection("This channel", channelTwitch.alpha())) + lockedSections +
         groups.keys.sortedWith(order).map { EmoteSection(it, groups.getValue(it).alpha()) }
     fun provider(p: EmoteProvider, title: String): EmoteSection {
         val (ch, global) = all.filter { it.provider == p }.partition { it.isChannel }

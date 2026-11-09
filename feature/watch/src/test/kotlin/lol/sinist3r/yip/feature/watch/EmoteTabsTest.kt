@@ -28,8 +28,10 @@ class EmoteTabsTest {
 
         val tw = tabs[2].sections
         // Channel first (incl. tiers not owned yet), then other channels A-Z, then events, then Twitch.
-        assertEquals(listOf("This channel", "Alpha", "zoeyStreams", "Hype Train", "Twitch"), tw.map { it.title })
-        assertEquals(listOf("eepyHi", "SubLocked"), tw[0].emotes.map { it.code })
+        assertEquals(listOf("This channel", "Tier 1 · locked", "Alpha", "zoeyStreams", "Hype Train", "Twitch"), tw.map { it.title })
+        assertEquals(listOf("eepyHi"), tw[0].emotes.map { it.code })
+        assertEquals(listOf("SubLocked"), tw[1].emotes.map { it.code })
+        assertEquals(true, tw[1].locked)
         assertEquals(listOf("Kappa"), tw.last().emotes.map { it.code })
 
         val tp = tabs[3].sections
@@ -37,6 +39,23 @@ class EmoteTabsTest {
         // Channel emotes before globals, no Twitch emotes here.
         assertEquals(listOf("aChan7", "zGlobal7"), tp[0].emotes.map { it.code })
         assertEquals(0, tp.flatMap { it.emotes }.count { it.provider == EmoteProvider.TWITCH })
+    }
+
+    @Test fun lockedCanBeHidden() {
+        val tw = emoteTabs(thirdParty, twitch, emptyList(), emptyList(), showLocked = false)[2].sections
+        assertEquals(false, tw.any { it.locked })
+        assertEquals(false, tw.flatMap { it.emotes }.any { it.code == "SubLocked" })
+    }
+
+    @Test fun nothingLockedBeforeYourEmotesLoad() {
+        val tw = emoteTabs(thirdParty, emptyList(), emptyList(), emptyList())[2].sections
+        assertEquals(listOf("SubLocked"), tw.single().emotes.map { it.code })
+    }
+
+    @Test fun unlockLabels() {
+        assertEquals("Tier 3", lol.sinist3r.yip.core.model.TwitchEmoteGroups.unlockLabel("subscriptions", "3000"))
+        assertEquals("Bits", lol.sinist3r.yip.core.model.TwitchEmoteGroups.unlockLabel("bitstier", null))
+        assertEquals("Follower", lol.sinist3r.yip.core.model.TwitchEmoteGroups.unlockLabel("follower", null))
     }
 
     @Test fun emptyTabsStayInPlace() {

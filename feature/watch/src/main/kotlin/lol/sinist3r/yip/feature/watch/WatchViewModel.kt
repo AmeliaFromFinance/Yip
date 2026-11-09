@@ -97,14 +97,30 @@ class WatchViewModel @Inject constructor(
         else -> null
     }
 
-    fun download(q: lol.sinist3r.yip.core.model.StreamQuality) {
-        val src = playback.state.value.source ?: return
-        val (k, duration) = when (src) {
-            is PlaybackSource.Vod -> "VOD" to src.durationSeconds
-            is PlaybackSource.ClipSrc -> "CLIP" to 0L
-            else -> return
+    fun download(q: lol.sinist3r.yip.core.model.StreamQuality) = viewModelScope.launch {
+        val src = playback.state.value.source ?: return@launch
+        val user = _info.value.user
+        var meta = when (src) {
+            is PlaybackSource.Vod -> lol.sinist3r.yip.core.playback.DownloadMeta("VOD", target, src.title, src.channelLogin, src.channelName, src.thumbnailUrl, src.durationSeconds, q.label)
+            is PlaybackSource.ClipSrc -> lol.sinist3r.yip.core.playback.DownloadMeta("CLIP", target, src.title, src.channelLogin, src.channelName, src.thumbnailUrl, 0, q.label)
+            else -> return@launch
+        }.copy(channelAvatarUrl = user?.profileImageUrl)
+        // Clips opened from a link start with no thumbnail or channel; fill them in.
+        if (meta.kind == "CLIP" && (meta.thumbnailUrl == null || meta.channelName.isBlank() || meta.title.isBlank())) {
+            attempt { helix.clips(ids = listOf(target)).data.firstOrNull() }.getOrNull()?.let { c ->
+                meta = meta.copy(
+                    title = meta.title.ifBlank { c.title },
+                    thumbnailUrl = meta.thumbnailUrl ?: c.thumbnailUrl,
+                    channelName = meta.channelName.ifBlank { c.broadcasterName },
+                    channelLogin = meta.channelLogin.ifBlank { c.broadcasterName.lowercase() },
+                    durationSeconds = c.duration.toLong(),
+                )
+                if (meta.channelAvatarUrl == null) {
+                    meta = meta.copy(channelAvatarUrl = attempt { twitch.channel(id = c.broadcasterId) }.getOrNull()?.user?.profileImageUrl)
+                }
+            }
         }
-        downloads.start(q.url, lol.sinist3r.yip.core.playback.DownloadMeta(k, target, src.title.ifBlank { _info.value.title }, src.channelLogin, src.channelName, src.thumbnailUrl, duration, q.label))
+        downloads.start(q.url, meta.copy(title = meta.title.ifBlank { _info.value.title }))
     }
 
     fun removeDownload() { downloadId?.let(downloads::remove) }

@@ -241,6 +241,7 @@ object SettingsSpec {
             Row.Toggle("Highlight mentions of you", get = { it.chat.highlightMentions }, set = { s, v -> s.copy(chat = s.chat.copy(highlightMentions = v)) }),
             Row.Toggle("Vibrate on mention", get = { it.chat.mentionVibrate }, set = { s, v -> s.copy(chat = s.chat.copy(mentionVibrate = v)) }),
             Row.Header("Composer"),
+            Row.Toggle("Show locked emotes", "Greyed out in the picker, with how to unlock them", get = { it.chat.showLockedEmotes }, set = { s, v -> s.copy(chat = s.chat.copy(showLockedEmotes = v)) }),
             Row.Toggle("Send with Enter", get = { it.chat.sendOnEnter }, set = { s, v -> s.copy(chat = s.chat.copy(sendOnEnter = v)) }),
             Row.Toggle("Emote suggestions while typing", get = { it.chat.autocompleteEmotes }, set = { s, v -> s.copy(chat = s.chat.copy(autocompleteEmotes = v)) }),
             Row.Toggle("@username suggestions", get = { it.chat.autocompleteUsers }, set = { s, v -> s.copy(chat = s.chat.copy(autocompleteUsers = v)) }),

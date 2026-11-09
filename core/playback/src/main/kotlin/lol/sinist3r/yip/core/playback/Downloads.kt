@@ -50,6 +50,7 @@ data class DownloadMeta(
     val thumbnailUrl: String? = null,
     val durationSeconds: Long = 0,
     val quality: String = "",
+    val channelAvatarUrl: String? = null,
 )
 
 enum class DownloadStatus { QUEUED, DOWNLOADING, DONE, FAILED, PAUSED }
@@ -59,7 +60,7 @@ data class DownloadItem(val id: String, val meta: DownloadMeta, val status: Down
 /** Offline VODs and clips, kept in app storage until removed. */
 @UnstableApi
 @Singleton
-class Downloads @Inject constructor(@ApplicationContext private val context: Context, okHttp: OkHttpClient) {
+class Downloads @Inject constructor(@ApplicationContext private val context: Context, private val okHttp: OkHttpClient) {
     private val db by lazy { StandaloneDatabaseProvider(context) }
     private val cache by lazy { SimpleCache(File(context.getExternalFilesDir(null) ?: context.filesDir, "downloads"), NoOpCacheEvictor(), db) }
     private val http = OkHttpDataSource.Factory(okHttp).setUserAgent("Mozilla/5.0 (Linux; Android) Yip")
@@ -120,16 +121,45 @@ class Downloads @Inject constructor(@ApplicationContext private val context: Con
 
     fun id(kind: String, contentId: String) = "$kind:$contentId"
 
-    /** [url] is a single-quality HLS playlist for VODs, or the MP4 for clips. */
-    fun start(url: String, meta: DownloadMeta) {
-        val request = DownloadRequest.Builder(id(meta.kind, meta.contentId), url.toUri())
+    /**
+     * [url] is a single-quality HLS playlist for VODs, or the MP4 for clips. The thumbnail and channel
+     * avatar are saved next to the download so they still show offline.
+     */
+    suspend fun start(url: String, meta: DownloadMeta) {
+        val id = id(meta.kind, meta.contentId)
+        val local = kotlinx.coroutines.withContext(Dispatchers.IO) {
+            meta.copy(
+                thumbnailUrl = saveArt(id, "thumb", meta.thumbnailUrl) ?: meta.thumbnailUrl,
+                channelAvatarUrl = saveArt(id, "avatar", meta.channelAvatarUrl) ?: meta.channelAvatarUrl,
+            )
+        }
+        val request = DownloadRequest.Builder(id, url.toUri())
             .setMimeType(if (meta.kind == "VOD") MimeTypes.APPLICATION_M3U8 else null)
-            .setData(json.encodeToString(DownloadMeta.serializer(), meta).encodeToByteArray())
+            .setData(json.encodeToString(DownloadMeta.serializer(), local).encodeToByteArray())
             .build()
         DownloadService.sendAddDownload(context, YipDownloadService::class.java, request, false)
     }
 
-    fun remove(id: String) = DownloadService.sendRemoveDownload(context, YipDownloadService::class.java, id, false)
+    fun remove(id: String) {
+        DownloadService.sendRemoveDownload(context, YipDownloadService::class.java, id, false)
+        artDir().listFiles { f -> f.name.startsWith(safe(id) + "-") }?.forEach { it.delete() }
+    }
+
+    private fun artDir() = File(context.filesDir, "download-art").apply { mkdirs() }
+    private fun safe(id: String) = id.replace(Regex("[^A-Za-z0-9_-]"), "_")
+
+    /** Returns a file:// URI, or null if there's nothing to save or it failed. */
+    private fun saveArt(id: String, kind: String, url: String?): String? {
+        if (url.isNullOrBlank() || !url.startsWith("http")) return null
+        return runCatching {
+            val file = File(artDir(), "${safe(id)}-$kind.img")
+            okHttp.newCall(okhttp3.Request.Builder().url(url).build()).execute().use { res ->
+                if (!res.isSuccessful) return null
+                file.outputStream().use { out -> res.body.byteStream().copyTo(out) }
+            }
+            file.toURI().toString()
+        }.getOrNull()
+    }
 
     /** Finished download for this item, if any. */
     suspend fun completed(kind: String, contentId: String): Download? = kotlinx.coroutines.withContext(Dispatchers.IO) {

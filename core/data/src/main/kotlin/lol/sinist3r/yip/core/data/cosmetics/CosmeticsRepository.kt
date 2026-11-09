@@ -289,7 +289,9 @@ class CosmeticsRepository @Inject constructor(
 
     private suspend fun twitchChannelEmotes(channelId: String): List<Emote> {
         if (accounts.userId() == null) return emptyList()
-        return helix.channelEmotes(channelId).data.map { twitchEmote(it.id, it.name).copy(isChannel = true, animated = "animated" in it.format) }
+        return helix.channelEmotes(channelId).data.map {
+            twitchEmote(it.id, it.name).copy(isChannel = true, animated = "animated" in it.format, group = TwitchEmoteGroups.unlockLabel(it.emoteType, it.tier))
+        }
     }
 
     /** The signed-in user's own Twitch emotes (subs, follower, global) for the picker. */

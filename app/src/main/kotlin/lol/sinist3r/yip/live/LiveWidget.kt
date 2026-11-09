@@ -3,6 +3,8 @@ package lol.sinist3r.yip.live
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
@@ -65,8 +67,12 @@ internal fun openStream(context: Context, login: String) =
 /** Home screen widget: who's live, pinned favourites first. */
 class LiveWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val data = snapshot(context)
-        provideContent { GlanceTheme { Content(context, data) } }
+        val flow = EntryPointAccessors.fromApplication(context.applicationContext, LiveEntryPoint::class.java).liveSnapshot().data
+        // Collected inside the content so later updates show; reading it once left the widget stuck on its first state.
+        provideContent {
+            val data by flow.collectAsState()
+            GlanceTheme { Content(context, data) }
+        }
     }
 
     @Composable
@@ -111,7 +117,7 @@ class RefreshAction : ActionCallback {
 
 class LiveWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = LiveWidget()
-    override fun onEnabled(context: Context) { super.onEnabled(context); LiveRefreshWorker.schedule(context) }
+    override fun onEnabled(context: Context) { super.onEnabled(context); LiveRefreshWorker.schedule(context); LiveRefreshWorker.runNow(context) }
     override fun onDisabled(context: Context) { super.onDisabled(context); LiveRefreshWorker.cancelIfUnused(context) }
 }
 

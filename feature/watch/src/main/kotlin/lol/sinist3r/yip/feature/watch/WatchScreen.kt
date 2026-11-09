@@ -314,7 +314,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         val items by viewModel.downloadItems.collectAsStateWithLifecycle()
         DownloadSheet(
             playState.qualities, duration, items.firstOrNull { it.id == viewModel.downloadId },
-            onPick = viewModel::download, onRemove = viewModel::removeDownload, onDismiss = { showDownload = false },
+            onPick = { viewModel.download(it) }, onRemove = viewModel::removeDownload, onDismiss = { showDownload = false },
         )
     }
     if (showSearch) ChatSearchSheet(chat, options, actions, onDismiss = { showSearch = false })
@@ -345,6 +345,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         onDismiss = { showEmotes = false },
         favourites = settings.chat.favouriteEmotes,
         onLongPress = { emoteCard = it },
+        showLocked = settings.chat.showLockedEmotes,
+        channelName = info.user?.displayName,
     )
     emoteCard?.let { e ->
         EmoteCardSheet(

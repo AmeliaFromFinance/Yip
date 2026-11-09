@@ -115,7 +115,8 @@ fun LibraryScreen(nav: LibraryNavigator, startTab: Int = 0, viewModel: LibraryVi
                 else -> LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
                     items(items, key = { it.id }) { d ->
                         MediaRow(
-                            d.meta.thumbnailUrl, d.meta.title.ifBlank { d.meta.channelName }, "${d.meta.channelName} · ${d.meta.quality} · ${statusText(d)}",
+                            d.meta.thumbnailUrl, d.meta.title.ifBlank { d.meta.channelName }, "${d.meta.channelName.ifBlank { "Unknown channel" }} · ${d.meta.quality} · ${statusText(d)}",
+                            avatar = d.meta.channelAvatarUrl,
                             progress = (d.percent / 100f).takeIf { d.status == DownloadStatus.DOWNLOADING || d.status == DownloadStatus.QUEUED },
                             onClick = { if (d.status == DownloadStatus.DONE) nav.openDownload(d.meta.kind, d.meta.contentId) },
                         ) { IconButton(onClick = { viewModel.removeDownload(d.id) }) { Icon(Icons.Outlined.Delete, "Delete download") } }
@@ -134,7 +135,7 @@ fun LibraryScreen(nav: LibraryNavigator, startTab: Int = 0, viewModel: LibraryVi
 }
 
 @Composable
-private fun MediaRow(thumb: String?, title: String, subtitle: String, progress: Float?, onClick: () -> Unit, trailing: @Composable () -> Unit) {
+private fun MediaRow(thumb: String?, title: String, subtitle: String, progress: Float?, onClick: () -> Unit, avatar: String? = null, trailing: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(128.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))) {
             AsyncImage(thumb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -142,7 +143,10 @@ private fun MediaRow(thumb: String?, title: String, subtitle: String, progress: 
         }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                avatar?.let { AsyncImage(it, null, Modifier.padding(end = 6.dp).width(18.dp).aspectRatio(1f).clip(androidx.compose.foundation.shape.CircleShape)) }
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
         trailing()
     }
