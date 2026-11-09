@@ -25,6 +25,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object InboxRoute
 @Serializable data class WhisperRoute(val login: String)
 @Serializable data object LoginRoute
-@Serializable data object ConnectWebRoute
+/** [afterLogin]: shown right after Accounts sign-in, with a skip option. */
+@Serializable data class ConnectWebRoute(val afterLogin: Boolean = false)
 @Serializable data object LogsRoute
 @Serializable data object StreamManagerRoute

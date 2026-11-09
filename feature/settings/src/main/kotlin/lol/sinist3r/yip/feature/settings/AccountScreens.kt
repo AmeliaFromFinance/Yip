@@ -75,6 +75,8 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import lol.sinist3r.yip.core.common.LogBuffer
@@ -90,6 +92,11 @@ class LoginViewModel @Inject constructor(private val accounts: AccountRepository
 
     fun startDevice() = viewModelScope.launch { accounts.deviceLogin().collect { _state.value = it } }
     fun browserUrl(): String = accounts.beginBrowserLogin()
+
+    /** Becomes true when a sign-in finishes by either route (code here, or the browser via the app link). */
+    private val startedAs = accounts.state.value.active?.userId
+    val signedIn = accounts.state.map { s -> s.active?.userId.let { it != null && it != startedAs } }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, false)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -99,7 +106,9 @@ fun LoginScreen(onDone: () -> Unit, onBack: () -> Unit, viewModel: LoginViewMode
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     LaunchedEffect(Unit) { viewModel.startDevice() }
-    LaunchedEffect(state) { if (state is DeviceLoginState.Success) onDone() }
+    val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
+    var finished by remember { mutableStateOf(false) }
+    LaunchedEffect(state, signedIn) { if (!finished && (state is DeviceLoginState.Success || signedIn)) { finished = true; onDone() } }
 
     Scaffold(topBar = { TopAppBar(title = { Text("Sign in to Twitch") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) }) { padding ->
         Column(
@@ -220,13 +229,20 @@ class ConnectWebViewModel @Inject constructor(private val accounts: AccountRepos
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConnectWebScreen(onDone: () -> Unit, onBack: () -> Unit, viewModel: ConnectWebViewModel = hiltViewModel()) {
+fun ConnectWebScreen(onDone: () -> Unit, onBack: () -> Unit, afterLogin: Boolean = false, viewModel: ConnectWebViewModel = hiltViewModel()) {
     val result by viewModel.result.collectAsStateWithLifecycle()
     val code by viewModel.code.collectAsStateWithLifecycle()
     var usePage by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(result) { if (result == "ok") onDone() }
-    Scaffold(topBar = { TopAppBar(title = { Text("Connect twitch.tv") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(if (afterLogin) "One more step" else "Connect twitch.tv") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) }) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
+            if (afterLogin) {
+                // Straight after signing in: optional, so it's easy to skip.
+                Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Signed in. Connect twitch.tv too, so channel points, rewards and following work in Yip.", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                }
+                TextButton(onClick = onDone, modifier = Modifier.padding(horizontal = 12.dp)) { Text("Skip for now") }
+            }
             result?.takeIf { it != "ok" }?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp)) }
             if (usePage) {
                 TwitchLoginPage(viewModel::onToken, Modifier.weight(1f))

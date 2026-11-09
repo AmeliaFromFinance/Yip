@@ -202,7 +202,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun openVod(videoId: String, offsetSeconds: Int) = nav.navigate(WatchRoute("VOD", videoId, offsetSeconds))
             override fun openLink(url: String) = openLink(url)
             override fun openWhisper(login: String) = nav.navigate(WhisperRoute(login))
-            override fun openConnectWeb() = nav.navigate(ConnectWebRoute)
+            override fun openConnectWeb() = nav.navigate(ConnectWebRoute())
             override fun openLive(login: String) {
                 nav.popBackStack()
                 nav.navigate(WatchRoute("LIVE", login))
@@ -218,7 +218,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun back() { nav.popBackStack() }
             override fun openPage(key: String) = nav.navigate(SettingsPageRoute(key))
             override fun openLogin() = nav.navigate(LoginRoute)
-            override fun openConnectWeb() = nav.navigate(ConnectWebRoute)
+            override fun openConnectWeb() = nav.navigate(ConnectWebRoute())
             override fun openLogs() = nav.navigate(LogsRoute)
         }
     }
@@ -230,7 +230,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
                 // Following needs the twitch.tv connection; offer it rather than bouncing to the browser.
                 FollowResult.NeedsWeb -> {
                     val r = snackbar.showSnackbar("Connect twitch.tv to follow from Yip", actionLabel = "Connect", withDismissAction = true, duration = SnackbarDuration.Long)
-                    if (r == SnackbarResult.ActionPerformed) nav.navigate(ConnectWebRoute)
+                    if (r == SnackbarResult.ActionPerformed) nav.navigate(ConnectWebRoute())
                 }
                 is FollowResult.Failed -> snackbar.showSnackbar(r.reason)
             }
@@ -286,8 +286,20 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
                         else -> SettingsPage(key, settingsNav)
                     }
                 }
-                composable<LoginRoute> { LoginScreen(onDone = { nav.popBackStack() }, onBack = { nav.popBackStack() }) }
-                composable<ConnectWebRoute> { ConnectWebScreen(onDone = { nav.popBackStack() }, onBack = { nav.popBackStack() }) }
+                composable<LoginRoute> {
+                    // Signing in carries straight on to connecting twitch.tv, unless it's already connected.
+                    LoginScreen(
+                        onDone = {
+                            scope.launch {
+                                val connected = activity.accounts.webToken() != null
+                                nav.popBackStack()
+                                if (!connected) nav.navigate(ConnectWebRoute(afterLogin = true))
+                            }
+                        },
+                        onBack = { nav.popBackStack() },
+                    )
+                }
+                composable<ConnectWebRoute> { e -> ConnectWebScreen(onDone = { nav.popBackStack() }, onBack = { nav.popBackStack() }, afterLogin = e.toRoute<ConnectWebRoute>().afterLogin) }
                 composable<LogsRoute> { LogsScreen(onBack = { nav.popBackStack() }) }
                 composable<StreamManagerRoute> {
                     lol.sinist3r.yip.feature.browse.StreamManagerScreen(
