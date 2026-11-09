@@ -76,6 +76,29 @@ class MentionNotifier @Inject constructor(
         nm.notify(NOTIFICATION_TAG, channelLogin.hashCode(), notification)
     }
 
+    fun onWhisper(login: String, name: String, text: String) {
+        val n = settings.settings.value.notifications
+        if (!n.pingWhispers || inQuietHours(n.quietHoursEnabled, n.quietStartMinutes, n.quietEndMinutes)) return
+        val nm = NotificationManagerCompat.from(context)
+        if (!nm.areNotificationsEnabled()) return
+        ensureChannel()
+        val open = Intent(Intent.ACTION_VIEW, "yip://whisper/$login".toUri()).setPackage(context.packageName)
+        val pi = PendingIntent.getActivity(context, ("w" + login).hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(smallIcon())
+            .setContentTitle("Whisper from $name")
+            .setContentText(text.take(200))
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setContentIntent(pi)
+            .setAutoCancel(true)
+            .setGroup("whispers")
+            .build()
+        @SuppressLint("MissingPermission") // checked via areNotificationsEnabled above
+        nm.notify(WHISPER_TAG, login.lowercase().hashCode(), notification)
+    }
+
+    fun clearWhisper(login: String) = NotificationManagerCompat.from(context).cancel(WHISPER_TAG, login.lowercase().hashCode())
+
     /** Opening the chat clears its pings. */
     fun clear(channelLogin: String) {
         threads.remove(channelLogin)
@@ -86,7 +109,7 @@ class MentionNotifier @Inject constructor(
         if (channelReady) return
         context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Chat pings", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Mentions, highlight keywords and highlighted users"
+                description = "Mentions, whispers, highlight keywords and highlighted users"
             },
         )
         channelReady = true
@@ -104,6 +127,7 @@ class MentionNotifier @Inject constructor(
     private companion object {
         const val CHANNEL_ID = "chat_pings"
         const val NOTIFICATION_TAG = "ping"
+        const val WHISPER_TAG = "whisper"
         const val ALERT_GAP_MS = 15_000L
     }
 }

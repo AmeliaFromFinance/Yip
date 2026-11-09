@@ -29,6 +29,7 @@ import lol.sinist3r.yip.work.LiveNotificationWorker
 import okhttp3.OkHttpClient
 import timber.log.Timber
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @HiltAndroidApp
 class YipApplication : Application(), Configuration.Provider, SingletonImageLoader.Factory {
 
@@ -39,6 +40,8 @@ class YipApplication : Application(), Configuration.Provider, SingletonImageLoad
     @Inject lateinit var remoteConfig: dagger.Lazy<RemoteConfigSource>
     @Inject lateinit var accounts: dagger.Lazy<lol.sinist3r.yip.core.data.account.AccountRepository>
     @Inject @AppScope lateinit var scope: CoroutineScope
+    @Inject lateinit var whispers: dagger.Lazy<lol.sinist3r.yip.core.data.chat.WhisperRepository>
+    @Inject lateinit var playback: dagger.Lazy<lol.sinist3r.yip.core.playback.PlaybackController>
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
@@ -64,6 +67,16 @@ class YipApplication : Application(), Configuration.Provider, SingletonImageLoad
                 kotlinx.coroutines.delay(60 * 60 * 1000L)
                 if (accounts.get().userId() != null) accounts.get().validateActive()
             }
+        }
+        // Whispers arrive while Yip is on screen or playing in the background.
+        scope.launch {
+            val visible = kotlinx.coroutines.flow.MutableStateFlow(false)
+            androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(androidx.lifecycle.LifecycleEventObserver { _, _ ->
+                visible.value = androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+            })
+            kotlinx.coroutines.flow.combine(visible, playback.get().state.map { it.playing }) { v, p -> v || p }
+                .distinctUntilChanged()
+                .collect { whispers.get().setActive(it) }
         }
         scope.launch {
             settings.settings.map { it.notifications }.distinctUntilChanged().collect { n ->

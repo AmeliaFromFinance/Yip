@@ -3,6 +3,7 @@ package lol.sinist3r.yip.feature.watch
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FilterAlt
+import androidx.compose.material.icons.outlined.Search
 import android.content.res.Configuration
 import android.net.ConnectivityManager
 import androidx.annotation.OptIn
@@ -61,6 +62,7 @@ interface WatchNavigator {
     fun openMultiView(logins: List<String>) {}
     /** Replaces this screen with another live stream. */
     fun openLive(login: String) {}
+    fun openWhisper(login: String) {}
 }
 
 @Composable
@@ -101,6 +103,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     var showQuality by remember { mutableStateOf(false) }
     var showFilters by remember { mutableStateOf(false) }
     var showAddStream by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
     var emoteCard by remember { mutableStateOf<Emote?>(null) }
     var showEmotes by remember { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<ChatItem.Message?>(null) }
@@ -215,7 +218,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
 
     if (chatOnly) {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
-            ChatOnlyHeader(info, nav, onFilters = { showFilters = true })
+            ChatOnlyHeader(info, nav, onFilters = { showFilters = true }, onSearch = { showSearch = true })
             HorizontalDivider()
             info.error?.let { Text(it, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
             chatPane(Modifier.weight(1f), false)
@@ -243,7 +246,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     } else {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             Box(Modifier.background(Color.Black).statusBarsPadding()) { player(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) }
-            ChannelRow(info, nav, onFilters = { showFilters = true })
+            ChannelRow(info, nav, onFilters = { showFilters = true }, onSearch = { showSearch = true })
             HorizontalDivider()
             if (chatEnabled) {
                 chatPane(Modifier.weight(1f), false)
@@ -263,6 +266,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     if (showAddStream) info.user?.let { u ->
         AddStreamSheet(exclude = setOf(u.login.lowercase()), onPick = { showAddStream = false; nav.openMultiView(listOf(u.login, it)) }, onDismiss = { showAddStream = false })
     }
+    if (showSearch) ChatSearchSheet(chat, options, actions, onDismiss = { showSearch = false })
     if (showFilters) ChatFiltersSheet(settings.filters, viewModel::updateFilters, onDismiss = { showFilters = false })
     if (showQuality) QualitySheet(
         qualities = playState.qualities,
@@ -308,6 +312,9 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onBlock = { viewModel.block(it); viewModel.closeUser() },
             onMod = { a, id -> viewModel.moderate(a, id) },
             onDismiss = viewModel::closeUser,
+            note = settings.chat.userNotes[card.login.lowercase()],
+            onSaveNote = { viewModel.saveNote(card.login, it) },
+            onWhisper = if (signedIn) ({ viewModel.closeUser(); nav.openWhisper(it) }) else null,
         )
     }
     menuFor?.let { m ->
@@ -324,7 +331,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
 }
 
 @Composable
-private fun ChatOnlyHeader(info: WatchInfo, nav: WatchNavigator, onFilters: () -> Unit) {
+private fun ChatOnlyHeader(info: WatchInfo, nav: WatchNavigator, onFilters: () -> Unit, onSearch: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(end = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         androidx.compose.material3.IconButton(onClick = nav::back) {
             androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, "Back")
@@ -337,12 +344,13 @@ private fun ChatOnlyHeader(info: WatchInfo, nav: WatchNavigator, onFilters: () -
                 Text(if (info.stream != null) "Live" else "Offline chat", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else Spacer(Modifier.weight(1f))
+        androidx.compose.material3.IconButton(onClick = onSearch) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Search, "Search chat") }
         androidx.compose.material3.IconButton(onClick = onFilters) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.FilterAlt, "Chat filters") }
     }
 }
 
 @Composable
-private fun ChannelRow(info: WatchInfo, nav: WatchNavigator, onFilters: () -> Unit) {
+private fun ChannelRow(info: WatchInfo, nav: WatchNavigator, onFilters: () -> Unit, onSearch: () -> Unit) {
     val user = info.user ?: return
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -357,6 +365,7 @@ private fun ChannelRow(info: WatchInfo, nav: WatchNavigator, onFilters: () -> Un
                 Text("${s.viewerCount.compactCount()} watching · ${s.gameName.orEmpty()} · $up", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
         }
+        androidx.compose.material3.IconButton(onClick = onSearch) { Icon(Icons.Outlined.Search, "Search chat") }
         androidx.compose.material3.IconButton(onClick = onFilters) { Icon(Icons.Outlined.FilterAlt, "Chat filters") }
         TextButton(onClick = { nav.openChannel(user.login) }) { Text("Channel") }
     }

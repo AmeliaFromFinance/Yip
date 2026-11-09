@@ -67,7 +67,7 @@ class ChatRenderTest {
     )
 
     private fun render(theme: ThemeMode, name: String) {
-        val opts = ChatRenderOptions(ChatSettings(timestamps = TimestampStyle.H24), ThirdPartySettings(), animate = false)
+        val opts = ChatRenderOptions(ChatSettings(timestamps = TimestampStyle.H24, userNotes = mapOf("glyphbyte" to lol.sinist3r.yip.core.model.UserNote(nickname = "Glyph"))), ThirdPartySettings(), animate = false)
         compose.setContent {
             YipTheme(AppearanceSettings(theme = theme)) {
                 Column(Modifier.width(400.dp).background(MaterialTheme.colorScheme.background)) {
@@ -77,6 +77,7 @@ class ChatRenderTest {
         }
         compose.onNodeWithText("Joined #pixelforge").assertExists()
         compose.onNodeWithText("Allow").assertExists()
+        compose.onNodeWithText("Glyph (glyphbyte)", substring = true).assertExists()
         compose.onNodeWithText("Allowed").assertExists()
         compose.onRoot().captureRoboImage("build/screenshots/chat_$name.png")
     }

@@ -45,6 +45,13 @@
                 <data android:path="/import" />
             </intent-filter>
 
+            <!-- Whisper notifications. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="yip" android:host="whisper" />
+            </intent-filter>
+
             <!-- Settings files sent from another device. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

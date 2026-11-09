@@ -30,6 +30,9 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Highlights for keywords and users
 - Emote card: long-press an emote to see it large, its source and creator, and favourite it
 - Pronouns next to names, from pronouns.alejo.io
+- Inbox: every mention from chats you opened, plus whispers (read and reply)
+- Search a chat by word or `from:name`
+- Private nicknames and notes on chatters
 - Raid prompt: jump to the channel being raided in one tap
 - Pings for mentions, keywords and highlighted users when that chat isn't on screen
 - Emote picker (Favourites, Recent, Twitch, 3rd Party), emote and @name suggestions, Tab completion on keyboards

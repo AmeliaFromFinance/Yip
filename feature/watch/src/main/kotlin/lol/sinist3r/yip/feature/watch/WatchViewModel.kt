@@ -108,6 +108,14 @@ class WatchViewModel @Inject constructor(
 
     fun dismissClip() { _clip.value = null }
 
+    fun saveNote(login: String, note: lol.sinist3r.yip.core.model.UserNote) = viewModelScope.launch {
+        settingsRepo.update { s ->
+            val key = login.lowercase()
+            val notes = if (note.nickname.isBlank() && note.note.isBlank()) s.chat.userNotes - key else s.chat.userNotes + (key to note)
+            s.copy(chat = s.chat.copy(userNotes = notes))
+        }
+    }
+
     fun toggleFavouriteEmote(e: lol.sinist3r.yip.core.model.Emote) = viewModelScope.launch {
         settingsRepo.update { s ->
             val fav = s.chat.favouriteEmotes

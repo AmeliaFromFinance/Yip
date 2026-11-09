@@ -37,3 +37,16 @@ class AdScheduleTest {
         assertEquals(3, b.snoozeCount)
     }
 }
+
+class WhisperEventTest {
+    @Test fun parsesTwitchExample() {
+        // From Twitch's EventSub reference for user.whisper.message.
+        val event = kotlinx.serialization.json.Json.parseToJsonElement(
+            """{"from_user_id":"423374343","from_user_login":"glowillig","from_user_name":"glowillig","to_user_id":"424596340","to_user_login":"quotrok","to_user_name":"quotrok","whisper_id":"some-whisper-id","whisper":{"text":"a secret"}}""",
+        ).jsonObject
+        val w = lol.sinist3r.yip.core.network.chat.EventSubChatClient.parseWhisper(event)!!
+        assertEquals("glowillig", w.fromLogin)
+        assertEquals("a secret", w.text)
+        assertEquals("some-whisper-id", w.id)
+    }
+}

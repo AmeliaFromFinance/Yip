@@ -97,7 +97,11 @@ class FollowingViewModel @Inject constructor(
     private val accounts: AccountRepository,
     private val history: HistoryRepository,
     val settingsRepo: SettingsRepository,
+    inbox: lol.sinist3r.yip.core.data.chat.MentionInbox,
+    whispers: lol.sinist3r.yip.core.data.chat.WhisperRepository,
 ) : ViewModel() {
+    /** Unread mentions plus whispers, for the inbox badge. */
+    val inboxUnread: StateFlow<Int> = combine(inbox.unread, whispers.unread) { a, b -> a + b }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
     private val _state = MutableStateFlow(FollowingUiState())
     val settings: StateFlow<AppSettings> = settingsRepo.settings
 

@@ -141,7 +141,12 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
         }
     }
 
-    LaunchedEffect(Unit) { activity.deepLinks.collect { handleTwitchUri(it, nav) } }
+    LaunchedEffect(Unit) {
+        activity.deepLinks.collect { uri ->
+            // yip://whisper/<login> from whisper notifications.
+            if (uri.scheme == "yip" && uri.host == "whisper") uri.lastPathSegment?.let { nav.navigate(WhisperRoute(it)) } else handleTwitchUri(uri, nav)
+        }
+    }
 
     val browseNav = remember {
         object : BrowseNavigator {
@@ -159,6 +164,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun openSearch() = nav.navigate(SearchRoute)
             override fun openChat(login: String) = nav.navigate(WatchRoute("CHAT", login))
             override fun openStreamManager() = nav.navigate(StreamManagerRoute)
+            override fun openInbox() = nav.navigate(InboxRoute)
             override fun addToMultiView(login: String) {
                 if (login !in multiQueue) multiQueue += login
                 scope.launch {
@@ -171,12 +177,21 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             }
         }
     }
+    val inboxNav = remember {
+        object : lol.sinist3r.yip.feature.watch.InboxNavigator {
+            override fun back() { nav.popBackStack() }
+            override fun openLive(login: String) = nav.navigate(WatchRoute("LIVE", login))
+            override fun openWhisper(login: String) = nav.navigate(WhisperRoute(login))
+            override fun openLink(url: String) = openLink(url)
+        }
+    }
     val watchNav = remember {
         object : WatchNavigator {
             override fun back() { nav.popBackStack() }
             override fun openChannel(login: String) = nav.navigate(ChannelRoute(login))
             override fun openVod(videoId: String, offsetSeconds: Int) = nav.navigate(WatchRoute("VOD", videoId, offsetSeconds))
             override fun openLink(url: String) = openLink(url)
+            override fun openWhisper(login: String) = nav.navigate(WhisperRoute(login))
             override fun openLive(login: String) {
                 nav.popBackStack()
                 nav.navigate(WatchRoute("LIVE", login))
@@ -245,6 +260,8 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
                 composable<ChannelRoute> { ChannelScreen(browseNav, onBack = { nav.popBackStack() }, onFollowToggle = onFollow) }
                 composable<WatchRoute>(deepLinks = emptyList()) { WatchScreen(watchNav, inPip) }
                 composable<MultiViewRoute> { MultiViewScreen(watchNav) }
+                composable<InboxRoute> { lol.sinist3r.yip.feature.watch.InboxScreen(inboxNav) }
+                composable<WhisperRoute> { lol.sinist3r.yip.feature.watch.WhisperScreen(inboxNav) }
                 composable<SettingsRoute> { SettingsRoot(settingsNav, showBack = false) }
                 composable<SettingsPageRoute> { entry ->
                     when (val key = entry.toRoute<SettingsPageRoute>().key) {

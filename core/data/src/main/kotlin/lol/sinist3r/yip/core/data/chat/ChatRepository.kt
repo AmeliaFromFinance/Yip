@@ -179,6 +179,7 @@ class ChatSession internal constructor(
                     system("Raiding ${ev.toName} with ${ev.viewers} viewers")
                 }
                 is RawChat.JoinFailed -> Unit // handled in transport()
+                is RawChat.Whisper -> Unit // WhisperRepository
                 is RawChat.AutoModHeld -> append(ChatItem.AutoMod("automod-${ev.messageId}", kotlin.time.Clock.System.now(), ev.login, ev.displayName, ev.text, ev.reason))
                 is RawChat.AutoModResolved -> markAutoMod(ev.messageId, ev.status)
             }
@@ -212,7 +213,10 @@ class ChatSession internal constructor(
     private fun append(item: ChatItem) = synchronized(buffer) {
         if (!ids.add(item.id)) return@synchronized
         buffer.addLast(item)
-        (item as? ChatItem.Message ?: (item as? ChatItem.Notice)?.message)?.let { repo.mentions.onMessage(channelId, channelLogin, it) }
+        (item as? ChatItem.Message ?: (item as? ChatItem.Notice)?.message)?.let {
+            repo.mentions.onMessage(channelId, channelLogin, it)
+            repo.inbox.onMessage(channelLogin, it)
+        }
         val limit = repo.settings.settings.value.chat.messageLimit.coerceIn(50, 5000)
         while (buffer.size > limit) ids.remove(buffer.removeFirst().id)
         dirty = true
@@ -288,6 +292,7 @@ class ChatRepository @Inject constructor(
     internal val bttvFfz: BttvFfzApi,
     internal val helix: HelixApi,
     internal val mentions: MentionNotifier,
+    internal val inbox: MentionInbox,
     internal val pronouns: PronounRepository,
     @DefaultDispatcher private val dispatcher: CoroutineDispatcher,
 ) {

@@ -56,5 +56,6 @@ sealed interface RawChat {
     data class Status(val connected: Boolean, val readOnly: Boolean, val message: String? = null) : RawChat
     data class ServerNotice(val text: String) : RawChat
     /** The channel being watched raided out to another channel. */
+    data class Whisper(val id: String, val fromId: String, val fromLogin: String, val fromName: String, val text: String) : RawChat
     data class RaidOut(val toLogin: String, val toName: String, val viewers: Int) : RawChat
 }

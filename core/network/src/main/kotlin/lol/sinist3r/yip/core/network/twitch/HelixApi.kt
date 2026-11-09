@@ -198,6 +198,14 @@ class HelixApi @Inject constructor(
         return call<HelixPage<HelixSendResult>>("POST", "/chat/messages", body = body).data.firstOrNull() ?: HelixSendResult()
     }
 
+    /** Twitch needs a verified phone number on the sender's account. */
+    suspend fun sendWhisper(fromUserId: String, toUserId: String, message: String) {
+        callUnit("POST", "/whispers", buildJsonObject { put("message", message) }.toString()) {
+            parameter("from_user_id", fromUserId)
+            parameter("to_user_id", toUserId)
+        }
+    }
+
     suspend fun announce(broadcasterId: String, moderatorId: String, message: String, color: String = "primary") {
         callUnit("POST", "/chat/announcements", buildJsonObject {
             put("message", message)

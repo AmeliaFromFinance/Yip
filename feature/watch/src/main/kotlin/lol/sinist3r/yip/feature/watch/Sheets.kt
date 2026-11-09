@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Gavel
+import androidx.compose.material.icons.outlined.MailOutline
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Reply
 import androidx.compose.material.icons.outlined.Search
@@ -325,6 +326,9 @@ fun UserCardSheet(
     onBlock: (String) -> Unit,
     onMod: (ModAction, String) -> Unit,
     onDismiss: () -> Unit,
+    note: lol.sinist3r.yip.core.model.UserNote? = null,
+    onSaveNote: ((lol.sinist3r.yip.core.model.UserNote) -> Unit)? = null,
+    onWhisper: ((String) -> Unit)? = null,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         if (card.loading) {
@@ -344,8 +348,10 @@ fun UserCardSheet(
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilledTonalButton(onClick = { onMention(card.login) }) { Text("Mention") }
                 OutlinedButton(onClick = { onOpenChannel(card.login) }) { Icon(Icons.Outlined.Person, null); Text(" Channel") }
+                onWhisper?.let { w -> OutlinedButton(onClick = { w(card.login) }) { Icon(Icons.Outlined.MailOutline, null); Text(" Whisper") } }
                 user?.let { u -> OutlinedButton(onClick = { onBlock(u.id) }) { Icon(Icons.Outlined.Block, null); Text(" Block") } }
             }
+            onSaveNote?.let { save -> UserNoteEditor(note ?: lol.sinist3r.yip.core.model.UserNote(), save) }
             if (isModerator && user != null) {
                 Text("Moderation", style = MaterialTheme.typography.labelLarge)
                 // Timeouts and bans on separate lines; each wraps on narrow screens.
@@ -404,3 +410,17 @@ fun MessageMenuSheet(
 }
 
 internal val emptyChat = persistentListOf<ChatItem>()
+
+/** Nickname shown next to their name in chat, plus a free-text note. Only on this device. */
+@Composable
+private fun UserNoteEditor(initial: lol.sinist3r.yip.core.model.UserNote, onSave: (lol.sinist3r.yip.core.model.UserNote) -> Unit) {
+    var nickname by rememberSaveable(initial) { mutableStateOf(initial.nickname) }
+    var note by rememberSaveable(initial) { mutableStateOf(initial.note) }
+    val changed = nickname.trim() != initial.nickname || note.trim() != initial.note
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Your note (only you see this)", style = MaterialTheme.typography.labelLarge)
+        OutlinedTextField(nickname, { nickname = it.take(40) }, label = { Text("Nickname") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(note, { note = it.take(500) }, label = { Text("Note") }, minLines = 2, maxLines = 5, modifier = Modifier.fillMaxWidth())
+        if (changed) FilledTonalButton(onClick = { onSave(lol.sinist3r.yip.core.model.UserNote(nickname.trim(), note.trim())) }) { Text("Save note") }
+    }
+}

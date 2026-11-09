@@ -154,7 +154,8 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
     val deleted = m.isDeleted && chat.deletedMessages != DeletedMessages.HIDE
     if (m.isDeleted && chat.deletedMessages == DeletedMessages.HIDE) return
 
-    val name = when (chat.usernameStyle) {
+    val nickname = chat.userNotes[m.user.login.lowercase()]?.nickname?.takeIf { it.isNotBlank() }
+    val name = if (nickname != null) "$nickname (${m.user.displayName})" else when (chat.usernameStyle) {
         UsernameStyle.DISPLAY -> m.user.displayName
         UsernameStyle.LOGIN -> m.user.login
         UsernameStyle.BOTH -> if (m.user.displayName.equals(m.user.login, true)) m.user.displayName else "${m.user.displayName} (${m.user.login})"

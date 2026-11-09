@@ -130,10 +130,16 @@ enum class DeletedMessages { HIDE, STRIKE, PLACEHOLDER }
 enum class PaintMode { ANIMATED, STATIC, OFF }
 enum class UsernameStyle { DISPLAY, LOGIN, BOTH }
 
+/** Private label for a chatter. Only on this device. */
+@Serializable
+data class UserNote(val nickname: String = "", val note: String = "")
+
 @Serializable
 data class ChatSettings(
     /** "PROVIDER:id", see [Emote.favouriteKey]. */
     val favouriteEmotes: List<String> = emptyList(),
+    /** Keyed by lowercase login. */
+    val userNotes: Map<String, UserNote> = emptyMap(),
     val fontSizeSp: Float = 13.5f,
     val lineSpacing: Float = 1.35f,
     val emoteScale: Float = 1f,
@@ -243,6 +249,7 @@ data class NotificationSettings(
     val groupNotifications: Boolean = true,
     val notifyCategoryChange: Boolean = false,
     val pingMentions: Boolean = true,
+    val pingWhispers: Boolean = true,
     val pingKeywords: Boolean = false,
     val pingHighlightUsers: Boolean = false,
 )

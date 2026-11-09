@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -97,6 +98,7 @@ interface BrowseNavigator {
     fun openSearch()
     fun openChat(login: String)
     fun openStreamManager()
+    fun openInbox() {}
 }
 
 internal fun gridCells(appearance: AppearanceSettings): GridCells = when {
@@ -123,6 +125,12 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
             TopAppBar(
                 title = { Text("Following") },
                 actions = {
+                    val unread by viewModel.inboxUnread.collectAsStateWithLifecycle()
+                    IconButton(onClick = nav::openInbox) {
+                        androidx.compose.material3.BadgedBox(badge = { if (unread > 0) androidx.compose.material3.Badge { Text(if (unread > 99) "99+" else "$unread") } }) {
+                            Icon(Icons.Outlined.Inbox, if (unread > 0) "Inbox, $unread unread" else "Inbox")
+                        }
+                    }
                     IconButton(onClick = nav::openSearch) { Icon(Icons.Outlined.Search, "Search") }
                     Box {
                         IconButton(onClick = { sortMenu = true }) { Icon(Icons.AutoMirrored.Filled.Sort, "Sort") }

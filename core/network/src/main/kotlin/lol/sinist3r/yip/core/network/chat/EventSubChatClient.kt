@@ -157,13 +157,18 @@ class EventSubChatClient @Inject constructor(
             "notification" -> {
                 val event = payload.obj("event") ?: return null
                 val type = meta.str("subscription_type") ?: return null
+                if (type == "user.whisper.message") {
+                    parseWhisper(event)?.let { channels[WHISPERS]?.flow?.tryEmit(it) }
+                    return null
+                }
                 // Outgoing raids are keyed by the raiding channel.
                 val channel = event.str("broadcaster_user_id") ?: event.str("from_broadcaster_user_id") ?: return null
                 mapEvent(type, event)?.let { channels[channel]?.flow?.tryEmit(it) }
             }
             "revocation" -> {
                 val sub = payload.obj("subscription") ?: return null
-                val channel = sub.obj("condition")?.let { it.str("broadcaster_user_id") ?: it.str("from_broadcaster_user_id") } ?: return null
+                val channel = if (sub.str("type") == "user.whisper.message") WHISPERS
+                    else sub.obj("condition")?.let { it.str("broadcaster_user_id") ?: it.str("from_broadcaster_user_id") } ?: return null
                 val status = sub.str("status")
                 channels[channel]?.let { j ->
                     j.subIds.remove(sub.str("id"))
@@ -188,6 +193,12 @@ class EventSubChatClient @Inject constructor(
         val uid = userId ?: return
         val j = channels[channelId] ?: return
         if (j.subIds.isNotEmpty()) return
+        if (channelId == WHISPERS) {
+            attempt { helix.createEventSub(EventSubCreate("user.whisper.message", "1", mapOf("user_id" to uid), EventSubTransport.webSocket(sid))) }
+                .onSuccess { created -> created?.id?.let(j.subIds::add) }
+                .onFailure { e -> Timber.i("Whisper events unavailable: ${e.message}") }
+            return
+        }
         val condition = mapOf("broadcaster_user_id" to channelId, "user_id" to uid)
         for (type in CHAT_TYPES) {
             val result = attempt {
@@ -334,6 +345,19 @@ class EventSubChatClient @Inject constructor(
     }
 
     companion object {
+        /** Pseudo channel for [join]: receives [RawChat.Whisper] for the signed-in user. */
+        const val WHISPERS = "whispers"
+
+        fun parseWhisper(event: JsonObject): RawChat.Whisper? {
+            val from = event.str("from_user_id") ?: return null
+            return RawChat.Whisper(
+                id = event.str("whisper_id") ?: "w-$from-${System.nanoTime()}",
+                fromId = from,
+                fromLogin = event.str("from_user_login").orEmpty(),
+                fromName = event.str("from_user_name") ?: event.str("from_user_login").orEmpty(),
+                text = event.obj("whisper")?.str("text").orEmpty(),
+            )
+        }
         private const val DEFAULT_URL = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30"
         private val AUTOMOD_TYPES = listOf("automod.message.hold", "automod.message.update")
         private val CHAT_TYPES = listOf(
