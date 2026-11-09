@@ -83,7 +83,12 @@ import kotlinx.serialization.json.JsonObject
     val condition: Map<String, String>,
     val transport: EventSubTransport,
 )
-@Serializable data class EventSubTransport(val method: String = "websocket", val sessionId: String)
+// No default on method: the encoder skips defaults, and Twitch rejects a transport without one.
+@Serializable data class EventSubTransport(val method: String, val sessionId: String) {
+    companion object {
+        fun webSocket(sessionId: String) = EventSubTransport("websocket", sessionId)
+    }
+}
 @Serializable data class EventSubCreated(val id: String, val status: String, val type: String)
 
 @Serializable data class HelixBanRequest(val data: HelixBanBody)

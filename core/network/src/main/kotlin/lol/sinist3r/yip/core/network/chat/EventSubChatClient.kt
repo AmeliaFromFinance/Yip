@@ -190,17 +190,25 @@ class EventSubChatClient @Inject constructor(
         val condition = mapOf("broadcaster_user_id" to channelId, "user_id" to uid)
         for (type in CHAT_TYPES) {
             val result = attempt {
-                helix.createEventSub(EventSubCreate(type, "1", condition, EventSubTransport(sessionId = sid)))
+                helix.createEventSub(EventSubCreate(type, "1", condition, EventSubTransport.webSocket(sid)))
             }
             result.onSuccess { created -> created?.id?.let(j.subIds::add) }
                 .onFailure { e ->
                     Timber.w(e, "EventSub subscribe $type failed")
                     if (type == "channel.chat.message") {
-                        val msg = if (e is AppException && e.kind == AppException.Kind.AUTH) "Not allowed to read this chat." else "Couldn't join chat."
-                        j.flow.tryEmit(RawChat.ServerNotice(msg))
+                        j.flow.tryEmit(RawChat.JoinFailed(twitchReason(e), notAllowed = e is AppException && e.kind == AppException.Kind.AUTH))
+                        return // the rest would fail the same way
                     }
                 }
         }
+    }
+
+    /** Pulls Twitch's "message" out of a Helix error body, falling back to the status line. */
+    private fun twitchReason(e: Throwable): String {
+        val text = e.message.orEmpty()
+        val body = text.substringAfter(": ", "").trim()
+        val fromJson = attempt { json.parseToJsonElement(body).jsonObject.str("message") }.getOrNull()
+        return fromJson?.takeIf { it.isNotBlank() } ?: text.substringBefore(": ").ifBlank { "unknown error" }
     }
 
     private fun broadcast(event: RawChat) = channels.values.forEach { it.flow.tryEmit(event) }

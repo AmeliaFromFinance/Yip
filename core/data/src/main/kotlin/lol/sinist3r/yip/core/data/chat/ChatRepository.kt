@@ -1,5 +1,7 @@
 package lol.sinist3r.yip.core.data.chat
 
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.transformWhile
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -89,11 +91,26 @@ class ChatSession internal constructor(
             }
         }
         val userId = repo.accounts.userId()
-        val flow = if (userId != null) repo.eventSub.join(channelId, userId) else repo.irc.join(channelLogin)
-        if (userId != null) attempt { repo.helix.chatSettings(channelId) }.getOrNull()?.let { s ->
+        if (userId == null) {
+            repo.irc.join(channelLogin).collect { incoming.send(it) }
+            return
+        }
+        attempt { repo.helix.chatSettings(channelId) }.getOrNull()?.let { s ->
             incoming.trySend(RawChat.Room(s.emoteMode, s.followerModeDuration, s.followerMode, if (s.slowMode) s.slowModeWaitTime else 0, s.subscriberMode, s.uniqueChatMode))
         }
-        flow.collect { incoming.send(it) }
+        var failure: RawChat.JoinFailed? = null
+        repo.eventSub.join(channelId, userId).transformWhile { ev ->
+            if (ev is RawChat.JoinFailed) { failure = ev; false } else { emit(ev); true }
+        }.collect { incoming.send(it) }
+        val f = failure ?: return
+        // EventSub refused: read chat over IRC instead of reconnecting forever. Sending still goes through Helix.
+        incoming.send(RawChat.ServerNotice(
+            if (f.notAllowed) "Twitch didn't allow live chat for this account (${f.reason}). Showing chat without it."
+            else "Live chat connection failed (${f.reason}). Using backup connection.",
+        ))
+        repo.irc.join(channelLogin)
+            .map { if (it is RawChat.Status) it.copy(readOnly = false) else it }
+            .collect { incoming.send(it) }
     }
 
     private suspend fun consume() {
@@ -142,6 +159,7 @@ class ChatSession internal constructor(
                     if (!ev.connected && was) system("Disconnected, reconnecting...")
                 }
                 is RawChat.ServerNotice -> system(ev.text)
+                is RawChat.JoinFailed -> Unit // handled in transport()
             }
         }
     }
