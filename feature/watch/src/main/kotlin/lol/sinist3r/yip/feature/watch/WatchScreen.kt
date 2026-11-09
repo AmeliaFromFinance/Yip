@@ -4,6 +4,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SpeakerNotesOff
 import android.content.res.Configuration
 import android.net.ConnectivityManager
 import androidx.annotation.OptIn
@@ -31,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -106,6 +108,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     var showAddStream by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var showDownload by remember { mutableStateOf(false) }
+    var landscapeChatOpen by rememberSaveable { mutableStateOf(settings.player.landscapeChat != LandscapeChat.HIDDEN) }
     var emoteCard by remember { mutableStateOf<Emote?>(null) }
     var showEmotes by remember { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<ChatItem.Message?>(null) }
@@ -162,6 +165,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val title = info.title.ifBlank { info.user?.displayName.orEmpty() }
     val subtitle = listOfNotNull(info.user?.displayName, info.stream?.gameName).joinToString(" · ")
 
+    val chatEnabled = viewModel.kind != WatchKind.CLIP
     val player = @Composable { mod: Modifier ->
         PlayerArea(
             player = viewModel.playback.player,
@@ -180,20 +184,24 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onToggleMute = viewModel.playback::toggleMute,
             onMultiView = if (isLive && info.user != null) ({ showAddStream = true }) else null,
             onClip = if (isLive && signedIn && info.stream != null) ({ viewModel.createClip() }) else null,
+            onCatchUp = if (isLive) ({ viewModel.playback.catchUp() }) else null,
+            onToggleChat = if (landscape && !twoPane && chatEnabled) ({ landscapeChatOpen = !landscapeChatOpen }) else null,
+            chatOpen = landscapeChatOpen,
+            controlsEndInset = if (landscape && !twoPane && chatEnabled && landscapeChatOpen && settings.player.landscapeChat != LandscapeChat.SIDE)
+                (LocalConfiguration.current.screenWidthDp * settings.player.overlayChatWidthFraction.coerceIn(0.2f, 0.6f)).dp else 0.dp,
             onDownload = if (!isLive && viewModel.downloadId != null && playState.qualities.isNotEmpty()) ({ showDownload = true }) else null,
             onRetry = { if (info.error != null) viewModel.load() else viewModel.playback.retry() },
             modifier = mod,
         )
     }
 
-    val chatEnabled = viewModel.kind != WatchKind.CLIP
     val chatPane = @Composable { mod: Modifier, overlay: Boolean ->
         Column(mod) {
             if (!overlay) RoomStateBar(room, connection, points)
             if (!overlay && !events.isEmpty) EventBanners(events)
             raid?.let { r -> RaidBanner(r, onGo = { viewModel.dismissRaid(); nav.openLive(r.login) }, onDismiss = viewModel::dismissRaid) }
             ChatList(chat, options, actions, Modifier.weight(1f))
-            if ((isLive || chatOnly) && !overlay) {
+            if (isLive || chatOnly) {
                 Composer(
                     enabled = connection.connected && !connection.readOnly,
                     signedIn = signedIn,
@@ -244,21 +252,37 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             }
         }
     } else if (landscape) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
-            when {
-                !chatEnabled || settings.player.landscapeChat == LandscapeChat.HIDDEN -> player(Modifier.fillMaxSize())
-                settings.player.landscapeChat == LandscapeChat.SIDE -> Row(Modifier.fillMaxSize()) {
-                    player(Modifier.weight(1f).fillMaxHeight())
-                    chatPane(Modifier.width(340.dp).fillMaxHeight().background(MaterialTheme.colorScheme.background).safeDrawingPadding(), false)
+        // Theatre mode: chat in a collapsible panel with its own chat box, beside or over the video.
+        val panelWidth = (LocalConfiguration.current.screenWidthDp * settings.player.overlayChatWidthFraction.coerceIn(0.2f, 0.6f)).dp
+        val showPanel = chatEnabled && landscapeChatOpen
+        val panel = @Composable { mod: Modifier ->
+            Column(mod) {
+                Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Chat", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                    androidx.compose.material3.IconButton(onClick = { showSearch = true }) { Icon(Icons.Outlined.Search, "Search chat") }
+                    androidx.compose.material3.IconButton(onClick = { landscapeChatOpen = false }) {
+                        Icon(Icons.Outlined.SpeakerNotesOff, "Hide chat")
+                    }
                 }
-                else -> {
-                    player(Modifier.fillMaxSize())
-                    // Leaves the top and bottom control bars clear so back, PiP, quality, mute and fullscreen stay reachable.
-                    chatPane(
-                        Modifier.align(Alignment.TopEnd).padding(top = OVERLAY_TOP_CLEARANCE, bottom = if (isLive) OVERLAY_BOTTOM_CLEARANCE_LIVE else OVERLAY_BOTTOM_CLEARANCE_VOD)
-                            .fillMaxHeight().fillMaxWidth(settings.player.overlayChatWidthFraction.coerceIn(0.2f, 0.6f))
-                            .background(Color.Black.copy(alpha = settings.player.overlayChatOpacity)).safeDrawingPadding(),
-                        true,
+                chatPane(Modifier.weight(1f), false)
+            }
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            if (settings.player.landscapeChat == LandscapeChat.SIDE) {
+                Row(Modifier.fillMaxSize()) {
+                    player(Modifier.weight(1f).fillMaxHeight())
+                    androidx.compose.animation.AnimatedVisibility(showPanel) {
+                        panel(Modifier.width(panelWidth).fillMaxHeight().background(MaterialTheme.colorScheme.surface).safeDrawingPadding())
+                    }
+                }
+            } else {
+                player(Modifier.fillMaxSize())
+                androidx.compose.animation.AnimatedVisibility(showPanel, modifier = Modifier.align(Alignment.TopEnd)) {
+                    // Theme surface behind the text, never too see-through to read.
+                    panel(
+                        Modifier.width(panelWidth).fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = settings.player.overlayChatOpacity.coerceIn(MIN_OVERLAY_OPACITY, 1f)))
+                            .safeDrawingPadding(),
                     )
                 }
             }
@@ -398,10 +422,8 @@ private fun ChannelRow(info: WatchInfo, nav: WatchNavigator, onFilters: () -> Un
     }
 }
 
-// Player control bar heights, kept clear of the landscape chat overlay.
-private val OVERLAY_TOP_CLEARANCE = 56.dp
-private val OVERLAY_BOTTOM_CLEARANCE_LIVE = 64.dp
-private val OVERLAY_BOTTOM_CLEARANCE_VOD = 112.dp
 
 /** Tablets and unfolded foldables: the short side is at least 600dp. */
 fun isTablet(config: Configuration): Boolean = config.smallestScreenWidthDp >= 600
+
+private const val MIN_OVERLAY_OPACITY = 0.6f

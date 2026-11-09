@@ -73,6 +73,13 @@ class ChatSession internal constructor(
     val raid: StateFlow<RaidTarget?> = _raid.asStateFlow()
     fun dismissRaid() { _raid.value = null }
 
+    /**
+     * Stream delay in ms. Live messages wait this long before showing, so chat lines up with
+     * what's on screen. Your own messages and history show straight away.
+     */
+    @Volatile var displayDelayMs: Long = 0
+    private val arrivedAt = HashMap<String, Long>()
+
     /** Recent chatter logins, newest last, for @-autocomplete. */
     fun chatters(): List<String> = synchronized(knownChatters) { knownChatters.toList().asReversed() }
 
@@ -213,12 +220,18 @@ class ChatSession internal constructor(
     private fun append(item: ChatItem) = synchronized(buffer) {
         if (!ids.add(item.id)) return@synchronized
         buffer.addLast(item)
+        val delayable = when (item) {
+            is ChatItem.Message -> !item.isHistory && !item.isSelf
+            is ChatItem.Notice -> item.message?.isHistory != true
+            else -> false
+        }
+        if (delayable) arrivedAt[item.id] = System.currentTimeMillis()
         (item as? ChatItem.Message ?: (item as? ChatItem.Notice)?.message)?.let {
             repo.mentions.onMessage(channelId, channelLogin, it)
             repo.inbox.onMessage(channelLogin, it)
         }
         val limit = repo.settings.settings.value.chat.messageLimit.coerceIn(50, 5000)
-        while (buffer.size > limit) ids.remove(buffer.removeFirst().id)
+        while (buffer.size > limit) buffer.removeFirst().id.let { ids.remove(it); arrivedAt.remove(it) }
         dirty = true
     }
 
@@ -261,20 +274,23 @@ class ChatSession internal constructor(
         buffer.clear()
         ids.clear()
         next.forEach { if (ids.add(it.id)) buffer.addLast(it) }
+        arrivedAt.keys.retainAll(ids)
         dirty = true
     }
 
     /** Publishes at most ~30 times a second so a spam wave becomes one list update. */
     private suspend fun publisher() {
+        var shown = -1 // items published last time, when holding some back
         while (scope.isActive) {
             delay(33)
-            if (dirty) {
-                val snapshot = synchronized(buffer) {
-                    dirty = false
-                    buffer.toImmutableList()
-                }
-                _items.value = snapshot
-            }
+            val snapshot = synchronized(buffer) {
+                val visible = visibleItems(buffer, arrivedAt, displayDelayMs, System.currentTimeMillis())
+                if (!dirty && visible.size == shown) return@synchronized null
+                dirty = false
+                shown = visible.size
+                visible.toImmutableList()
+            } ?: continue
+            _items.value = snapshot
         }
     }
 
@@ -375,3 +391,10 @@ class ChatRepository @Inject constructor(
 }
 
 data class RaidTarget(val login: String, val displayName: String, val viewers: Int)
+
+/** Items to show now: anything that arrived more than [delayMs] ago, or isn't delayed at all. */
+internal fun visibleItems(buffer: Collection<ChatItem>, arrivedAt: Map<String, Long>, delayMs: Long, now: Long): List<ChatItem> {
+    if (delayMs <= 0) return buffer.toList()
+    val cutoff = now - delayMs
+    return buffer.filter { (arrivedAt[it.id] ?: Long.MIN_VALUE) <= cutoff }
+}

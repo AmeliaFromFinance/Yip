@@ -14,13 +14,15 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Library: full watch history and downloads; Continue watching skips finished videos
 - Quality picker, separate defaults for Wi-Fi and mobile data, remember per channel
 - Low-latency, balanced or stable buffering, with live latency shown on the player
+- Uses Twitch's low-latency segments, a jump-to-live button and auto catch-up
+- Chat synced to the stream delay
 - Stats overlay: delay, resolution, bitrate, network speed, buffer and dropped frames
 - Background audio, audio-only mode, picture-in-picture, mini-player
 - Sleep timer: fixed times or when the stream ends
 - Clip the last 30 seconds and share the link
 - Notification controls: play, pause and mute without opening the app
 - Swipe for brightness and volume, double-tap to seek, pinch to fill
-- Landscape chat as an overlay, side panel or hidden
+- Theatre-style landscape chat: collapsible panel beside or over the video, with a chat box
 - Multi-view: up to four streams with chat for each, grid or focus layout. Start it from any stream, tap one to hear it
 
 **Chat**

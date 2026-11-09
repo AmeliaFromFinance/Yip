@@ -114,7 +114,7 @@ class PlaybackRepository @Inject constructor(
         adState[key] = hasAds
         if (!hasAds) {
             backups.remove(key)
-            return body
+            return if (settings.settings.value.player.bufferProfile != lol.sinist3r.yip.core.model.BufferProfile.STABLE) Usher.usePrefetch(body) else body
         }
         val ad = settings.settings.value.adBlock
         if (!ad.enabled || !ad.acknowledgedRisks) return body

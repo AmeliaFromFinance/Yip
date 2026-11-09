@@ -229,7 +229,17 @@ class WatchViewModel @Inject constructor(
     private val savedStateTitle: String? = savedState["title"]
     private val savedStateVodId: String? = savedState["vodId"]
 
-    init { load() }
+    init {
+        load()
+        // Chat waits for the stream: hold live messages by the player's delay, minus a little for chat's own lag.
+        if (kind == WatchKind.LIVE) viewModelScope.launch {
+            kotlinx.coroutines.flow.combine(session, playback.state.map { it.liveLatencyMs }, settingsRepo.settings.map { it.chat.syncWithStream }) { ses, latency, sync ->
+                Triple(ses, latency, sync)
+            }.collect { (ses, latency, sync) ->
+                ses?.displayDelayMs = if (sync && latency != null) (latency - CHAT_LAG_MS).coerceIn(0, MAX_CHAT_DELAY_MS) else 0
+            }
+        }
+    }
 
     fun load() = viewModelScope.launch {
         _info.value = WatchInfo()
@@ -384,3 +394,6 @@ class WatchViewModel @Inject constructor(
 }
 
 enum class ModAction { DELETE, TIMEOUT_1M, TIMEOUT_10M, TIMEOUT_1H, BAN, UNBAN }
+
+private const val CHAT_LAG_MS = 700L
+private const val MAX_CHAT_DELAY_MS = 30_000L

@@ -29,6 +29,9 @@ import androidx.compose.material.icons.outlined.FullscreenExit
 import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.ContentCut
+import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.SpeakerNotesOff
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
@@ -109,6 +112,12 @@ fun PlayerArea(
     onMultiView: (() -> Unit)? = null,
     onClip: (() -> Unit)? = null,
     onDownload: (() -> Unit)? = null,
+    onCatchUp: (() -> Unit)? = null,
+    /** Landscape chat toggle; null hides the button. */
+    onToggleChat: (() -> Unit)? = null,
+    chatOpen: Boolean = false,
+    /** Keeps the controls clear of a chat panel drawn over the right side. */
+    controlsEndInset: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     val host = LocalWatchHost.current
     val context = LocalContext.current
@@ -234,7 +243,7 @@ fun PlayerArea(
 
         if (inPip) return@Box
 
-        AnimatedVisibility(controls, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
+        AnimatedVisibility(controls, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize().padding(end = controlsEndInset)) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f))) {
                 Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
@@ -245,6 +254,7 @@ fun PlayerArea(
                     onDownload?.let { IconButton(onClick = it) { Icon(Icons.Outlined.Download, "Download", tint = Color.White) } }
                     onClip?.let { IconButton(onClick = it) { Icon(Icons.Outlined.ContentCut, "Clip", tint = Color.White) } }
                     onMultiView?.let { IconButton(onClick = it) { Icon(Icons.Outlined.GridView, "Watch with another stream", tint = Color.White) } }
+                    onToggleChat?.let { IconButton(onClick = it) { Icon(if (chatOpen) Icons.Outlined.SpeakerNotesOff else Icons.Outlined.Forum, if (chatOpen) "Hide chat" else "Show chat", tint = Color.White) } }
                     IconButton(onClick = { host?.enterPip() }) { Icon(Icons.Outlined.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
                     IconButton(onClick = onQuality) { Icon(Icons.Outlined.Settings, "Quality and options", tint = Color.White) }
                 }
@@ -269,7 +279,10 @@ fun PlayerArea(
                         chapter?.let { Text(it.title.ifBlank { it.gameName.orEmpty() }, color = Color.White, fontSize = 11.sp) }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isLive) LivePill() else Text("${(position / 1000).secondsClock()} / ${durationSeconds.secondsClock()}", color = Color.White, fontSize = 12.sp)
+                        if (isLive) {
+                            LivePill()
+                            onCatchUp?.let { IconButton(onClick = it) { Icon(Icons.Outlined.Refresh, "Jump to live", tint = Color.White) } }
+                        } else Text("${(position / 1000).secondsClock()} / ${durationSeconds.secondsClock()}", color = Color.White, fontSize = 12.sp)
                         Spacer(Modifier.width(8.dp))
                         if (isLive && settings.showLatency) state.liveLatencyMs?.let { Pill("%.1fs".format(it / 1000f)) }
                         Spacer(Modifier.width(6.dp))

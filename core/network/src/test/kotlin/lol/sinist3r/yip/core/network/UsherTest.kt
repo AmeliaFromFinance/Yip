@@ -58,3 +58,17 @@ class UsherTest {
         assertEquals(clean, Usher.stripAds(clean))
     }
 }
+
+class PrefetchTest {
+    @Test fun prefetchBecomesSegments() {
+        val pl = "#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:2.002,live\nhttps://v/1.ts\n#EXT-X-TWITCH-PREFETCH:https://v/2.ts\n#EXT-X-TWITCH-PREFETCH:https://v/3.ts"
+        val out = lol.sinist3r.yip.core.network.twitch.Usher.usePrefetch(pl).lines()
+        org.junit.Assert.assertEquals(listOf("#EXTINF:2.002,live", "https://v/2.ts", "#EXTINF:2.002,live", "https://v/3.ts"), out.takeLast(4))
+        org.junit.Assert.assertFalse(out.any { it.startsWith("#EXT-X-TWITCH-PREFETCH") })
+    }
+
+    @Test fun untouchedWithoutPrefetch() {
+        val pl = "#EXTM3U\n#EXTINF:2.0,live\nhttps://v/1.ts"
+        org.junit.Assert.assertSame(pl, lol.sinist3r.yip.core.network.twitch.Usher.usePrefetch(pl))
+    }
+}

@@ -97,6 +97,8 @@ data class PlayerSettings(
     val qualityMobile: QualityPreference = QualityPreference.P720,
     val rememberQualityPerChannel: Boolean = false,
     val bufferProfile: BufferProfile = BufferProfile.BALANCED,
+    /** Jump back to live when the delay grows well past the target. */
+    val autoCatchUp: Boolean = true,
     val backgroundAudio: Boolean = true,
     val autoPip: Boolean = true,
     val pauseOnHeadphonesUnplugged: Boolean = true,
@@ -152,6 +154,8 @@ data class ChatSettings(
     val readableColors: Boolean = true,
     /** Names meet 4.5:1 contrast; timestamps and other secondary text at full strength. */
     val highContrast: Boolean = false,
+    /** Hold live messages until the stream reaches them. */
+    val syncWithStream: Boolean = true,
     val usernameStyle: UsernameStyle = UsernameStyle.DISPLAY,
     val alternateRows: Boolean = false,
     val separators: Boolean = false,

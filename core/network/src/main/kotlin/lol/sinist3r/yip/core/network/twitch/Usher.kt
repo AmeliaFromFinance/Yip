@@ -83,6 +83,18 @@ object Usher {
     private fun attrs(line: String): Map<String, String> =
         attrRegex.findAll(line.substringAfter(':')).associate { it.groupValues[1] to it.groupValues[2].trim('"') }
 
+    /**
+     * Twitch lists the next segments as #EXT-X-TWITCH-PREFETCH before they're finished. Treating
+     * them as normal segments lets the player start on them early, which cuts a few seconds of delay.
+     */
+    fun usePrefetch(mediaPlaylist: String): String {
+        if ("#EXT-X-TWITCH-PREFETCH:" !in mediaPlaylist) return mediaPlaylist
+        val duration = mediaPlaylist.lineSequence().lastOrNull { it.startsWith("#EXTINF:") }?.substringAfter(':')?.substringBefore(',') ?: "2.000"
+        return mediaPlaylist.lineSequence().flatMap { line ->
+            if (line.startsWith("#EXT-X-TWITCH-PREFETCH:")) sequenceOf("#EXTINF:$duration,live", line.substringAfter(':')) else sequenceOf(line)
+        }.joinToString("\n")
+    }
+
     // region ad markers (used only when the user opts in to ad handling)
 
     /** True if a media playlist currently contains stitched ad segments. */

@@ -63,6 +63,9 @@ sealed interface PlaybackSource {
 /** Sleep timer value meaning "stop when the stream or video ends". */
 const val SLEEP_AT_END = -1
 
+/** How far past the target delay before auto catch-up jumps. */
+private const val AUTO_CATCH_UP_SLACK_MS = 8_000L
+
 data class PlaybackUiState(
     val source: PlaybackSource? = null,
     val loading: Boolean = false,
@@ -274,6 +277,39 @@ class PlaybackController @Inject constructor(
         _state.update { it.copy(speed = speed) }
     }
 
+    private var lastAutoCatchUp = 0L
+
+    private fun targetOffsetMs() = when (settings.settings.value.player.bufferProfile) {
+        lol.sinist3r.yip.core.model.BufferProfile.LOW_LATENCY -> 3_000L
+        lol.sinist3r.yip.core.model.BufferProfile.BALANCED -> 6_000L
+        lol.sinist3r.yip.core.model.BufferProfile.STABLE -> 12_000L
+    }
+
+    private fun autoCatchUp(p: ExoPlayer, src: PlaybackSource?) {
+        if (src !is PlaybackSource.Live || !settings.settings.value.player.autoCatchUp || !p.isPlaying) return
+        val behind = p.currentLiveOffset.takeIf { it > 0 } ?: return
+        val now = System.currentTimeMillis()
+        if (behind > targetOffsetMs() + AUTO_CATCH_UP_SLACK_MS && now - lastAutoCatchUp > 30_000) {
+            lastAutoCatchUp = now
+            Timber.d("Auto catch-up from %d ms behind", behind)
+            p.seekToDefaultPosition()
+        }
+    }
+
+    /** Live: jump to the live edge, or reload if it's stuck. Returns how far behind it was, in ms. */
+    fun catchUp(): Long? {
+        val src = _state.value.source as? PlaybackSource.Live ?: return null
+        val p = _player ?: return null
+        val behind = p.currentLiveOffset.takeIf { it > 0 }
+        if (_state.value.error != null || p.playbackState == Player.STATE_IDLE || behind == null) {
+            retry()
+        } else {
+            p.seekToDefaultPosition()
+            p.play()
+        }
+        return behind
+    }
+
     fun retry() {
         val src = _state.value.source ?: return
         _state.value = PlaybackUiState()
@@ -343,6 +379,7 @@ class PlaybackController @Inject constructor(
                         adBreak = ad,
                     )
                 }
+                autoCatchUp(p, src)
                 if (settings.settings.value.adBlock.muteDuringAds && ad != wasAd) {
                     if (ad) { volumeBeforeAd = p.volume; p.volume = 0f } else p.volume = volumeBeforeAd
                 }

@@ -65,7 +65,9 @@ class PlayerFactory @Inject constructor(
             .setMediaMetadata(meta)
             .apply {
                 if (live) setLiveConfiguration(
-                    MediaItem.LiveConfiguration.Builder().setTargetOffsetMs(target).setMinPlaybackSpeed(0.97f).setMaxPlaybackSpeed(1.04f).build(),
+                    // Speeds up a little to close small gaps; big gaps jump instead (see PlaybackController.catchUp).
+                    MediaItem.LiveConfiguration.Builder().setTargetOffsetMs(target).setMinPlaybackSpeed(0.97f)
+                        .setMaxPlaybackSpeed(if (profile == BufferProfile.LOW_LATENCY) 1.08f else 1.04f).build(),
                 )
             }
             .build()
