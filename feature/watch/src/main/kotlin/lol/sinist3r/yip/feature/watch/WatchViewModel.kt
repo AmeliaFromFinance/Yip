@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -154,6 +155,21 @@ class WatchViewModel @Inject constructor(
 
     private val _info = MutableStateFlow(WatchInfo())
     val info = _info.asStateFlow()
+
+    /** Polls, predictions and Hype Train, refreshed every 20s while the screen is visible. */
+    val events: StateFlow<lol.sinist3r.yip.core.model.ChannelEvents> = _info
+        .map { if (kind == WatchKind.LIVE && it.stream != null) it.user?.login else null }
+        .distinctUntilChanged()
+        .flatMapLatest { login ->
+            if (login == null) flowOf(lol.sinist3r.yip.core.model.ChannelEvents()) else kotlinx.coroutines.flow.flow {
+                while (true) {
+                    attempt { twitch.channelEvents(login) }.onSuccess { emit(it) }
+                    kotlinx.coroutines.delay(20_000)
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), lol.sinist3r.yip.core.model.ChannelEvents())
+
 
     private val session = MutableStateFlow<ChatSession?>(null)
     val chat: StateFlow<ImmutableList<ChatItem>> = session.flatMapLatest { it?.items ?: if (kind == WatchKind.VOD) replay.items else flowOf(persistentListOf()) }

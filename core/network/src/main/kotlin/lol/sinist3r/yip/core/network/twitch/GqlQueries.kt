@@ -91,6 +91,19 @@ internal object GqlQueries {
         query GlobalBadges { badges { setID version title imageURL(size: QUADRUPLE) } }
     """.trimIndent()
 
+    /** Field names checked against gql.twitch.tv; anonymous, no integrity token needed. */
+    val CHANNEL_EVENTS = """
+        query ChannelEvents(${'$'}login: String!) {
+          user(login: ${'$'}login) {
+            viewablePoll { id title status remainingDurationMilliseconds choices { title votes { total } } }
+            channel {
+              activePredictionEvents { id title status createdAt predictionWindowSeconds outcomes { title color totalPoints totalUsers } }
+              hypeTrain { execution { id isActive expiresAt progress { goal total progression level { value } } } }
+            }
+          }
+        }
+    """.trimIndent()
+
     val CHANNEL_BADGES = """
         query ChannelBadges(${'$'}id: ID) { user(id: ${'$'}id) { broadcastBadges { setID version title imageURL(size: QUADRUPLE) } } }
     """.trimIndent()

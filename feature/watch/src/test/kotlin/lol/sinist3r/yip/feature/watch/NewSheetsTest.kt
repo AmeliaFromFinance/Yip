@@ -11,6 +11,9 @@ import lol.sinist3r.yip.core.model.EmoteProvider
 import lol.sinist3r.yip.core.model.FilterSettings
 import lol.sinist3r.yip.core.model.StreamQuality
 import lol.sinist3r.yip.core.model.ThemeMode
+import androidx.compose.foundation.background
+import androidx.compose.ui.test.performClick
+import androidx.compose.foundation.layout.fillMaxSize
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,4 +70,22 @@ class NewSheetsTest {
         compose.onNodeWithText("3rd Party").assertIsDisplayed()
         captureScreenRoboImage("build/screenshots/emote_picker.png")
     }
+
+    @Test fun eventBanners() {
+        val now = System.currentTimeMillis()
+        val events = lol.sinist3r.yip.core.model.ChannelEvents(
+            poll = lol.sinist3r.yip.core.model.ChannelPoll("p", "Which game next?", listOf(lol.sinist3r.yip.core.model.PollChoice("Celeste", 30), lol.sinist3r.yip.core.model.PollChoice("Hades", 10)), now + 65_000, true),
+            prediction = lol.sinist3r.yip.core.model.Prediction("x", "Holt Rohat den Win?", lol.sinist3r.yip.core.model.PredictionStatus.ACTIVE, now + 90_000,
+                listOf(lol.sinist3r.yip.core.model.PredictionOutcome("Ja", "BLUE", 1_295_708, 60), lol.sinist3r.yip.core.model.PredictionOutcome("Ne", "PINK", 4_500_445, 111))),
+            hypeTrain = lol.sinist3r.yip.core.model.HypeTrain("h", 9, 2450, 7200, now + 200_000),
+        )
+        themed { androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().androidx_bg()) { EventBanners(events) } }
+        compose.onNodeWithText("Hype Train · level 9").assertIsDisplayed()
+        compose.onNodeWithText("Which game next?").performClick()
+        compose.onNodeWithText("Celeste").assertIsDisplayed()
+        captureScreenRoboImage("build/screenshots/event_banners.png")
+    }
 }
+
+@androidx.compose.runtime.Composable
+private fun androidx.compose.ui.Modifier.androidx_bg() = this.then(androidx.compose.ui.Modifier.background(androidx.compose.material3.MaterialTheme.colorScheme.background))

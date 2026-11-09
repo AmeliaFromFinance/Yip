@@ -164,6 +164,8 @@ class TwitchRepository @Inject constructor(
 
     data class ChannelInfo(val user: User, val stream: LiveStream?)
 
+    suspend fun channelEvents(login: String): lol.sinist3r.yip.core.model.ChannelEvents = gql.channelEvents(login)
+
     suspend fun channel(login: String? = null, id: String? = null): ChannelInfo? {
         if (signedInUserId() != null) {
             val user = helix.users(ids = listOfNotNull(id), logins = listOfNotNull(login)).firstOrNull() ?: return null

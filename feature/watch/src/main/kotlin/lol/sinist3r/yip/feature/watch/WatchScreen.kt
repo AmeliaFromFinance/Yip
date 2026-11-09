@@ -89,6 +89,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val chat by viewModel.chat.collectAsStateWithLifecycle()
     val room by viewModel.room.collectAsStateWithLifecycle()
     val raid by viewModel.raid.collectAsStateWithLifecycle()
+    val events by viewModel.events.collectAsStateWithLifecycle()
     val connection by viewModel.connection.collectAsStateWithLifecycle()
     val cosmetics by viewModel.cosmeticsState.collectAsStateWithLifecycle()
     val twitchEmotes by viewModel.twitchEmotes.collectAsStateWithLifecycle()
@@ -186,6 +187,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val chatPane = @Composable { mod: Modifier, overlay: Boolean ->
         Column(mod) {
             if (!overlay) RoomStateBar(room, connection, points)
+            if (!overlay && !events.isEmpty) EventBanners(events)
             raid?.let { r -> RaidBanner(r, onGo = { viewModel.dismissRaid(); nav.openLive(r.login) }, onDismiss = viewModel::dismissRaid) }
             ChatList(chat, options, actions, Modifier.weight(1f))
             if ((isLive || chatOnly) && !overlay) {

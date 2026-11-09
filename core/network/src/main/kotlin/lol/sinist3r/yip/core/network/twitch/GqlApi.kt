@@ -234,6 +234,9 @@ class GqlApi @Inject constructor(
     })
 
     suspend fun globalBadges() = query(GqlQueries.GLOBAL_BADGES)
+    suspend fun channelEvents(login: String): lol.sinist3r.yip.core.model.ChannelEvents =
+        ChannelEventsParser.parse(query(GqlQueries.CHANNEL_EVENTS, buildJsonObject { put("login", login.lowercase()) }))
+
     suspend fun channelBadges(channelId: String) = query(GqlQueries.CHANNEL_BADGES, buildJsonObject { put("id", channelId) })
 
     suspend fun videoInfo(id: String) = query(GqlQueries.VIDEO_INFO, buildJsonObject { put("id", id) })
