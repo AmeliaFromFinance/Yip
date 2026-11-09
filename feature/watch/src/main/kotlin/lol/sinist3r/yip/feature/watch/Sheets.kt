@@ -78,6 +78,7 @@ import lol.sinist3r.yip.core.designsystem.component.LoadingState
 import lol.sinist3r.yip.core.model.ChatItem
 import lol.sinist3r.yip.core.model.Emote
 import lol.sinist3r.yip.core.model.EmoteProvider
+import lol.sinist3r.yip.core.model.TwitchEmoteGroups
 import lol.sinist3r.yip.core.model.StreamQuality
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -151,12 +152,23 @@ fun EmotePickerSheet(
 data class EmoteSection(val title: String?, val emotes: List<Emote>)
 data class EmoteTab(val name: String, val sections: List<EmoteSection>)
 
-/** Favourites, Recent, Twitch (this channel first), 3rd Party (7TV, BTTV, FFZ; channel emotes first). */
+/**
+ * Favourites, Recent, Twitch, 3rd Party.
+ * Twitch: this channel, then one section per channel you have emotes from, then events (Hype Train, Prime...), then Twitch's own.
+ * 3rd Party: 7TV, BTTV, FFZ, channel emotes first.
+ */
 fun emoteTabs(all: Collection<Emote>, twitchEmotes: List<Emote>, recent: List<Emote>, favourites: List<String>): List<EmoteTab> {
     fun List<Emote>.alpha() = distinctBy { it.code }.sortedBy { it.code.lowercase() }
     val byKey = (all + twitchEmotes).associateBy { it.favouriteKey }
     val twitch = twitchEmotes.filter { it.provider == EmoteProvider.TWITCH }
-    val (channelTwitch, otherTwitch) = twitch.partition { it.isChannel }
+    val (mine, others) = twitch.partition { it.isChannel }
+    // The channel's own Twitch emotes, including tiers you don't have yet; yours win on duplicates.
+    val channelTwitch = mine + all.filter { it.provider == EmoteProvider.TWITCH && it.isChannel }
+    val usable = channelTwitch.map { it.code }.toSet()
+    val groups = others.filter { it.code !in usable }.groupBy { it.group ?: TwitchEmoteGroups.TWITCH }
+    val order = compareBy<String>({ when (it) { TwitchEmoteGroups.TWITCH -> 2; in TwitchEmoteGroups.events -> 1; else -> 0 } }, { it.lowercase() })
+    val twitchSections = listOf(EmoteSection("This channel", channelTwitch.alpha())) +
+        groups.keys.sortedWith(order).map { EmoteSection(it, groups.getValue(it).alpha()) }
     fun provider(p: EmoteProvider, title: String): EmoteSection {
         val (ch, global) = all.filter { it.provider == p }.partition { it.isChannel }
         return EmoteSection(title, ch.alpha() + global.alpha())
@@ -164,7 +176,7 @@ fun emoteTabs(all: Collection<Emote>, twitchEmotes: List<Emote>, recent: List<Em
     return listOf(
         EmoteTab("Favourites", listOf(EmoteSection(null, favourites.mapNotNull(byKey::get)))),
         EmoteTab("Recent", listOf(EmoteSection(null, recent))),
-        EmoteTab("Twitch", listOf(EmoteSection("This channel", channelTwitch.alpha()), EmoteSection("Your emotes", (otherTwitch.alpha() - channelTwitch.toSet()))).filter { it.emotes.isNotEmpty() }),
+        EmoteTab("Twitch", twitchSections.filter { it.emotes.isNotEmpty() }),
         EmoteTab("3rd Party", listOf(provider(EmoteProvider.SEVENTV, "7TV"), provider(EmoteProvider.BTTV, "BTTV"), provider(EmoteProvider.FFZ, "FFZ")).filter { it.emotes.isNotEmpty() }),
     )
 }

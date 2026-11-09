@@ -18,6 +18,8 @@ data class Emote(
     val isPersonal: Boolean = false,
     val width: Int? = null,
     val height: Int? = null,
+    /** Picker section for Twitch emotes: the owning channel's name, an event (Hype Train, Prime...) or Twitch. */
+    val group: String? = null,
 ) {
     fun url(scale: Int): String = urls[(scale - 1).coerceIn(0, urls.lastIndex)]
 
@@ -57,3 +59,23 @@ data class Paint(
     val shadows: List<PaintShadow> = emptyList(),
     val fallbackArgb: Long? = null,
 )
+
+/** Picker sections for Twitch emotes that don't belong to a channel. */
+object TwitchEmoteGroups {
+    const val TWITCH = "Twitch"
+    private val byType = mapOf(
+        "hypetrain" to "Hype Train",
+        "prime" to "Prime Gaming",
+        "turbo" to "Turbo",
+        "limitedtime" to "Limited time",
+        "rewards" to "Rewards",
+        "twofactor" to "Two-factor",
+        "smilies" to "Smilies",
+        "globals" to TWITCH,
+    )
+    val events: Set<String> = byType.values.toSet() - TWITCH
+
+    /** Event emotes go by type; channel emotes by owner; the rest are Twitch's. */
+    fun of(emoteType: String?, ownerName: String?): String =
+        byType[emoteType] ?: ownerName?.takeIf { it.isNotBlank() } ?: TWITCH
+}

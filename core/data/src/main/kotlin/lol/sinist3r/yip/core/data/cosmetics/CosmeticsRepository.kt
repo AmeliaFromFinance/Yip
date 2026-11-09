@@ -39,6 +39,7 @@ import lol.sinist3r.yip.core.model.EmoteProvider
 import lol.sinist3r.yip.core.model.Paint
 import lol.sinist3r.yip.core.model.ProviderSlot
 import lol.sinist3r.yip.core.model.ThirdPartySettings
+import lol.sinist3r.yip.core.model.TwitchEmoteGroups
 import lol.sinist3r.yip.core.network.cosmetics.BttvFfzApi
 import lol.sinist3r.yip.core.network.cosmetics.SevenTvApi
 import lol.sinist3r.yip.core.network.cosmetics.SevenTvEvent
@@ -294,14 +295,25 @@ class CosmeticsRepository @Inject constructor(
     /** The signed-in user's own Twitch emotes (subs, follower, global) for the picker. */
     suspend fun userTwitchEmotes(channelId: String?): List<Emote> {
         val uid = accounts.userId() ?: return attempt { helix.globalEmotes().data.map { twitchEmote(it.id, it.name) } }.getOrDefault(emptyList())
-        val out = mutableListOf<Emote>()
+        val raw = mutableListOf<lol.sinist3r.yip.core.network.twitch.HelixEmote>()
         var cursor: String? = null
         do {
             val page = attempt { helix.userEmotes(uid, channelId, cursor) }.getOrNull() ?: break
-            out += page.data.map { twitchEmote(it.id, it.name).copy(animated = "animated" in it.format, isChannel = it.ownerId == channelId) }
+            raw += page.data
             cursor = page.pagination?.cursor
-        } while (cursor != null && out.size < 3000)
-        return out
+        } while (cursor != null && raw.size < 3000)
+        // Owner "0" is Twitch itself.
+        val owners = raw.mapNotNull { it.ownerId?.takeIf { id -> id.isNotBlank() && id != "0" } }.distinct()
+        val names = attempt { helix.users(ids = owners) }.getOrDefault(emptyList()).associate { it.id to it.displayName }
+        return raw.map {
+            val owner = names[it.ownerId]
+            twitchEmote(it.id, it.name).copy(
+                animated = "animated" in it.format,
+                isChannel = it.ownerId == channelId,
+                ownerName = owner,
+                group = TwitchEmoteGroups.of(it.emoteType, owner),
+            )
+        }
     }
 
     // region per-user lookups used by the chat pipeline

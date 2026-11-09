@@ -106,6 +106,7 @@ class MultiViewModel @Inject constructor(
     /** The signed-in user's Twitch emotes per channel id, loaded when that chat is first shown. */
     private val _twitchEmotes = MutableStateFlow<Map<String, List<Emote>>>(emptyMap())
     val twitchEmotes = _twitchEmotes.asStateFlow()
+    private val loadingEmotes = mutableSetOf<String>()
     private val _tiles = MutableStateFlow<List<MultiTile>>(emptyList())
     val tiles: StateFlow<List<MultiTile>> = _tiles.asStateFlow()
     private val _focused = MutableStateFlow(0)
@@ -115,6 +116,14 @@ class MultiViewModel @Inject constructor(
         main.stop()
         val logins = savedState.get<String>("logins").orEmpty().split(',').filter { it.isNotBlank() }.distinct()
         logins.take(maxStreams).forEach(::add)
+        // Signing in (or switching account) changes which emotes you can use.
+        viewModelScope.launch {
+            signedIn.collect { on ->
+                if (!on) return@collect
+                _twitchEmotes.value = emptyMap()
+                _tiles.value.mapNotNull { it.chat?.channelId }.forEach(::loadTwitchEmotes)
+            }
+        }
     }
 
     fun add(login: String) {
@@ -137,6 +146,7 @@ class MultiViewModel @Inject constructor(
             player.prepare()
             player.play()
             val chat = chats.open(info.user.id, info.user.login)
+            loadTwitchEmotes(info.user.id)
             update(login) { it.copy(player = player, chat = chat, displayName = info.user.displayName) }
             applyAudio()
         }
@@ -158,10 +168,17 @@ class MultiViewModel @Inject constructor(
 
     fun cosmeticsFor(channelId: String): StateFlow<ChannelCosmetics> = cosmetics.channel(channelId)
 
+    /** Loads once per channel; an empty result (e.g. not signed in yet) is retried on the next call. */
     fun loadTwitchEmotes(channelId: String) {
-        if (channelId in _twitchEmotes.value) return
-        _twitchEmotes.update { it + (channelId to emptyList()) }
-        viewModelScope.launch { _twitchEmotes.update { it + (channelId to cosmetics.userTwitchEmotes(channelId)) } }
+        if (_twitchEmotes.value[channelId].orEmpty().isNotEmpty() || !loadingEmotes.add(channelId)) return
+        viewModelScope.launch {
+            try {
+                val list = cosmetics.userTwitchEmotes(channelId)
+                _twitchEmotes.update { it + (channelId to list) }
+            } finally {
+                loadingEmotes.remove(channelId)
+            }
+        }
     }
 
     fun send(session: ChatSession, text: String) = viewModelScope.launch { session.send(text) }
@@ -272,7 +289,7 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
                 val items: ImmutableList<ChatItem> = session?.items?.collectAsStateWithLifecycle()?.value ?: persistentListOf()
                 ChatList(items, options, actions, Modifier.weight(1f))
                 session?.let { ses ->
-                    LaunchedEffect(ses.channelId, signedIn) { if (signedIn) viewModel.loadTwitchEmotes(ses.channelId) }
+                    LaunchedEffect(ses.channelId, signedIn) { viewModel.loadTwitchEmotes(ses.channelId) }
                     val connection by ses.connection.collectAsStateWithLifecycle()
                     // One composer per chat, so a half-typed message stays with its channel.
                     androidx.compose.runtime.key(ses.channelId) {
