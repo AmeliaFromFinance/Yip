@@ -35,6 +35,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Highlights for keywords and users
 - Emote card: long-press an emote to see it large, its source and creator, and favourite it
 - Pronouns next to names, from pronouns.alejo.io
+- Shared chat: messages from other channels in a shared session show where they came from
 - Inbox: every mention from chats you opened, plus whispers (read and reply)
 - Search a chat by word or `from:name`
 - Private nicknames and notes on chatters
@@ -48,7 +49,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 **Everything else**
 - Following with pinned favourites at the top, browse, categories, search, channel pages (videos, clips, schedule)
 - Hide channels or categories from browse, filter by language
-- Long-press a stream for quick actions: pin, multi-view, hide
+- Long-press a stream for a muted preview plus quick actions: watch, pin, multi-view, hide
 - Category alerts: get notified when someone you follow streams a chosen category
 - Go-live notifications for everyone or just pinned favourites, with muting and quiet hours
 - Multiple accounts

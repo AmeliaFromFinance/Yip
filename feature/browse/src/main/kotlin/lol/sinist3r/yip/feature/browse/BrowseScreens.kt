@@ -128,7 +128,7 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
     var sortMenu by remember { mutableStateOf(false) }
     var quick by remember { mutableStateOf<QuickTarget?>(null) }
     quick?.let { t ->
-        QuickActionsSheet(t, onAddToMultiView = nav::addToMultiView, onDismiss = { quick = null }, allowHide = false)
+        QuickActionsSheet(t, onAddToMultiView = nav::addToMultiView, onDismiss = { quick = null }, allowHide = false, onWatch = nav::openStream)
     }
     Scaffold(
         topBar = {
@@ -200,7 +200,7 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
                         state.pinned.filter { it.stream != null }.forEach { p ->
                             item(key = "pin-live-${p.login}") {
                                 val st = p.stream!!
-                                StreamCard(st, settings.appearance, onClick = { nav.openStream(st) }, onLongClick = { quick = QuickTarget(p.login, p.displayName, st.gameName) })
+                                StreamCard(st, settings.appearance, onClick = { nav.openStream(st) }, onLongClick = { quick = QuickTarget(p.login, p.displayName, st.gameName, st) })
                             }
                         }
                         state.pinned.filter { it.stream == null }.forEach { p ->
@@ -219,7 +219,7 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
                     fullSpan("hdr-live") { SectionHeader("Live · ${state.live.size}") }
                     if (state.live.isEmpty()) fullSpan("nolive") { Text("Nobody you follow is live right now.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     items(state.live, key = { it.id }) { s ->
-                        StreamCard(s, settings.appearance, onClick = { nav.openStream(s) }, onLongClick = { quick = QuickTarget(s.userLogin, s.userName, s.gameName) })
+                        StreamCard(s, settings.appearance, onClick = { nav.openStream(s) }, onLongClick = { quick = QuickTarget(s.userLogin, s.userName, s.gameName, s) })
                     }
                     if (state.offline.isNotEmpty()) {
                         fullSpan("hdr-off") { SectionHeader("Offline · ${state.offline.size}") }
@@ -353,7 +353,7 @@ internal fun StreamGrid(
 ) {
     val grid = rememberLazyGridState()
     var quick by remember { mutableStateOf<QuickTarget?>(null) }
-    quick?.let { t -> QuickActionsSheet(t, onAddToMultiView = nav::addToMultiView, onDismiss = { quick = null }) }
+    quick?.let { t -> QuickActionsSheet(t, onAddToMultiView = nav::addToMultiView, onDismiss = { quick = null }, onWatch = nav::openStream) }
     grid.OnNearEnd(onLoadMore = onMore)
     when {
         !paged.initialized -> LoadingState()
@@ -370,7 +370,7 @@ internal fun StreamGrid(
             ) {
                 header?.invoke(this)
                 items(paged.items, key = { it.id }) { s ->
-                    StreamCard(s, appearance, onClick = { nav.openStream(s) }, onLongClick = { quick = QuickTarget(s.userLogin, s.userName, s.gameName.takeIf { allowHideCategory }) })
+                    StreamCard(s, appearance, onClick = { nav.openStream(s) }, onLongClick = { quick = QuickTarget(s.userLogin, s.userName, s.gameName.takeIf { allowHideCategory }, s) })
                 }
                 if (paged.loading) fullSpan("loading") { Box(Modifier.fillMaxWidth(), Alignment.Center) { CircularProgressIndicator() } }
             }

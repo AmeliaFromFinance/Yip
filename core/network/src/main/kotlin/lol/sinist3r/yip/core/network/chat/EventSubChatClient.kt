@@ -311,6 +311,8 @@ class EventSubChatClient @Inject constructor(
             timestamp = Clock.System.now(),
             isAction = false,
             isFirstMessage = type == "user_intro",
+            sourceChannelId = e.str("source_broadcaster_user_id")?.takeIf { it.isNotBlank() && it != e.str("broadcaster_user_id") },
+            sourceChannelName = e.str("source_broadcaster_user_name") ?: e.str("source_broadcaster_user_login"),
             replyParentId = reply?.str("parent_message_id"),
             replyParentLogin = reply?.str("parent_user_name"),
             replyParentText = reply?.str("parent_message_body"),

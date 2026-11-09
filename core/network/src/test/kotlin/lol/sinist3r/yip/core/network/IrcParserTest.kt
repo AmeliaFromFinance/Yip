@@ -42,3 +42,17 @@ class IrcParserTest {
         assertEquals("5 raiders", raid.systemText)
     }
 }
+
+class SharedChatIrcTest {
+    @Test fun sourceRoomFromOtherChannel() {
+        val line = "@badges=;color=#1E90FF;display-name=Visitor;id=abc;room-id=111;source-room-id=222;source-id=xyz;tmi-sent-ts=1700000000000;user-id=9 :visitor!visitor@visitor.tmi.twitch.tv PRIVMSG #host :hello"
+        val msg = (IrcParser.toRawChat(IrcParser.parseLine(line)!!) as RawChat.Message).msg
+        org.junit.Assert.assertEquals("222", msg.sourceChannelId)
+    }
+
+    @Test fun ownChannelIsNotShared() {
+        val line = "@badges=;display-name=Host;id=abd;room-id=111;source-room-id=111;tmi-sent-ts=1700000000000;user-id=1 :host!host@host.tmi.twitch.tv PRIVMSG #host :hi"
+        val msg = (IrcParser.toRawChat(IrcParser.parseLine(line)!!) as RawChat.Message).msg
+        org.junit.Assert.assertNull(msg.sourceChannelId)
+    }
+}

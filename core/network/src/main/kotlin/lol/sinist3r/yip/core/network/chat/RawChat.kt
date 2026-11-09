@@ -30,6 +30,9 @@ data class RawMessage(
     val rewardId: String? = null,
     val isHighlightedRedemption: Boolean = false,
     val isHistory: Boolean = false,
+    /** Shared chat: the channel this message was sent in, when it isn't this one. */
+    val sourceChannelId: String? = null,
+    val sourceChannelName: String? = null,
 )
 
 enum class RawNoticeKind { SUB, RESUB, GIFT, MYSTERY_GIFT, RAID, ANNOUNCEMENT, BITS_BADGE, CHARITY, WATCH_STREAK, REDEMPTION, OTHER }

@@ -310,9 +310,10 @@ class ChatRepository @Inject constructor(
     internal val mentions: MentionNotifier,
     internal val inbox: MentionInbox,
     internal val pronouns: PronounRepository,
+    sharedNames: SharedChatNames,
     @DefaultDispatcher private val dispatcher: CoroutineDispatcher,
 ) {
-    internal val pipeline = ChatPipeline(cosmetics, pronouns)
+    internal val pipeline = ChatPipeline(cosmetics, pronouns, sharedNames)
     private val sessions = ConcurrentHashMap<String, Pair<ChatSession, Int>>()
 
     @Synchronized

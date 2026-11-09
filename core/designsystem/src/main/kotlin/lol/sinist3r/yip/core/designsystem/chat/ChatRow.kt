@@ -177,7 +177,8 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
         val prefixPx = with(density) {
             val t = time?.let { measurer.measure(AnnotatedString("$it "), smallStyle).size.width.toFloat() } ?: 0f
             val p = pronouns?.let { measurer.measure(AnnotatedString("$it "), smallStyle).size.width.toFloat() } ?: 0f
-            t + m.badges.size * (badgeSize + 3).sp.toPx() + p
+            val shared = m.sharedFrom?.let { measurer.measure(AnnotatedString("⇄ $it "), smallStyle.copy(fontWeight = FontWeight.Medium)).size.width.toFloat() } ?: 0f
+            t + shared + m.badges.size * (badgeSize + 3).sp.toPx() + p
         }
         val nameStyle = baseStyle.copy(fontWeight = FontWeight.Bold)
         val nameWidth = paint?.let { measurer.measure(AnnotatedString(name), nameStyle).size.width.toFloat() } ?: 0f
@@ -193,6 +194,8 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
                 withStyle(SpanStyle(color = primary, fontWeight = FontWeight.Bold, fontSize = (chat.fontSizeSp - 3).sp, letterSpacing = 0.05.em)) { append("FIRST MESSAGE  ") }
             }
             time?.let { withStyle(SpanStyle(color = muted, fontSize = (chat.fontSizeSp - 2).sp)) { append("$it ") } }
+            // Shared chat: where it was sent.
+            m.sharedFrom?.let { withStyle(SpanStyle(color = primary, fontSize = (chat.fontSizeSp - 2).sp, fontWeight = FontWeight.Medium)) { append("⇄ $it ") } }
             m.badges.forEachIndexed { i, b ->
                 val key = "badge$i"
                 inline[key] = InlineTextContent(Placeholder((badgeSize + 3).sp, badgeSize.sp, PlaceholderVerticalAlign.TextCenter)) { BadgeImage(b, badgeSize) }

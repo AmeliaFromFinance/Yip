@@ -273,6 +273,10 @@ class GqlApi @Inject constructor(
     suspend fun claimDrop(claimId: String): String? =
         queryAuthed(GqlQueries.CLAIM_DROP, buildJsonObject { put("id", claimId) }, integrity = true).obj("claimDropRewards")?.str("status")
 
+    /** Display name for a user id, without signing in. */
+    suspend fun displayName(userId: String): String? =
+        query("query(${'$'}id: ID!) { user(id: ${'$'}id) { displayName } }", buildJsonObject { put("id", userId) }).obj("user")?.str("displayName")
+
     suspend fun votePoll(pollId: String, choiceId: String, userId: String, pointsVotes: Int = 0): JsonObject =
         queryAuthed(GqlQueries.VOTE_POLL, buildJsonObject {
             putJsonObject("input") {

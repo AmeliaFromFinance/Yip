@@ -19,7 +19,7 @@ import lol.sinist3r.yip.core.network.chat.RawPart
  * Turns transport messages into render-ready [ChatItem.Message]s. Runs off the main thread;
  * nothing here touches Compose.
  */
-class ChatPipeline(private val cosmetics: CosmeticsRepository, private val pronouns: PronounRepository? = null) {
+class ChatPipeline(private val cosmetics: CosmeticsRepository, private val pronouns: PronounRepository? = null, private val sharedNames: SharedChatNames? = null) {
 
 
     fun process(
@@ -54,6 +54,7 @@ class ChatPipeline(private val cosmetics: CosmeticsRepository, private val prono
             isSelf = selfLogin != null && raw.login.equals(selfLogin, true),
             isHistory = raw.isHistory,
             bits = raw.bits,
+            sharedFrom = raw.sourceChannelId?.let { id -> raw.sourceChannelName ?: sharedNames?.nameFor(id) ?: "another channel" },
         )
     }
 

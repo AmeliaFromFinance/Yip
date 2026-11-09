@@ -34,6 +34,8 @@ sealed interface ChatItem {
         val badges: List<Badge>,
         val paint: Paint? = null,
         val pronouns: String? = null,
+        /** Shared chat: name of the channel it was sent in, when not this one. */
+        val sharedFrom: String? = null,
         val isAction: Boolean = false,
         val replyParentLogin: String? = null,
         val replyParentText: String? = null,
