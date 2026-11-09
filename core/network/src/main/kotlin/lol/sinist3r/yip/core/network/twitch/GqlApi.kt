@@ -103,9 +103,10 @@ class GqlApi @Inject constructor(
     ): JsonObject {
         val conf = cfg ?: config.current()
         val webToken = if (authenticated) webTokens.webToken() ?: throw AppException(AppException.Kind.AUTH, "twitch.tv not connected") else null
-        // Optional: tokens from the TV app don't need one, and a failed fetch shouldn't block the call.
-        val integrityToken = if (integrity) runCatching { webTokens.integrityToken() }.getOrNull() else null
         val clientId = if (webToken != null) webTokens.webClientId() ?: conf.clientId else conf.clientId
+        // TV app tokens don't need an integrity token; fetching one anyway took up to 30s (it loads twitch.tv in a hidden browser).
+        val needsIntegrity = integrity && clientId != TwitchAuthApi.TV_CLIENT_ID
+        val integrityToken = if (needsIntegrity) runCatching { webTokens.integrityToken() }.getOrNull() else null
         val res = http.post("https://gql.twitch.tv/gql") {
             expectSuccess = false
             header("Client-Id", clientId)

@@ -127,9 +127,9 @@ fun ChannelScreen(
                                 if (header.isMe) {
                                     FilledTonalButton(onClick = nav::openStreamManager) { Icon(Icons.Outlined.Tune, null); Spacer(Modifier.width(6.dp)); Text("Manage stream") }
                                 } else if (header.following) {
-                                    OutlinedButton(onClick = { onFollowToggle(info.user.id, info.user.login, false) }) { Icon(Icons.Outlined.Favorite, null); Spacer(Modifier.width(6.dp)); Text("Following") }
+                                    OutlinedButton(onClick = { viewModel.followTapped(info.user.id, false); onFollowToggle(info.user.id, info.user.login, false) }) { Icon(Icons.Outlined.Favorite, null); Spacer(Modifier.width(6.dp)); Text("Following") }
                                 } else {
-                                    FilledTonalButton(onClick = { onFollowToggle(info.user.id, info.user.login, true) }) { Icon(Icons.Outlined.FavoriteBorder, null); Spacer(Modifier.width(6.dp)); Text("Follow") }
+                                    FilledTonalButton(onClick = { viewModel.followTapped(info.user.id, true); onFollowToggle(info.user.id, info.user.login, true) }) { Icon(Icons.Outlined.FavoriteBorder, null); Spacer(Modifier.width(6.dp)); Text("Follow") }
                                 }
                             }
                             info.stream?.title?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }

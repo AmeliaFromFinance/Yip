@@ -91,12 +91,16 @@ class AccountRepository @Inject constructor(
     override suspend fun webToken(): String? = activeId()?.let { secrets(it)?.webToken }
     override suspend fun webClientId(): String? = activeId()?.let { secrets(it)?.webClientId }
 
+    @Volatile private var integrityFailedAt = 0L
+
     override suspend fun integrityToken(forceRefresh: Boolean): IntegrityToken? {
         val cached = integrity
         if (!forceRefresh && cached != null && cached.expiresAtMillis > System.currentTimeMillis() + 30_000) return cached
+        // A failed fetch can take the full timeout; don't repeat it on every action.
+        if (!forceRefresh && System.currentTimeMillis() - integrityFailedAt < INTEGRITY_RETRY_MS) return null
         val cfg = config.current()
         return integritySource.get().fetch(webToken(), webClientId() ?: cfg.clientId, deviceId = cached?.deviceId ?: randomDeviceId())
-            .also { integrity = it }
+            .also { integrity = it; if (it == null) integrityFailedAt = System.currentTimeMillis() }
     }
 
     private fun randomDeviceId(): String = java.util.UUID.randomUUID().toString().replace("-", "")
@@ -264,3 +268,5 @@ class AccountRepository @Inject constructor(
 
     private fun TokenResponse.expiresAt(): Long? = expiresIn?.let { System.currentTimeMillis() / 1000 + it }
 }
+
+private const val INTEGRITY_RETRY_MS = 10 * 60_000L

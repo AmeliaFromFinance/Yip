@@ -301,6 +301,17 @@ class ChannelViewModel @Inject constructor(
 ) : ViewModel() {
     private val login: String = checkNotNull(savedState["login"])
     val settings = settingsRepo.settings
+
+    /** Flips the button now; checks with Twitch shortly after and corrects it if the change didn't stick. */
+    fun followTapped(channelId: String, follow: Boolean) = viewModelScope.launch {
+        // Without the twitch.tv connection nothing changes yet; the app offers to connect instead.
+        if (accounts.webToken() == null) return@launch
+        _header.update { it.copy(following = follow) }
+        launch {
+            kotlinx.coroutines.delay(8_000)
+            attempt { twitch.isFollowing(channelId) }.getOrNull()?.let { actual -> _header.update { it.copy(following = actual) } }
+        }
+    }
     private val _header = MutableStateFlow(ChannelHeader())
     val header = _header.asStateFlow()
 
