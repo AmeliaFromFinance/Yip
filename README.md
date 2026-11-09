@@ -14,6 +14,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Low-latency, balanced or stable buffering, with live latency shown on the player
 - Stats overlay: delay, resolution, bitrate, network speed, buffer and dropped frames
 - Background audio, audio-only mode, picture-in-picture, sleep timer, mini-player
+- Notification controls: play, pause and mute without opening the app
 - Swipe for brightness and volume, double-tap to seek, pinch to fill
 - Landscape chat as an overlay, side panel or hidden
 - Multi-view: up to four streams at once, tap one to hear it
@@ -23,16 +24,20 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - 7TV name paints (incl. animated) and badges, FFZ custom mod/VIP badges
 - Badges from BTTV, FFZ, FFZ:AP, Chatterino, Chatterino Homies (incl. custom) and Moltorino
 - Recent messages on open, replies, mentions, first-message tags, sub/raid/redemption notices
-- Filters (bots, commands, users, words or regex) and highlights (keywords, users)
+- Filters sheet in chat: hide bots in one tap, block words or /patterns/, hide users
+- Highlights for keywords and users
+- Emote card: long-press an emote to see it large, its source and creator, and favourite it
 - Pronouns next to names, from pronouns.alejo.io
 - Pings for mentions, keywords and highlighted users when that chat isn't on screen
 - Emote picker, emote and @name suggestions, Tab completion on keyboards
-- Moderation: timeouts, bans, deletes and slash commands; AutoMod holds in your own chat
+- Moderation: timeouts, bans, deletes and slash commands; AutoMod holds in your own chat and channels you moderate
 - VOD chat replay, synced to playback
 
 **Everything else**
-- Following, browse, categories, search, channel pages (videos, clips, schedule)
-- Go-live notifications with favourites, muting and quiet hours
+- Following with pinned favourites at the top, browse, categories, search, channel pages (videos, clips, schedule)
+- Hide channels or categories from browse, filter by language
+- Long-press a stream for quick actions: pin, multi-view, hide
+- Go-live notifications for everyone or just pinned favourites, with muting and quiet hours
 - Multiple accounts
 - Stream manager for your own channel: title, category, tags, markers, ads, unban requests, who's in chat
 - Updates itself from GitHub releases (checksum-verified)

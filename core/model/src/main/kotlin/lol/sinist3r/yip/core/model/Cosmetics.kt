@@ -20,6 +20,8 @@ data class Emote(
     val height: Int? = null,
 ) {
     fun url(scale: Int): String = urls[(scale - 1).coerceIn(0, urls.lastIndex)]
+
+    val favouriteKey: String get() = "${provider.name}:$id"
 }
 
 enum class BadgeSource { TWITCH, SEVENTV, BTTV, FFZ, FFZAP, CHATTERINO, HOMIES, HOMIES_CUSTOM, MOLTORINO }

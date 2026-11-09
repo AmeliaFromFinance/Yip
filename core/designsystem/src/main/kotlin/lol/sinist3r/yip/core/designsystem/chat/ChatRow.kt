@@ -67,6 +67,7 @@ data class ChatRenderOptions(
 interface ChatActions {
     fun onUser(login: String, userId: String?) {}
     fun onEmote(emote: Emote) {}
+    fun onEmoteLongPress(emote: Emote) {}
     fun onMessageLongPress(message: ChatItem.Message) {}
     fun onLink(url: String) {}
     fun onAutoMod(item: ChatItem.AutoMod, allow: Boolean) {}
@@ -228,7 +229,7 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
                             val ratio = t.emote.width?.let { w -> t.emote.height?.let { h -> w.toFloat() / h } } ?: 1f
                             val w = emoteHeight * ratio.coerceIn(0.5f, 4f)
                             inline[key] = InlineTextContent(Placeholder(w.sp, emoteHeight.sp, PlaceholderVerticalAlign.Center)) {
-                                EmoteImage(t.emote, t.overlays, options.animate, Modifier.fillMaxSize().combinedClickable(onClick = { actions.onEmote(t.emote) }))
+                                EmoteImage(t.emote, t.overlays, options.animate, Modifier.fillMaxSize().combinedClickable(onClick = { actions.onEmote(t.emote) }, onLongClick = { actions.onEmoteLongPress(t.emote) }))
                             }
                             appendInlineContentCompat(key, t.emote.code)
                         }

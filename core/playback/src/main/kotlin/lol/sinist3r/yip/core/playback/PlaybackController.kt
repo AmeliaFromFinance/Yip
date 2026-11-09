@@ -74,6 +74,7 @@ data class PlaybackUiState(
     val viaProxy: Boolean = false,
     val sleepAtMillis: Long? = null,
     val speed: Float = 1f,
+    val muted: Boolean = false,
 )
 
 /**
@@ -106,7 +107,30 @@ class PlaybackController @Inject constructor(
             _player = it
             it.addListener(listener)
             it.addAnalyticsListener(stats)
+            playerWatchers.forEach { w -> w(it) }
         }
+
+    // The media session follows the player when it's rebuilt (e.g. after a buffer change).
+    private val playerWatchers = java.util.concurrent.CopyOnWriteArraySet<(ExoPlayer) -> Unit>()
+    fun watchPlayer(onChange: (ExoPlayer) -> Unit): () -> Unit {
+        playerWatchers += onChange
+        return { playerWatchers -= onChange }
+    }
+
+    private var volumeBeforeMute = 1f
+
+    /** Shared by the player button and the notification. */
+    fun setMuted(muted: Boolean) {
+        val p = player
+        if (muted) {
+            if (p.volume > 0f) volumeBeforeMute = p.volume
+            p.volume = 0f
+        } else {
+            p.volume = volumeBeforeMute.takeIf { it > 0f } ?: 1f
+        }
+    }
+
+    fun toggleMute() = setMuted(!_state.value.muted)
 
     val hasMedia: Boolean get() = _player?.currentMediaItem != null
 
@@ -114,6 +138,7 @@ class PlaybackController @Inject constructor(
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) = _state.update { it.copy(playing = isPlaying) }
+        override fun onVolumeChanged(volume: Float) = _state.update { it.copy(muted = volume == 0f) }
         override fun onPlaybackStateChanged(playbackState: Int) {
             _state.update { it.copy(loading = playbackState == Player.STATE_BUFFERING) }
         }

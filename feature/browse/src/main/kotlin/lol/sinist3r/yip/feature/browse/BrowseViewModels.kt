@@ -1,5 +1,7 @@
 package lol.sinist3r.yip.feature.browse
 
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -83,7 +85,11 @@ data class FollowingUiState(
     val offline: List<FollowedChannel> = emptyList(),
     val history: List<HistoryEntry> = emptyList(),
     val error: String? = null,
+    /** Pinned favourites, in the order pinned; [PinnedChannel.stream] is null when offline. */
+    val pinned: List<PinnedChannel> = emptyList(),
 )
+
+data class PinnedChannel(val login: String, val displayName: String, val avatar: String?, val stream: LiveStream?)
 
 @HiltViewModel
 class FollowingViewModel @Inject constructor(
@@ -96,7 +102,14 @@ class FollowingViewModel @Inject constructor(
     val settings: StateFlow<AppSettings> = settingsRepo.settings
 
     val state: StateFlow<FollowingUiState> = combine(_state, history.recent, settings) { s, h, st ->
-        s.copy(live = s.live.sortedWith(st.general.followingSort), history = if (st.general.continueWatching) h.take(12) else emptyList())
+        val pins = st.notifications.favourites
+        s.copy(
+            live = s.live.filterNot { it.userLogin.lowercase() in pins }.sortedWith(st.general.followingSort),
+            offline = s.offline.filterNot { it.login.lowercase() in pins },
+            // Drop anything unpinned since the last fetch; live ones first.
+            pinned = s.pinned.filter { it.login in pins }.sortedBy { if (it.stream != null) 0 else 1 },
+            history = if (st.general.continueWatching) h.take(12) else emptyList(),
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FollowingUiState())
 
     init {
@@ -106,6 +119,25 @@ class FollowingViewModel @Inject constructor(
                 refresh()
             }
         }
+        // Pinning or unpinning updates the section without a full refresh.
+        viewModelScope.launch {
+            settings.map { it.notifications.favourites }.distinctUntilChanged().collect { refreshPinned(it) }
+        }
+    }
+
+    private suspend fun refreshPinned(logins: List<String> = settings.value.notifications.favourites) {
+        if (logins.isEmpty()) { _state.update { it.copy(pinned = emptyList()) }; return }
+        val known = _state.value.pinned.associateBy { it.login }
+        val fetched = kotlinx.coroutines.coroutineScope {
+            logins.take(MAX_PINNED).map { login ->
+                async {
+                    attempt { twitch.channel(login = login) }.getOrNull()?.let { ci ->
+                        PinnedChannel(login, ci.user.displayName, ci.user.profileImageUrl, ci.stream?.copy(profileImageUrl = ci.user.profileImageUrl))
+                    } ?: known[login]
+                }
+            }.awaitAll().filterNotNull()
+        }
+        _state.update { it.copy(pinned = fetched) }
     }
 
     fun refresh() {
@@ -117,6 +149,7 @@ class FollowingViewModel @Inject constructor(
             _state.update { it.copy(loading = true, error = null) }
             val live = attempt { twitch.followedLive() }
             val offline = if (settings.value.general.showOfflineFollowed) attempt { twitch.followedChannels() }.getOrDefault(emptyList()) else emptyList()
+            launch { refreshPinned() }
             val liveIds = live.getOrDefault(emptyList()).map { it.userId }.toSet()
             _state.update {
                 it.copy(
@@ -144,14 +177,23 @@ class FollowingViewModel @Inject constructor(
 }
 
 @HiltViewModel
-class BrowseViewModel @Inject constructor(twitch: TwitchRepository, settingsRepo: SettingsRepository) : ViewModel() {
+class BrowseViewModel @Inject constructor(twitch: TwitchRepository, private val settingsRepo: SettingsRepository) : ViewModel() {
     val settings = settingsRepo.settings
     private val streamsPager = Pager(viewModelScope) { twitch.topStreams(it) }
     private val categoriesPager = Pager(viewModelScope) { twitch.topCategories(it) }
-    val streams = streamsPager.state.asStateFlow()
-    val categories = categoriesPager.state.asStateFlow()
+    val streams = combine(streamsPager.state, settings) { p, s -> p.copy(items = p.items.filterNot { st -> s.isHiddenChannel(st.userLogin) || s.isHiddenCategory(st.gameName) }) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Paged())
+    val categories = combine(categoriesPager.state, settings) { p, s -> p.copy(items = p.items.filterNot { c -> s.isHiddenCategory(c.name) }) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Paged())
 
     init {
+        streamsPager.refresh()
+        categoriesPager.refresh()
+    }
+
+    /** Empty means every language. Reloads both lists. */
+    fun setLanguages(codes: List<String>) = viewModelScope.launch {
+        settingsRepo.update { it.copy(general = it.general.copy(streamLanguages = codes.distinct())) }
         streamsPager.refresh()
         categoriesPager.refresh()
     }
@@ -168,7 +210,8 @@ class CategoryViewModel @Inject constructor(savedState: SavedStateHandle, twitch
     val categoryName: String = savedState["name"] ?: ""
     val settings = settingsRepo.settings
     private val pager = Pager(viewModelScope) { twitch.categoryStreams(categoryId, it) }
-    val streams = pager.state.asStateFlow()
+    val streams = combine(pager.state, settings) { p, s -> p.copy(items = p.items.filterNot { st -> s.isHiddenChannel(st.userLogin) }) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Paged())
 
     init { pager.refresh() }
     fun refresh() = pager.refresh()
@@ -307,3 +350,5 @@ class ChannelViewModel @Inject constructor(
     fun moreVideos() = videosPager?.loadMore()
     fun moreClips() = clipsPager?.loadMore()
 }
+
+private const val MAX_PINNED = 30

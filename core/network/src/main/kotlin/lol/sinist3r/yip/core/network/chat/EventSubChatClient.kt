@@ -201,8 +201,8 @@ class EventSubChatClient @Inject constructor(
                     }
                 }
         }
-        // Your own channel: AutoMod holds, for approving in chat. Optional; older sign-ins lack the scope.
-        if (channelId == uid) {
+        // Channels you own or moderate: AutoMod holds, for approving in chat. Optional; older sign-ins lack the scope.
+        if (canModerate(channelId, uid)) {
             val modCondition = mapOf("broadcaster_user_id" to channelId, "moderator_user_id" to uid)
             for (type in AUTOMOD_TYPES) {
                 attempt { helix.createEventSub(EventSubCreate(type, "2", modCondition, EventSubTransport.webSocket(sid))) }
@@ -210,6 +210,16 @@ class EventSubChatClient @Inject constructor(
                     .onFailure { e -> Timber.i("AutoMod events unavailable: ${e.message}") }
             }
         }
+    }
+
+    @Volatile private var moderated: Triple<String, Long, Set<String>>? = null // user, fetched at, channel ids
+
+    private suspend fun canModerate(channelId: String, uid: String): Boolean {
+        if (channelId == uid) return true
+        val cached = moderated?.takeIf { it.first == uid && System.currentTimeMillis() - it.second < 10 * 60_000 }
+        val ids = cached?.third ?: attempt { helix.moderatedChannels(uid).toSet() }.getOrDefault(emptySet())
+            .also { moderated = Triple(uid, System.currentTimeMillis(), it) }
+        return channelId in ids
     }
 
     /** Pulls Twitch's "message" out of a Helix error body, falling back to the status line. */

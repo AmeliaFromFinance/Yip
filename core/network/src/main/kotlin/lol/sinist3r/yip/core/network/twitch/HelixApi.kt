@@ -306,9 +306,21 @@ class HelixApi @Inject constructor(
 
     // endregion
 
-    suspend fun moderatedChannels(userId: String): List<String> =
-        getOrNull<HelixPage<RawJson>>("/moderation/channels") { parameter("user_id", userId); parameter("first", 100) }
-            ?.data?.mapNotNull { it["broadcaster_id"]?.toString()?.trim('"') }.orEmpty()
+    /** Channels [userId] moderates (needs user:read:moderated_channels). Empty if the scope is missing. */
+    suspend fun moderatedChannels(userId: String): List<String> {
+        val out = mutableListOf<String>()
+        var cursor: String? = null
+        repeat(10) { // 1000 channels is plenty
+            val page = getOrNull<HelixPage<RawJson>>("/moderation/channels") {
+                parameter("user_id", userId)
+                parameter("first", 100)
+                cursor?.let { parameter("after", it) }
+            } ?: return out
+            page.data.mapNotNullTo(out) { it["broadcaster_id"]?.toString()?.trim('"') }
+            cursor = page.pagination?.cursor ?: return out
+        }
+        return out
+    }
 
     suspend fun userColor(userIds: List<String>): List<HelixUserColor> =
         get<HelixPage<HelixUserColor>>("/chat/color") { userIds.take(100).forEach { parameter("user_id", it) } }.data

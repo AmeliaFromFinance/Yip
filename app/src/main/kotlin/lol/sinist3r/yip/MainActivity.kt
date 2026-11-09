@@ -117,6 +117,8 @@ class MainActivity : ComponentActivity(), WatchHost {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         inPip = isInPictureInPictureMode
+        // Expanding the PiP window brings back the normal screen, not the fullscreen it may have started from.
+        if (!isInPictureInPictureMode && fullscreenOn) setFullscreen(false)
     }
 
     override fun onStop() {

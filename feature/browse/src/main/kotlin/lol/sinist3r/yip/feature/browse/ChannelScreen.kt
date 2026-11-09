@@ -1,5 +1,7 @@
 package lol.sinist3r.yip.feature.browse
 
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -116,6 +118,12 @@ fun ChannelScreen(
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 info.stream?.let { s -> Button(onClick = { nav.openStream(s) }) { Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Watch live") } }
+                                val quickVm: QuickActionsViewModel = hiltViewModel()
+                                val pinned = quickVm.state.collectAsStateWithLifecycle().value.isPinned(info.user.login)
+                                IconButton(onClick = { quickVm.togglePin(info.user.login) }) {
+                                    Icon(if (pinned) Icons.Outlined.Star else Icons.Outlined.StarBorder, if (pinned) "Unpin from Following" else "Pin to Following",
+                                        tint = if (pinned) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Unspecified)
+                                }
                                 if (header.isMe) {
                                     FilledTonalButton(onClick = nav::openStreamManager) { Icon(Icons.Outlined.Tune, null); Spacer(Modifier.width(6.dp)); Text("Manage stream") }
                                 } else if (header.following) {

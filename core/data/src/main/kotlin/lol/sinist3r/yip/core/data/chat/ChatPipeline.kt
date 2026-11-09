@@ -21,7 +21,6 @@ import lol.sinist3r.yip.core.network.chat.RawPart
  */
 class ChatPipeline(private val cosmetics: CosmeticsRepository, private val pronouns: PronounRepository? = null) {
 
-    private val regexCache = ConcurrentHashMap<String, Regex?>()
 
     fun process(
         raw: RawMessage,
@@ -58,26 +57,28 @@ class ChatPipeline(private val cosmetics: CosmeticsRepository, private val prono
         )
     }
 
-    private fun isFiltered(raw: RawMessage, s: AppSettings): Boolean {
+    private fun isFiltered(raw: RawMessage, s: AppSettings): Boolean =
+        hides(raw.login, raw.text, raw.isFirstMessage, s)
+
+    /** Same rules for a message already on screen, used when filters change mid-chat. */
+    fun hides(m: ChatItem.Message, s: AppSettings): Boolean = hides(m.user.login, m.raw, m.isFirstMessage, s)
+
+    private fun hides(loginRaw: String, text: String, firstMessage: Boolean, s: AppSettings): Boolean {
         val f = s.filters
-        val login = raw.login.lowercase()
+        val login = loginRaw.lowercase()
         if (f.hideBots && login in f.botNames) return true
         if (login in f.hiddenUsers) return true
-        if (f.hideCommands && f.commandPrefixes.any { raw.text.startsWith(it) }) return true
-        if (f.hideFirstTimeChatters && raw.isFirstMessage) return true
-        if (f.blockedTerms.isNotEmpty()) {
-            val text = raw.text
-            val hit = f.blockedTerms.any { term ->
-                if (f.blockedTermsAreRegex) regex(term)?.containsMatchIn(text) == true else text.contains(term, ignoreCase = true)
-            }
-            if (hit) return true
-        }
-        return false
+        if (f.hideCommands && f.commandPrefixes.any { text.startsWith(it) }) return true
+        if (f.hideFirstTimeChatters && firstMessage) return true
+        return f.blockedTerms.isNotEmpty() && blocked(f.blockedTerms, f.blockedTermsAreRegex).matches(text)
     }
 
-    private fun regex(pattern: String): Regex? = regexCache.getOrPut(pattern) {
-        runCatching { Regex(pattern, RegexOption.IGNORE_CASE) }.getOrNull()
-    }
+    // Whole words or /regex/, like highlight keywords. The old "all regex" switch still applies to saved lists.
+    @Volatile private var blockedCache: Triple<List<String>, Boolean, KeywordMatcher>? = null
+    private fun blocked(list: List<String>, allRegex: Boolean): KeywordMatcher =
+        blockedCache?.takeIf { it.first == list && it.second == allRegex }?.third
+            ?: KeywordMatcher(if (allRegex) list.map { if (KeywordMatcher.isPattern(it)) it else "/$it/" } else list)
+                .also { blockedCache = Triple(list, allRegex, it) }
 
     fun tokenize(parts: List<RawPart>, emotes: Map<String, Emote>, personal: Map<String, Emote>, s: AppSettings): List<ChatToken> {
         val out = ArrayList<ChatToken>(parts.size * 2)

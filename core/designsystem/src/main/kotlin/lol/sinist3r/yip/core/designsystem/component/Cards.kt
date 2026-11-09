@@ -134,8 +134,8 @@ fun StreamCard(
 }
 
 @Composable
-fun CategoryCard(category: Category, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.clip(MaterialTheme.shapes.medium).combinedClickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+fun CategoryCard(category: Category, onClick: () -> Unit, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null) {
+    Column(modifier.clip(MaterialTheme.shapes.medium).combinedClickable(onClick = onClick, onLongClick = onLongClick), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         AsyncImage(
             category.boxArt(285, 380), contentDescription = category.name, contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxWidth().aspectRatio(3f / 4f).clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surfaceContainerHigh),

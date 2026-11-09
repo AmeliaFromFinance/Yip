@@ -1,5 +1,8 @@
 package lol.sinist3r.yip.feature.watch
 
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FilterAlt
 import android.content.res.Configuration
 import android.net.ConnectivityManager
 import androidx.annotation.OptIn
@@ -91,6 +94,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val host = LocalWatchHost.current
 
     var showQuality by remember { mutableStateOf(false) }
+    var showFilters by remember { mutableStateOf(false) }
+    var emoteCard by remember { mutableStateOf<Emote?>(null) }
     var showEmotes by remember { mutableStateOf(false) }
     var menuFor by remember { mutableStateOf<ChatItem.Message?>(null) }
     var insert by remember { mutableStateOf<String?>(null) }
@@ -104,6 +109,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
                 if (viewModel.settings.value.chat.tapNameToMention) insert = "@$login" else viewModel.openUser(login)
             }
             override fun onEmote(emote: Emote) { insert = emote.code }
+            override fun onEmoteLongPress(emote: Emote) { emoteCard = emote }
             override fun onMessageLongPress(message: ChatItem.Message) { menuFor = message }
             override fun onLink(url: String) = nav.openLink(url)
             override fun onAutoMod(item: ChatItem.AutoMod, allow: Boolean) { viewModel.resolveAutoMod(item, allow) }
@@ -159,6 +165,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onBack = nav::back,
             onQuality = { showQuality = true },
             stats = viewModel.playback.stats,
+            onToggleMute = viewModel.playback::toggleMute,
             onRetry = { if (info.error != null) viewModel.load() else viewModel.playback.retry() },
             modifier = mod,
         )
@@ -199,7 +206,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
 
     if (chatOnly) {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding()) {
-            ChatOnlyHeader(info, nav)
+            ChatOnlyHeader(info, nav, onFilters = { showFilters = true })
             HorizontalDivider()
             info.error?.let { Text(it, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
             chatPane(Modifier.weight(1f), false)
@@ -214,8 +221,10 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
                 }
                 else -> {
                     player(Modifier.fillMaxSize())
+                    // Leaves the top and bottom control bars clear so back, PiP, quality, mute and fullscreen stay reachable.
                     chatPane(
-                        Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(settings.player.overlayChatWidthFraction.coerceIn(0.2f, 0.6f))
+                        Modifier.align(Alignment.TopEnd).padding(top = OVERLAY_TOP_CLEARANCE, bottom = if (isLive) OVERLAY_BOTTOM_CLEARANCE_LIVE else OVERLAY_BOTTOM_CLEARANCE_VOD)
+                            .fillMaxHeight().fillMaxWidth(settings.player.overlayChatWidthFraction.coerceIn(0.2f, 0.6f))
                             .background(Color.Black.copy(alpha = settings.player.overlayChatOpacity)).safeDrawingPadding(),
                         true,
                     )
@@ -225,7 +234,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     } else {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             Box(Modifier.background(Color.Black).statusBarsPadding()) { player(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) }
-            ChannelRow(info, nav)
+            ChannelRow(info, nav, onFilters = { showFilters = true })
             HorizontalDivider()
             if (chatEnabled) {
                 chatPane(Modifier.weight(1f), false)
@@ -240,6 +249,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         }
     }
 
+    if (showFilters) ChatFiltersSheet(settings.filters, viewModel::updateFilters, onDismiss = { showFilters = false })
     if (showQuality) QualitySheet(
         qualities = playState.qualities,
         selected = playState.selected,
@@ -255,8 +265,25 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         onDismiss = { showQuality = false },
         lowLatency = if (isLive) settings.player.bufferProfile == lol.sinist3r.yip.core.model.BufferProfile.LOW_LATENCY else null,
         onLowLatency = viewModel::setLowLatency,
+        audioOnly = if (playState.qualities.any { it.isAudioOnly }) playState.audioOnly else null,
+        onAudioOnly = viewModel.playback::toggleAudioOnly,
     )
-    if (showEmotes) EmotePickerSheet(cosmetics, twitchEmotes, recent, animate, onPick = { insert = it.code; viewModel.useEmote(it); showEmotes = false }, onDismiss = { showEmotes = false })
+    if (showEmotes) EmotePickerSheet(
+        cosmetics, twitchEmotes, recent, animate,
+        onPick = { insert = it.code; viewModel.useEmote(it); showEmotes = false },
+        onDismiss = { showEmotes = false },
+        favourites = settings.chat.favouriteEmotes,
+        onLongPress = { emoteCard = it },
+    )
+    emoteCard?.let { e ->
+        EmoteCardSheet(
+            e, animate,
+            favourite = e.favouriteKey in settings.chat.favouriteEmotes,
+            onToggleFavourite = { viewModel.toggleFavouriteEmote(e) },
+            onInsert = if (signedIn) ({ insert = e.code; viewModel.useEmote(e); showEmotes = false }) else null,
+            onDismiss = { emoteCard = null },
+        )
+    }
     userCard?.let { card ->
         UserCardSheet(
             card, options, isMod,
@@ -274,12 +301,14 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onMod = { viewModel.moderate(it, m.user.id, m.id) },
             onUser = { viewModel.openUser(m.user.login) },
             onDismiss = { menuFor = null },
+            onHideUser = { viewModel.updateFilters { f -> f.copy(hiddenUsers = (f.hiddenUsers + m.user.login.lowercase()).distinct()) } },
+            onMarkBot = { viewModel.updateFilters { f -> f.copy(botNames = (f.botNames + m.user.login.lowercase()).distinct(), hideBots = true) } },
         )
     }
 }
 
 @Composable
-private fun ChatOnlyHeader(info: WatchInfo, nav: WatchNavigator) {
+private fun ChatOnlyHeader(info: WatchInfo, nav: WatchNavigator, onFilters: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(end = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         androidx.compose.material3.IconButton(onClick = nav::back) {
             androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, "Back")
@@ -292,11 +321,12 @@ private fun ChatOnlyHeader(info: WatchInfo, nav: WatchNavigator) {
                 Text(if (info.stream != null) "Live" else "Offline chat", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else Spacer(Modifier.weight(1f))
+        androidx.compose.material3.IconButton(onClick = onFilters) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.FilterAlt, "Chat filters") }
     }
 }
 
 @Composable
-private fun ChannelRow(info: WatchInfo, nav: WatchNavigator) {
+private fun ChannelRow(info: WatchInfo, nav: WatchNavigator, onFilters: () -> Unit) {
     val user = info.user ?: return
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -311,6 +341,12 @@ private fun ChannelRow(info: WatchInfo, nav: WatchNavigator) {
                 Text("${s.viewerCount.compactCount()} watching · ${s.gameName.orEmpty()} · $up", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
         }
+        androidx.compose.material3.IconButton(onClick = onFilters) { Icon(Icons.Outlined.FilterAlt, "Chat filters") }
         TextButton(onClick = { nav.openChannel(user.login) }) { Text("Channel") }
     }
 }
+
+// Player control bar heights, kept clear of the landscape chat overlay.
+private val OVERLAY_TOP_CLEARANCE = 56.dp
+private val OVERLAY_BOTTOM_CLEARANCE_LIVE = 64.dp
+private val OVERLAY_BOTTOM_CLEARANCE_VOD = 112.dp

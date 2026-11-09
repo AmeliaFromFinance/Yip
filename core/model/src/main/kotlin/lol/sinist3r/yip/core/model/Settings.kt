@@ -46,6 +46,10 @@ data class GeneralSettings(
     val showOfflineFollowed: Boolean = true,
     val followingSort: FollowingSort = FollowingSort.VIEWERS,
     val continueWatching: Boolean = true,
+    /** Logins hidden from Browse and category pages. */
+    val hiddenChannels: List<String> = emptyList(),
+    /** Category names (lowercase) hidden from Browse. */
+    val hiddenCategories: List<String> = emptyList(),
 )
 
 enum class FollowingSort { VIEWERS, RECENTLY_STARTED, NAME, CATEGORY }
@@ -128,6 +132,8 @@ enum class UsernameStyle { DISPLAY, LOGIN, BOTH }
 
 @Serializable
 data class ChatSettings(
+    /** "PROVIDER:id", see [Emote.favouriteKey]. */
+    val favouriteEmotes: List<String> = emptyList(),
     val fontSizeSp: Float = 13.5f,
     val lineSpacing: Float = 1.35f,
     val emoteScale: Float = 1f,

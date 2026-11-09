@@ -94,6 +94,17 @@ class WatchViewModel @Inject constructor(
             .onFailure { e -> session.value?.system("Couldn't ${if (allow) "allow" else "deny"} that message: ${e.message?.substringAfter(": ")?.take(120)}") }
     }
 
+    fun toggleFavouriteEmote(e: lol.sinist3r.yip.core.model.Emote) = viewModelScope.launch {
+        settingsRepo.update { s ->
+            val fav = s.chat.favouriteEmotes
+            s.copy(chat = s.chat.copy(favouriteEmotes = if (e.favouriteKey in fav) fav - e.favouriteKey else fav + e.favouriteKey))
+        }
+    }
+
+    fun updateFilters(transform: (lol.sinist3r.yip.core.model.FilterSettings) -> lol.sinist3r.yip.core.model.FilterSettings) = viewModelScope.launch {
+        settingsRepo.update { it.copy(filters = transform(it.filters)) }
+    }
+
     /** Switches the live buffer between low latency and the steadier default, then restarts playback. */
     fun setLowLatency(on: Boolean) = viewModelScope.launch {
         val profile = if (on) lol.sinist3r.yip.core.model.BufferProfile.LOW_LATENCY else lol.sinist3r.yip.core.model.BufferProfile.BALANCED

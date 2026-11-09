@@ -1,5 +1,7 @@
 package lol.sinist3r.yip.feature.watch
 
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
 import android.media.AudioManager
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
@@ -7,7 +9,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -99,6 +100,7 @@ fun PlayerArea(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     stats: lol.sinist3r.yip.core.playback.PlaybackStats? = null,
+    onToggleMute: () -> Unit = { player.volume = if (player.volume == 0f) 1f else 0f },
 ) {
     val host = LocalWatchHost.current
     val context = LocalContext.current
@@ -107,7 +109,6 @@ fun PlayerArea(
     var zoomed by remember { mutableStateOf(false) }
     var gestureHint by remember { mutableStateOf<String?>(null) }
     var position by remember { mutableLongStateOf(0L) }
-    var muted by remember { mutableStateOf(player.volume == 0f) }
     val presentation = rememberPresentationState(player)
 
     LaunchedEffect(controls, state.playing) {
@@ -165,8 +166,22 @@ fun PlayerArea(
                 }
             }
             .pointerInput(settings.pinchToZoom) {
-                if (settings.pinchToZoom) detectTransformGestures { _, _, zoom, _ ->
-                    if (zoom > 1.05f) zoomed = true else if (zoom < 0.95f) zoomed = false
+                // Two fingers only. A full transform detector also claims one-finger drags,
+                // which stopped the brightness and volume swipes from ever firing.
+                if (settings.pinchToZoom) awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var start = 0f
+                    do {
+                        val event = awaitPointerEvent()
+                        val pressed = event.changes.filter { it.pressed }
+                        if (pressed.size >= 2) {
+                            val span = (pressed[0].position - pressed[1].position).getDistance()
+                            if (start == 0f) start = span
+                            else if (span > start * 1.15f) zoomed = true
+                            else if (span < start * 0.87f) zoomed = false
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
                 }
             },
     ) {
@@ -247,7 +262,8 @@ fun PlayerArea(
                         Spacer(Modifier.width(6.dp))
                         if (state.selected != null) Pill(state.selected!!.label) else if (state.qualities.isNotEmpty()) Pill("Auto")
                         Spacer(Modifier.weight(1f))
-                        IconButton(onClick = { muted = !muted; player.volume = if (muted) 0f else 1f }) {
+                        val muted = state.muted
+                        IconButton(onClick = onToggleMute) {
                             Icon(if (muted) Icons.AutoMirrored.Outlined.VolumeOff else Icons.AutoMirrored.Outlined.VolumeUp, if (muted) "Unmute" else "Mute", tint = Color.White)
                         }
                         val full = host?.isFullscreen() == true

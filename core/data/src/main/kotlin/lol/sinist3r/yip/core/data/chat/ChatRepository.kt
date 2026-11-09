@@ -1,5 +1,7 @@
 package lol.sinist3r.yip.core.data.chat
 
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformWhile
 import java.util.concurrent.ConcurrentHashMap
@@ -74,6 +76,13 @@ class ChatSession internal constructor(
         scope.launch { repo.cosmetics.emoteChanges.collect { if (it.channelId == channelId) system(it.text) } }
         scope.launch { repo.cosmetics.cosmeticsUpdated.collect(::restyle) }
         scope.launch { repo.pronouns.pronounsUpdated.collect(::restyle) }
+        // New filters also clear matching messages already on screen.
+        scope.launch {
+            repo.settings.settings.map { it.filters }.distinctUntilChanged().drop(1).collect {
+                val s = repo.settings.settings.value
+                mutate { list -> list.filterNot { it is ChatItem.Message && repo.pipeline.hides(it, s) } }
+            }
+        }
         scope.launch { consume() }
         scope.launch { publisher() }
         scope.launch { transport() }

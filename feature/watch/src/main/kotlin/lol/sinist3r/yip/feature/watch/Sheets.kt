@@ -1,5 +1,8 @@
 package lol.sinist3r.yip.feature.watch
 
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.runtime.produceState
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -85,10 +88,17 @@ fun EmotePickerSheet(
     animate: Boolean,
     onPick: (Emote) -> Unit,
     onDismiss: () -> Unit,
+    favourites: List<String> = emptyList(),
+    onLongPress: (Emote) -> Unit = {},
 ) {
     val all = cosmetics?.emotes?.values.orEmpty()
-    val tabs = remember(cosmetics, twitchEmotes, recent) {
+    val tabs = remember(cosmetics, twitchEmotes, recent, favourites) {
         buildList {
+            if (favourites.isNotEmpty()) {
+                val byKey = (all + twitchEmotes).associateBy { it.favouriteKey }
+                // Only favourites usable here; order as favourited.
+                add("Favourites" to favourites.mapNotNull(byKey::get))
+            }
             if (recent.isNotEmpty()) add("Recent" to recent)
             add("Channel" to (all.filter { it.isChannel } + twitchEmotes.filter { it.isChannel }).distinctBy { it.code })
             add("7TV" to all.filter { it.provider == EmoteProvider.SEVENTV })
@@ -99,7 +109,6 @@ fun EmotePickerSheet(
     }
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
-    var detail by remember { mutableStateOf<Emote?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.heightIn(max = 520.dp)) {
             OutlinedTextField(
@@ -119,22 +128,11 @@ fun EmotePickerSheet(
             } else {
                 tabs.getOrNull(tab)?.second.orEmpty().sortedBy { it.code.lowercase() }
             }
-            detail?.let { e ->
-                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    EmoteImage(e, animate = animate, modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(e.code, style = MaterialTheme.typography.titleMedium)
-                        Text(listOfNotNull(e.provider.label(), if (e.animated) "animated" else null, if (e.zeroWidth) "zero-width" else null, e.ownerName?.let { "by $it" }, if (e.isPersonal) "personal" else null).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
-                    }
-                    FilledTonalButton(onClick = { onPick(e) }) { Text("Insert") }
-                }
-            }
             LazyVerticalGrid(GridCells.Adaptive(48.dp), contentPadding = PaddingValues(12.dp), modifier = Modifier.fillMaxWidth()) {
                 items(list, key = { it.provider.name + it.id + it.code }) { e ->
                     EmoteImage(
                         e, animate = animate,
-                        modifier = Modifier.size(44.dp).padding(4.dp).clickable { onPick(e) },
+                        modifier = Modifier.size(44.dp).padding(4.dp).combinedClickable(onClick = { onPick(e) }, onLongClick = { onLongPress(e) }),
                     )
                 }
             }
@@ -142,12 +140,6 @@ fun EmotePickerSheet(
     }
 }
 
-private fun EmoteProvider.label() = when (this) {
-    EmoteProvider.TWITCH -> "Twitch"
-    EmoteProvider.SEVENTV -> "7TV"
-    EmoteProvider.BTTV -> "BTTV"
-    EmoteProvider.FFZ -> "FFZ"
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -166,6 +158,8 @@ fun QualitySheet(
     onDismiss: () -> Unit,
     lowLatency: Boolean? = null,
     onLowLatency: (Boolean) -> Unit = {},
+    audioOnly: Boolean? = null,
+    onAudioOnly: () -> Unit = {},
 ) {
     // Fully expanded straight away: a sheet still settling eats the first tap.
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
@@ -173,7 +167,7 @@ fun QualitySheet(
             SheetTitle("Quality")
             Column(Modifier.selectableGroup()) {
                 if (showAuto) OptionRow("Auto", null, selected = auto) { onQuality(null) }
-                qualities.forEach { q ->
+                qualities.filterNot { audioOnly != null && it.isAudioOnly }.forEach { q ->
                     OptionRow(
                         title = q.label + if (q.isSource) " (source)" else "",
                         subtitle = q.bandwidth?.let { "%.1f Mbps".format(it / 1_000_000.0) },
@@ -181,20 +175,11 @@ fun QualitySheet(
                     ) { onQuality(q) }
                 }
             }
+            if (audioOnly != null) {
+                SwitchRow("Audio only", "Sound without video. Uses far less data.", audioOnly) { onAudioOnly() }
+            }
             if (lowLatency != null) {
-                Row(
-                    Modifier.fillMaxWidth()
-                        .heightIn(min = 56.dp)
-                        .toggleable(value = lowLatency, role = Role.Switch, onValueChange = onLowLatency)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Low latency", style = MaterialTheme.typography.bodyLarge)
-                        Text("Closer to live, may buffer more. Restarts the stream.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    androidx.compose.material3.Switch(checked = lowLatency, onCheckedChange = null)
-                }
+                SwitchRow("Low latency", "Closer to live, may buffer more. Restarts the stream.", lowLatency, onLowLatency)
             }
             if (showSpeed) {
                 SheetTitle("Speed")
@@ -235,6 +220,23 @@ private fun minutesLeft(at: Long): Long = ((at - System.currentTimeMillis()) / 6
 
 @Composable
 private fun SheetTitle(text: String) = Text(text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp))
+
+@Composable
+private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onChange)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        androidx.compose.material3.Switch(checked = checked, onCheckedChange = null)
+    }
+}
 
 /** Whole row is the touch target, at least 56dp tall. */
 @Composable
@@ -322,6 +324,8 @@ fun MessageMenuSheet(
     onMod: (ModAction) -> Unit,
     onUser: () -> Unit,
     onDismiss: () -> Unit,
+    onHideUser: (() -> Unit)? = null,
+    onMarkBot: (() -> Unit)? = null,
 ) {
     val clipboard = LocalClipboardManager.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -330,6 +334,8 @@ fun MessageMenuSheet(
             if (signedIn) ListItem(headlineContent = { Text("Reply") }, leadingContent = { Icon(Icons.Outlined.Reply, null) }, modifier = Modifier.clickable { onReply(); onDismiss() })
             ListItem(headlineContent = { Text("Copy message") }, leadingContent = { Icon(Icons.Outlined.ContentCopy, null) }, modifier = Modifier.clickable { clipboard.setText(AnnotatedString(message.raw)); onDismiss() })
             ListItem(headlineContent = { Text("View ${message.user.displayName}") }, leadingContent = { Icon(Icons.Outlined.Person, null) }, modifier = Modifier.clickable { onUser(); onDismiss() })
+            onHideUser?.let { hide -> ListItem(headlineContent = { Text("Hide messages from ${message.user.displayName}") }, leadingContent = { Icon(Icons.Outlined.VisibilityOff, null) }, modifier = Modifier.clickable { hide(); onDismiss() }) }
+            onMarkBot?.let { mark -> ListItem(headlineContent = { Text("Mark ${message.user.displayName} as a bot") }, leadingContent = { Icon(Icons.Outlined.SmartToy, null) }, modifier = Modifier.clickable { mark(); onDismiss() }) }
             if (isModerator) {
                 ListItem(headlineContent = { Text("Delete message") }, leadingContent = { Icon(Icons.Outlined.Delete, null) }, modifier = Modifier.clickable { onMod(ModAction.DELETE); onDismiss() })
                 ListItem(headlineContent = { Text("Timeout 10 minutes") }, leadingContent = { Icon(Icons.Outlined.Timer, null) }, modifier = Modifier.clickable { onMod(ModAction.TIMEOUT_10M); onDismiss() })

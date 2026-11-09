@@ -1,5 +1,7 @@
 package lol.sinist3r.yip.feature.browse
 
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.foundation.combinedClickable
 import lol.sinist3r.yip.core.model.RecentKind
 import lol.sinist3r.yip.core.model.RecentSearch
 import androidx.compose.material.icons.outlined.History
@@ -112,6 +114,10 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     var sortMenu by remember { mutableStateOf(false) }
+    var quick by remember { mutableStateOf<QuickTarget?>(null) }
+    quick?.let { t ->
+        QuickActionsSheet(t, onAddToMultiView = if (settings.experimental.multiView) nav::addToMultiView else null, onDismiss = { quick = null }, allowHide = false)
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -157,10 +163,31 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
                         fullSpan("hdr-history") { SectionHeader("Continue watching") }
                         fullSpan("history") { HistoryRow(state.history, nav::openHistory, viewModel::removeHistory) }
                     }
+                    if (state.pinned.isNotEmpty()) {
+                        fullSpan("hdr-pinned") { SectionHeader("Pinned") }
+                        state.pinned.filter { it.stream != null }.forEach { p ->
+                            item(key = "pin-live-${p.login}") {
+                                val st = p.stream!!
+                                StreamCard(st, settings.appearance, onClick = { nav.openStream(st) }, onLongClick = { quick = QuickTarget(p.login, p.displayName, st.gameName) })
+                            }
+                        }
+                        state.pinned.filter { it.stream == null }.forEach { p ->
+                            fullSpan("pin-off-${p.login}") {
+                                ListItem(
+                                    headlineContent = { Text(p.displayName) },
+                                    supportingContent = { Text("Offline") },
+                                    leadingContent = { Avatar(p.avatar, null, 36.dp) },
+                                    trailingContent = { Icon(Icons.Outlined.Star, "Pinned", tint = MaterialTheme.colorScheme.primary) },
+                                    modifier = Modifier.clip(MaterialTheme.shapes.small)
+                                        .combinedClickable(onClick = { nav.openChannel(p.login) }, onLongClick = { quick = QuickTarget(p.login, p.displayName) }),
+                                )
+                            }
+                        }
+                    }
                     fullSpan("hdr-live") { SectionHeader("Live · ${state.live.size}") }
                     if (state.live.isEmpty()) fullSpan("nolive") { Text("Nobody you follow is live right now.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     items(state.live, key = { it.id }) { s ->
-                        StreamCard(s, settings.appearance, onClick = { nav.openStream(s) }, onLongClick = { nav.addToMultiView(s.userLogin) })
+                        StreamCard(s, settings.appearance, onClick = { nav.openStream(s) }, onLongClick = { quick = QuickTarget(s.userLogin, s.userName, s.gameName) })
                     }
                     if (state.offline.isNotEmpty()) {
                         fullSpan("hdr-off") { SectionHeader("Offline · ${state.offline.size}") }
@@ -168,7 +195,8 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
                             ListItem(
                                 headlineContent = { Text(c.displayName) },
                                 leadingContent = { Avatar(c.profileImageUrl, null, 36.dp) },
-                                modifier = Modifier.clip(MaterialTheme.shapes.small).clickable { nav.openChannel(c.login) },
+                                modifier = Modifier.clip(MaterialTheme.shapes.small)
+                                    .combinedClickable(onClick = { nav.openChannel(c.login) }, onLongClick = { quick = QuickTarget(c.login, c.displayName) }),
                             )
                         }
                     }
@@ -218,6 +246,8 @@ fun BrowseScreen(nav: BrowseNavigator, viewModel: BrowseViewModel = hiltViewMode
     val streams by viewModel.streams.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var hideCategory by remember { mutableStateOf<String?>(null) }
+    val quickVm: QuickActionsViewModel = hiltViewModel()
     Scaffold(topBar = {
         Column {
             TopAppBar(title = { Text("Browse") }, actions = { IconButton(onClick = nav::openSearch) { Icon(Icons.Outlined.Search, "Search") } })
@@ -225,14 +255,47 @@ fun BrowseScreen(nav: BrowseNavigator, viewModel: BrowseViewModel = hiltViewMode
                 Tab(tab == 0, { tab = 0 }, text = { Text("Live channels") })
                 Tab(tab == 1, { tab = 1 }, text = { Text("Categories") })
             }
+            LanguageChips(settings.general.streamLanguages, viewModel::setLanguages)
         }
     }) { padding ->
         Box(Modifier.padding(padding)) {
             if (tab == 0) {
                 StreamGrid(streams, settings.appearance, viewModel::refreshStreams, viewModel::moreStreams, nav)
             } else {
-                CategoryGrid(categories, viewModel::refreshCategories, viewModel::moreCategories) { nav.openCategory(it.id, it.name) }
+                CategoryGrid(categories, viewModel::refreshCategories, viewModel::moreCategories, onLongClick = { hideCategory = it.name }) { nav.openCategory(it.id, it.name) }
             }
+        }
+    }
+    hideCategory?.let { name ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { hideCategory = null },
+            title = { Text("Hide $name?") },
+            text = { Text("It won't show in Browse. Undo under Settings → General → Hidden.") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { quickVm.hideCategory(name); hideCategory = null }) { Text("Hide") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { hideCategory = null }) { Text("Cancel") } },
+        )
+    }
+}
+
+private val LANGUAGES = listOf(
+    "en" to "English", "de" to "German", "es" to "Spanish", "fr" to "French", "it" to "Italian", "pt" to "Portuguese",
+    "nl" to "Dutch", "pl" to "Polish", "sv" to "Swedish", "tr" to "Turkish", "ru" to "Russian", "uk" to "Ukrainian",
+    "ja" to "Japanese", "ko" to "Korean", "zh" to "Chinese", "ar" to "Arabic", "th" to "Thai", "id" to "Indonesian",
+)
+
+/** Quick language filter for Browse; same setting as Settings → General → Stream languages. */
+@Composable
+private fun LanguageChips(selected: List<String>, onChange: (List<String>) -> Unit) {
+    val extra = selected.filter { code -> LANGUAGES.none { it.first == code } }.map { it to it.uppercase() }
+    androidx.compose.foundation.lazy.LazyRow(
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        item(key = "all") { androidx.compose.material3.FilterChip(selected = selected.isEmpty(), onClick = { onChange(emptyList()) }, label = { Text("All languages") }) }
+        items((extra + LANGUAGES).size, key = { (extra + LANGUAGES)[it].first }) { i ->
+            val (code, name) = (extra + LANGUAGES)[i]
+            val on = code in selected
+            androidx.compose.material3.FilterChip(selected = on, onClick = { onChange(if (on) selected - code else selected + code) }, label = { Text(name) })
         }
     }
 }
@@ -246,8 +309,12 @@ internal fun StreamGrid(
     onMore: () -> Unit,
     nav: BrowseNavigator,
     header: (LazyGridScope.() -> Unit)? = null,
+    allowHideCategory: Boolean = true,
 ) {
     val grid = rememberLazyGridState()
+    var quick by remember { mutableStateOf<QuickTarget?>(null) }
+    val multiView = hiltViewModel<QuickActionsViewModel>().state.collectAsStateWithLifecycle().value.experimental.multiView
+    quick?.let { t -> QuickActionsSheet(t, onAddToMultiView = if (multiView) nav::addToMultiView else null, onDismiss = { quick = null }) }
     grid.OnNearEnd(onLoadMore = onMore)
     when {
         !paged.initialized -> LoadingState()
@@ -264,7 +331,7 @@ internal fun StreamGrid(
             ) {
                 header?.invoke(this)
                 items(paged.items, key = { it.id }) { s ->
-                    StreamCard(s, appearance, onClick = { nav.openStream(s) }, onLongClick = { nav.addToMultiView(s.userLogin) })
+                    StreamCard(s, appearance, onClick = { nav.openStream(s) }, onLongClick = { quick = QuickTarget(s.userLogin, s.userName, s.gameName.takeIf { allowHideCategory }) })
                 }
                 if (paged.loading) fullSpan("loading") { Box(Modifier.fillMaxWidth(), Alignment.Center) { CircularProgressIndicator() } }
             }
@@ -274,7 +341,7 @@ internal fun StreamGrid(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun CategoryGrid(paged: Paged<Category>, onRefresh: () -> Unit, onMore: () -> Unit, onOpen: (Category) -> Unit) {
+internal fun CategoryGrid(paged: Paged<Category>, onRefresh: () -> Unit, onMore: () -> Unit, onLongClick: ((Category) -> Unit)? = null, onOpen: (Category) -> Unit) {
     val grid = rememberLazyGridState()
     grid.OnNearEnd(onLoadMore = onMore)
     when {
@@ -289,7 +356,7 @@ internal fun CategoryGrid(paged: Paged<Category>, onRefresh: () -> Unit, onMore:
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                items(paged.items, key = { it.id }) { c -> CategoryCard(c, onClick = { onOpen(c) }) }
+                items(paged.items, key = { it.id }) { c -> CategoryCard(c, onClick = { onOpen(c) }, onLongClick = onLongClick?.let { { it(c) } }) }
                 if (paged.loading) fullSpan("loading") { Box(Modifier.fillMaxWidth(), Alignment.Center) { CircularProgressIndicator() } }
             }
         }
@@ -307,7 +374,7 @@ fun CategoryScreen(nav: BrowseNavigator, onBack: () -> Unit, viewModel: Category
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
         )
     }) { padding ->
-        Box(Modifier.padding(padding)) { StreamGrid(streams, settings.appearance, viewModel::refresh, viewModel::more, nav) }
+        Box(Modifier.padding(padding)) { StreamGrid(streams, settings.appearance, viewModel::refresh, viewModel::more, nav, allowHideCategory = false) }
     }
 }
 
