@@ -333,7 +333,7 @@ class CosmeticsRepository @Inject constructor(
     /** Paint and badge definitions, cached on disk for a day (the paint list is ~1 MB). */
     private suspend fun ensureCatalogue() = catalogueMutex.withLock {
         if (catalogueLoaded) return@withLock
-        val file = File(context.cacheDir, "7tv_catalogue.json")
+        val file = File(context.cacheDir, "7tv_catalogue_v2.json")
         val cached = withContext(io) {
             attempt {
                 if (System.currentTimeMillis() - file.lastModified() > CATALOGUE_TTL_MS) null

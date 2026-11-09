@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -156,7 +157,11 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
     }
     val time = m.timeLabel(chat.timestamps, chat.timestampSeconds)
 
-    val paintImage = rememberPaintImage(m.paint?.takeIf { it.function == PaintFunction.URL && tp.seventvPaints != PaintMode.OFF }?.imageUrl)
+    val imagePaint = m.paint?.takeIf { it.function == PaintFunction.URL && tp.seventvPaints != PaintMode.OFF }
+    // Animated only in ANIMATED mode and when emotes may animate (covers reduce motion and data saver).
+    val animated = rememberAnimatedPaint(imagePaint?.animatedImageUrl?.takeIf { tp.seventvPaints == PaintMode.ANIMATED && options.animate })
+    val staticImage = rememberPaintImage(imagePaint?.imageUrl?.takeIf { animated == null })
+    val paintImage = animated?.image ?: staticImage
     val (text, inline) = remember(m, options, nameColor, dark, paintImage) {
         val inline = HashMap<String, InlineTextContent>()
         val paint = m.paint?.takeIf { tp.seventvPaints != PaintMode.OFF }
@@ -239,7 +244,9 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
         text = text,
         inlineContent = inline,
         style = baseStyle,
-        modifier = Modifier.fillMaxWidth().combinedClickable(onClick = {}, onLongClick = { actions.onMessageLongPress(m) }),
+        modifier = Modifier.fillMaxWidth()
+            .then(if (animated != null) Modifier.drawWithContent { animated.frame.intValue; drawContent() } else Modifier)
+            .combinedClickable(onClick = {}, onLongClick = { actions.onMessageLongPress(m) }),
     )
 }
 

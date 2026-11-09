@@ -3,11 +3,14 @@ plugins {
     alias(libs.plugins.yip.android.compose)
 }
 
+android.defaultConfig.testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
 dependencies {
     api(project(":core:model"))
     implementation(project(":core:common"))
     api(libs.coil.compose)
     implementation(libs.coil.gif)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.coil.svg)
     implementation(libs.coil.network.okhttp)
     implementation(libs.androidx.core.ktx)
@@ -15,6 +18,8 @@ dependencies {
 
 dependencies {
     testImplementation(libs.robolectric)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
     testImplementation(libs.roborazzi)
     testImplementation(libs.roborazzi.compose)
     testImplementation(platform(libs.compose.bom))

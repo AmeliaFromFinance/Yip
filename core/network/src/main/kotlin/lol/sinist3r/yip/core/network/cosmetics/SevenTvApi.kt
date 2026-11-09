@@ -193,10 +193,11 @@ class SevenTvApi @Inject constructor(private val http: HttpClient, private val j
                 PaintStop(so.str("at")?.toFloatOrNull() ?: 0f, hexToArgb(so.obj("color")?.str("hex"), opacity) ?: return@mapNotNull null)
             }
             val single = hexToArgb(ty?.obj("color")?.str("hex"), opacity)
-            val image = if (ty?.str("__typename") == "PaintLayerTypeImage") {
-                // Static frame at 3x: sharp at chat sizes, and Compose shaders can't animate.
-                webpUrls(ty.arr("images").mapNotNull { it as? JsonObject }, animated = false).let { l -> l.getOrNull(2) ?: l.lastOrNull() }?.str("url")
-            } else null
+            val layerImages = if (ty?.str("__typename") == "PaintLayerTypeImage") ty.arr("images").mapNotNull { it as? JsonObject } else emptyList()
+            // 3x: sharp at chat sizes without wasting memory.
+            fun at3x(l: List<JsonObject>) = (l.getOrNull(2) ?: l.lastOrNull())?.str("url")
+            val image = at3x(webpUrls(layerImages, animated = false))
+            val animatedImage = webpUrls(layerImages, animated = true).filter { (it.int("frameCount") ?: 1) > 1 }.let(::at3x)
             return Paint(
                 id = id,
                 name = o.str("name").orEmpty(),
@@ -209,6 +210,7 @@ class SevenTvApi @Inject constructor(private val http: HttpClient, private val j
                 repeat = ty?.bool("repeating") ?: false,
                 stops = stops,
                 imageUrl = image,
+                animatedImageUrl = animatedImage,
                 shadows = data.arr("shadows").mapNotNull { s ->
                     val so = s as? JsonObject ?: return@mapNotNull null
                     PaintShadow(

@@ -45,7 +45,9 @@ class SevenTvV4Test {
         val p = checkNotNull(SevenTvApi.parsePaintV4(o("image")))
         assertEquals(PaintFunction.URL, p.function)
         val url = checkNotNull(p.imageUrl)
-        assertTrue(url, url.endsWith("_static.webp"))
+        assertTrue(url, url.endsWith("3x_static.webp"))
+        val anim = checkNotNull(p.animatedImageUrl)
+        assertTrue(anim, anim.endsWith("/3x.webp"))
     }
 
     @Test fun badge() {

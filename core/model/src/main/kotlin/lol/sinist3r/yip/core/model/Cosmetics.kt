@@ -50,6 +50,8 @@ data class Paint(
     val repeat: Boolean = false,
     val stops: List<PaintStop> = emptyList(),
     val imageUrl: String? = null,
+    /** Animated WebP for image paints that move; [imageUrl] stays the static frame. */
+    val animatedImageUrl: String? = null,
     val shadows: List<PaintShadow> = emptyList(),
     val fallbackArgb: Long? = null,
 )
