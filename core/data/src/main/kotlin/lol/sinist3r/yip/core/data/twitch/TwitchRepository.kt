@@ -1,5 +1,8 @@
 package lol.sinist3r.yip.core.data.twitch
 
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
+import lol.sinist3r.yip.core.common.attempt
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.time.Clock
@@ -106,7 +109,22 @@ class TwitchRepository @Inject constructor(
     suspend fun category(id: String): Category? =
         if (signedInUserId() != null) helix.games(ids = listOf(id)).firstOrNull()?.toModel() else null
 
-    suspend fun searchChannels(query: String, cursor: String?): Page<Channel> {
+    /**
+     * Twitch ranks channel search by popularity, so an exact name can land far down the list.
+     * The first page pins the exact login (looked up directly) and sorts by how well names match.
+     */
+    suspend fun searchChannels(query: String, cursor: String?): Page<Channel> = coroutineScope {
+        val q = query.trim()
+        val exact = if (cursor == null && LOGIN.matches(q)) async { attempt { channel(login = q.lowercase()) }.getOrNull() } else null
+        val page = rawSearchChannels(q, cursor)
+        if (cursor != null) return@coroutineScope page
+        val pinned = exact?.await()?.let { ci ->
+            Channel(ci.user.id, ci.user.login, ci.user.displayName, ci.stream?.gameName, ci.stream?.title, ci.stream != null, ci.user.profileImageUrl)
+        }
+        page.copy(items = rankChannels(q, page.items, pinned))
+    }
+
+    private suspend fun rawSearchChannels(query: String, cursor: String?): Page<Channel> {
         if (signedInUserId() != null) {
             val page = helix.searchChannels(query, cursor = cursor)
             return Page(
@@ -381,4 +399,26 @@ class TwitchRepository @Inject constructor(
     }
 
     // endregion
+}
+
+private val LOGIN = Regex("^[A-Za-z0-9_]{1,25}$")
+
+/**
+ * Exact match first, then names starting with the query, then names containing it, then the
+ * rest. Twitch's order is kept within each group, so live channels still lead ties.
+ */
+internal fun rankChannels(query: String, items: List<Channel>, exact: Channel?): List<Channel> {
+    val q = query.trim().lowercase()
+    fun score(c: Channel): Int {
+        val login = c.login.lowercase()
+        val name = c.displayName.lowercase()
+        return when {
+            login == q || name == q -> 0
+            login.startsWith(q) || name.startsWith(q) -> 1
+            q in login || q in name -> 2
+            else -> 3
+        }
+    }
+    val all = listOfNotNull(exact) + items
+    return all.distinctBy { it.id }.withIndex().sortedWith(compareBy({ score(it.value) }, { it.index })).map { it.value }
 }
