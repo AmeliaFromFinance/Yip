@@ -22,7 +22,7 @@ data class Emote(
     fun url(scale: Int): String = urls[(scale - 1).coerceIn(0, urls.lastIndex)]
 }
 
-enum class BadgeSource { TWITCH, SEVENTV, BTTV, FFZ, CHATTERINO }
+enum class BadgeSource { TWITCH, SEVENTV, BTTV, FFZ, FFZAP, CHATTERINO, HOMIES, HOMIES_CUSTOM, MOLTORINO }
 
 @Serializable
 data class Badge(

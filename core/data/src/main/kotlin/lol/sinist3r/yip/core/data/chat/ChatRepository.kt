@@ -201,12 +201,9 @@ class ChatSession internal constructor(
         val s = repo.settings.settings.value
         val paint = if (s.thirdParty.seventvPaints != lol.sinist3r.yip.core.model.PaintMode.OFF) repo.cosmetics.paintFor(user.id) else null
         if (!s.chat.showBadges) return copy(paint = paint)
-        val others = badges.filterNot { it.source == lol.sinist3r.yip.core.model.BadgeSource.SEVENTV }
-        val stv = repo.cosmetics.sevenTvBadge(user.id)
-        // 7TV badge sits right after the channel's own (Twitch / FFZ mod & VIP) badges, as on first render.
-        val split = others.indexOfFirst { it.source != lol.sinist3r.yip.core.model.BadgeSource.TWITCH && it.id != "ffz:mod" && it.id != "ffz:vip" }.let { if (it < 0) others.size else it }
-        val merged = if (stv == null) others else others.take(split) + stv + others.drop(split)
-        return copy(paint = paint, badges = merged)
+        // Keep the channel's own badges (Twitch, FFZ mod/VIP) and rebuild the third-party ones, as on first render.
+        val own = badges.filter { it.source == lol.sinist3r.yip.core.model.BadgeSource.TWITCH || it.id == "ffz:mod" || it.id == "ffz:vip" }
+        return copy(paint = paint, badges = own + repo.cosmetics.extraBadges(user.id))
     }
 
     private fun mutate(block: (List<ChatItem>) -> List<ChatItem>) = synchronized(buffer) {

@@ -256,8 +256,12 @@ object SettingsSpec {
             Row.Toggle("Emotes", get = { it.thirdParty.ffzEmotes }, set = { s, v -> s.copy(thirdParty = s.thirdParty.copy(ffzEmotes = v)) }),
             Row.Toggle("Badges", get = { it.thirdParty.ffzBadges }, set = { s, v -> s.copy(thirdParty = s.thirdParty.copy(ffzBadges = v)) }),
             Row.Toggle("Custom mod and VIP badges", get = { it.thirdParty.ffzModBadges }, set = { s, v -> s.copy(thirdParty = s.thirdParty.copy(ffzModBadges = v)) }),
-            Row.Header("Other"),
-            Row.Toggle("Chatterino badges", get = { it.thirdParty.chatterinoBadges }, set = { s, v -> s.copy(thirdParty = s.thirdParty.copy(chatterinoBadges = v)) }),
+            Row.Toggle("FFZ:AP badges", "FFZ Add-On Pack supporters", get = { it.thirdParty.ffzApBadges }, set = { s, v -> s.copy(thirdParty = s.thirdParty.copy(ffzApBadges = v)) }),
+            Row.Header("Chat clients"),
+            Row.Toggle("Chatterino", get = { it.thirdParty.chatterinoBadges }, set = { s, v -> s.copy(thirdParty = s.thirdParty.copy(chatterinoBadges = v)) }),
+            Row.Toggle("Chatterino Homies", "Developer, supporter and founder badges", get = { it.thirdParty.homiesBadges }, set = { s, v -> s.copy(thirdParty = s.thirdParty.copy(homiesBadges = v)) }),
+            Row.Toggle("Chatterino Homies custom badges", "Badges users upload themselves", get = { it.thirdParty.homiesCustomBadges }, set = { s, v -> s.copy(thirdParty = s.thirdParty.copy(homiesCustomBadges = v)) }),
+            Row.Toggle("Moltorino", "Supporter, donor and contributor badges", get = { it.thirdParty.moltorinoBadges }, set = { s, v -> s.copy(thirdParty = s.thirdParty.copy(moltorinoBadges = v)) }),
         ),
     )
 

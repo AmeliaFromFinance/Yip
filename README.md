@@ -19,7 +19,8 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 
 **Chat**
 - 7TV, BTTV and FFZ emotes with live 7TV updates, personal emotes and zero-width overlays
-- 7TV name paints and badges, FFZ custom mod/VIP badges, Chatterino badges
+- 7TV name paints (incl. animated) and badges, FFZ custom mod/VIP badges
+- Badges from BTTV, FFZ, FFZ:AP, Chatterino, Chatterino Homies (incl. custom) and Moltorino
 - Recent messages on open, replies, mentions, first-message tags, sub/raid/redemption notices
 - Filters (bots, commands, users, words or regex) and highlights (keywords, users)
 - Emote picker, emote and @name suggestions, Tab completion on keyboards

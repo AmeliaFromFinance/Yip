@@ -23,8 +23,15 @@ import lol.sinist3r.yip.core.network.twitch.int
 import lol.sinist3r.yip.core.network.twitch.obj
 import lol.sinist3r.yip.core.network.twitch.str
 
-/** Badge art plus which user ids wear it. */
-data class UserBadges(val badges: Map<String, Badge>, val users: Map<String, List<String>>)
+/**
+ * Badge art plus which user ids wear it. [hidden] holds per-user badge slots the user chose to
+ * hide (Moltorino vanity keys: c, ff, fa, bt, 7, m, hs, hc).
+ */
+data class UserBadges(
+    val badges: Map<String, Badge>,
+    val users: Map<String, List<String>>,
+    val hidden: Map<String, Set<String>> = emptyMap(),
+)
 
 data class FfzRoom(val emotes: List<Emote>, val modBadgeUrls: List<String>?, val vipBadgeUrls: List<String>?)
 

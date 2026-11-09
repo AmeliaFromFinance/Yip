@@ -175,6 +175,10 @@ data class ThirdPartySettings(
     val ffzBadges: Boolean = true,
     val ffzModBadges: Boolean = true,
     val chatterinoBadges: Boolean = true,
+    val ffzApBadges: Boolean = true,
+    val homiesBadges: Boolean = true,
+    val homiesCustomBadges: Boolean = true,
+    val moltorinoBadges: Boolean = true,
     val priority: List<ProviderSlot> = listOf(ProviderSlot.SEVENTV, ProviderSlot.BTTV, ProviderSlot.FFZ),
     val zeroWidthEmotes: Boolean = true,
 )

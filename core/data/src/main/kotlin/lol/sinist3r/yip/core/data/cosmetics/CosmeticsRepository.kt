@@ -90,6 +90,7 @@ class CosmeticsRepository @Inject constructor(
     private val seventv: SevenTvApi,
     private val seventvEvents: SevenTvEventClient,
     private val bttvFfz: BttvFfzApi,
+    private val clientBadges: lol.sinist3r.yip.core.network.cosmetics.ClientBadgesApi,
     private val helix: HelixApi,
     private val gql: GqlApi,
     private val accounts: AccountRepository,
@@ -106,7 +107,9 @@ class CosmeticsRepository @Inject constructor(
     private var global7tv: List<Emote> = emptyList()
     private var globalBttv: List<Emote> = emptyList()
     private var globalFfz: List<Emote> = emptyList()
-    private var userBadgeSets: List<UserBadges> = emptyList()
+    @Volatile private var userBadgeSets: List<UserBadges> = emptyList()
+    /** Badge slots each Moltorino user chose to hide; applied to every provider. */
+    @Volatile private var moltorinoHidden: Map<String, Set<String>> = emptyMap()
 
     private val channels = ConcurrentHashMap<String, MutableStateFlow<ChannelCosmetics>>()
     private val raw = ConcurrentHashMap<String, RawChannel>()
@@ -128,7 +131,7 @@ class CosmeticsRepository @Inject constructor(
     @Volatile private var catalogueLoaded = false
     private val updated = MutableSharedFlow<Set<String>>(extraBufferCapacity = 64)
 
-    /** Twitch user ids whose paint or 7TV badge changed; open chats restyle their messages. */
+    /** Twitch user ids whose paint or badges changed; open chats restyle their messages. */
     val cosmeticsUpdated: SharedFlow<Set<String>> = updated.asSharedFlow()
 
     private data class RawChannel(
@@ -222,16 +225,41 @@ class CosmeticsRepository @Inject constructor(
             val s = async { attempt { seventv.globalEmotes() }.getOrDefault(emptyList()) }
             val b = async { attempt { bttvFfz.bttvGlobal() }.getOrDefault(emptyList()) }
             val f = async { attempt { bttvFfz.ffzGlobal() }.getOrDefault(emptyList()) }
-            val bb = async { attempt { bttvFfz.bttvBadges() }.getOrNull() }
-            val fb = async { attempt { bttvFfz.ffzBadges() }.getOrNull() }
-            val cb = async { attempt { bttvFfz.chatterinoBadges() }.getOrNull() }
             globalTwitchBadges = tb.await()
             global7tv = s.await()
             globalBttv = b.await()
             globalFfz = f.await()
-            userBadgeSets = listOfNotNull(fb.await(), bb.await(), cb.await())
         }
         globalsLoaded = true
+        // Badge lists don't block emotes; open chats restyle once they land.
+        scope.launch(io) { loadBadgeSets() }
+    }
+
+    private suspend fun loadBadgeSets() = coroutineScope {
+        val bb = async { attempt { bttvFfz.bttvBadges() }.getOrNull() }
+        val fb = async { attempt { bttvFfz.ffzBadges() }.getOrNull() }
+        val cb = async { attempt { bttvFfz.chatterinoBadges() }.getOrNull() }
+        val ap = async { attempt { clientBadges.ffzApBadges() }.getOrNull() }
+        val hb = async { attempt { clientBadges.homiesBadges() }.getOrNull() }
+        val hc = async { attempt { homiesCustom() }.getOrNull() }
+        val mb = async { attempt { clientBadges.moltorinoBadges() }.getOrNull() }
+        val molt = mb.await()
+        // List order is display order after the 7TV badge.
+        val sets = listOfNotNull(cb.await(), fb.await(), ap.await(), bb.await(), molt, hc.await(), hb.await())
+        moltorinoHidden = molt?.hidden.orEmpty()
+        userBadgeSets = sets
+        updated.tryEmit(sets.flatMapTo(HashSet()) { it.users.keys })
+    }
+
+    /** Homies custom badge list is ~4 MB; keep it on disk for 12 hours. */
+    private suspend fun homiesCustom(): UserBadges? {
+        val file = File(context.cacheDir, "homies_custom_badges.json")
+        val fresh = System.currentTimeMillis() - file.lastModified() < 12 * 60 * 60 * 1000L
+        val text = (if (fresh) attempt { file.readText() }.getOrNull() else null)
+            ?: clientBadges.homiesCustomRaw()?.also { t -> attempt { file.writeText(t) } }
+            ?: attempt { file.readText() }.getOrNull() // stale copy beats nothing
+            ?: return null
+        return clientBadges.parseHomiesCustom(text)
     }
 
     private suspend fun twitchGlobalBadges(): Map<String, Badge> =
@@ -356,18 +384,23 @@ class CosmeticsRepository @Inject constructor(
 
     fun extraBadges(userId: String): List<Badge> {
         val tp = settings.settings.value.thirdParty
+        val hidden = moltorinoHidden[userId].orEmpty()
         val out = mutableListOf<Badge>()
-        sevenTvBadge(userId)?.let(out::add)
+        sevenTvBadge(userId)?.takeIf { "7" !in hidden }?.let(out::add)
         userBadgeSets.forEach { set ->
             set.users[userId]?.forEach { id ->
                 val b = set.badges[id] ?: return@forEach
-                val allowed = when (b.source) {
-                    BadgeSource.FFZ -> tp.ffzBadges
-                    BadgeSource.BTTV -> tp.bttvBadges
-                    BadgeSource.CHATTERINO -> tp.chatterinoBadges
-                    else -> true
+                val (allowed, slot) = when (b.source) {
+                    BadgeSource.FFZ -> tp.ffzBadges to "ff"
+                    BadgeSource.FFZAP -> tp.ffzApBadges to "fa"
+                    BadgeSource.BTTV -> tp.bttvBadges to "bt"
+                    BadgeSource.CHATTERINO -> tp.chatterinoBadges to "c"
+                    BadgeSource.HOMIES -> tp.homiesBadges to "hs"
+                    BadgeSource.HOMIES_CUSTOM -> tp.homiesCustomBadges to "hc"
+                    BadgeSource.MOLTORINO -> tp.moltorinoBadges to "m"
+                    else -> true to ""
                 }
-                if (allowed) out += b
+                if (allowed && slot !in hidden) out += b
             }
         }
         return out
