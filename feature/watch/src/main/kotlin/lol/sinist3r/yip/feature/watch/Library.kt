@@ -1,5 +1,8 @@
 package lol.sinist3r.yip.feature.watch
 
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.ui.draw.alpha
 import lol.sinist3r.yip.core.common.secondsClock
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -122,7 +125,7 @@ fun LibraryScreen(nav: LibraryNavigator, startTab: Int = 0, viewModel: LibraryVi
                     items(entries, key = { it.key }) { e ->
                         MediaRow(
                             e.thumbnailUrl, e.title.ifBlank { e.channelName }, "${e.channelName} · ${e.kind.name.lowercase().replaceFirstChar(Char::uppercase)} · ${if (e.finished) "Watched · " else ""}${ago(e.updatedAt)}",
-                            progress = e.progress.takeIf { e.durationSeconds > 0 }, onClick = { nav.openHistory(e) },
+                            progress = e.progress.takeIf { e.durationSeconds > 0 && !e.finished }, onClick = { nav.openHistory(e) }, watched = e.finished,
                         ) { IconButton(onClick = { viewModel.remove(e.key) }) { Icon(Icons.Outlined.Delete, "Remove from history") } }
                     }
                 }
@@ -160,10 +163,14 @@ fun LibraryScreen(nav: LibraryNavigator, startTab: Int = 0, viewModel: LibraryVi
 }
 
 @Composable
-private fun MediaRow(thumb: String?, title: String, subtitle: String, progress: Float?, onClick: () -> Unit, avatar: String? = null, trailing: @Composable () -> Unit) {
+private fun MediaRow(thumb: String?, title: String, subtitle: String, progress: Float?, onClick: () -> Unit, avatar: String? = null, watched: Boolean = false, trailing: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(128.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(8.dp))) {
-            AsyncImage(thumb, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            AsyncImage(thumb, null, Modifier.fillMaxSize().alpha(if (watched) 0.45f else 1f), contentScale = ContentScale.Crop)
+            if (watched) Icon(
+                Icons.Filled.CheckCircle, "Watched", tint = androidx.compose.ui.graphics.Color.White,
+                modifier = Modifier.align(Alignment.Center).background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.6f), androidx.compose.foundation.shape.CircleShape).padding(4.dp),
+            )
             progress?.let { LinearProgressIndicator(progress = { it }, modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter), drawStopIndicator = {}) }
         }
         Column(Modifier.weight(1f).padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {

@@ -33,7 +33,8 @@ import androidx.compose.ui.unit.dp
 
 sealed interface ClipState {
     data object Creating : ClipState
-    data class Ready(val id: String) : ClipState {
+    /** [draft]: made, but needs finishing on Twitch (trim, title, publish). */
+    data class Ready(val id: String, val draft: Boolean = false) : ClipState {
         val url get() = "https://clips.twitch.tv/$id"
         val editUrl get() = "https://clips.twitch.tv/$id/edit"
     }
@@ -74,7 +75,11 @@ fun ClipSheet(state: ClipState, onDismiss: () -> Unit, onPublish: (ClipState.Edi
                     Text("Couldn't make a clip", style = MaterialTheme.typography.titleMedium)
                     Text(state.reason, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                is ClipState.Ready -> {
+                is ClipState.Ready -> if (state.draft) {
+                    Text("Clip draft made", style = MaterialTheme.typography.titleMedium)
+                    Text("Twitch didn't send the video to edit here in time. Finish trimming and publishing on Twitch.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    FilledTonalButton(onClick = { uri.openUri(state.editUrl) }) { Icon(Icons.Outlined.Edit, null); Text(" Edit on Twitch") }
+                } else {
                     Text("Clip made", style = MaterialTheme.typography.titleMedium)
                     Text("It can take a few seconds before the link plays.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -95,7 +100,8 @@ fun ClipSheet(state: ClipState, onDismiss: () -> Unit, onPublish: (ClipState.Edi
 @Composable
 private fun ClipEditor(state: ClipState.Editing, onPublish: (ClipState.Editing, String, Double, Double) -> Unit) {
     val context = LocalContext.current
-    val total = state.rawDuration.toFloat().coerceAtLeast(MIN_CLIP)
+    val uri = LocalUriHandler.current
+    var total by androidx.compose.runtime.remember(state.slug) { androidx.compose.runtime.mutableFloatStateOf(state.rawDuration.toFloat().coerceAtLeast(MIN_CLIP)) }
     var range by androidx.compose.runtime.remember(state.slug) {
         val start = state.suggestedStart.toFloat().coerceIn(0f, (total - MIN_CLIP).coerceAtLeast(0f))
         androidx.compose.runtime.mutableStateOf(start..(start + 30f).coerceAtMost(total))
@@ -115,6 +121,12 @@ private fun ClipEditor(state: ClipState.Editing, onPublish: (ClipState.Editing, 
     androidx.compose.runtime.LaunchedEffect(range) {
         preview.seekTo((range.start * 1000).toLong())
         while (true) {
+            // The draft's real length is only known once it loads.
+            val d = preview.duration
+            if (d > 0 && d != androidx.media3.common.C.TIME_UNSET && kotlin.math.abs(d / 1000f - total) > 0.5f) {
+                total = d / 1000f
+                if (range.endInclusive > total) range = (total - (range.endInclusive - range.start)).coerceAtLeast(0f)..total
+            }
             if (preview.currentPosition >= (range.endInclusive * 1000).toLong()) preview.seekTo((range.start * 1000).toLong())
             kotlinx.coroutines.delay(100)
         }
@@ -151,8 +163,9 @@ private fun ClipEditor(state: ClipState.Editing, onPublish: (ClipState.Editing, 
             enabled = !state.publishing,
             onClick = { onPublish(state, title, range.start.toDouble(), (range.endInclusive - range.start).toDouble()) },
         ) { Text(if (state.publishing) "Publishing…" else "Publish") }
-        Text("Not published until you tap Publish.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        androidx.compose.material3.TextButton(onClick = { uri.openUri("https://clips.twitch.tv/${state.slug}/edit") }) { Text("Edit on Twitch") }
     }
+    Text("Not published until you tap Publish.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 private fun Modifier.aspectRatio16x9() = aspectRatio(16f / 9f)

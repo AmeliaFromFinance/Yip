@@ -212,7 +212,13 @@ internal object GqlQueries {
     """.trimIndent()
 
     val CLIP_DRAFT = """
-        query ClipDraft(${'$'}slug: ID!) { clip(slug: ${'$'}slug) { slug title isPublished rawMedia { videoURL duration defaultClipInitialOffset } } }
+        query ClipDraft(${'$'}slug: ID!) {
+          clip(slug: ${'$'}slug) {
+            slug isPublished durationSeconds
+            rawVideoQualities { quality sourceURL }
+            playbackAccessToken(params: { platform: "web", playerBackend: "mediaplayer", playerType: "clips-download" }) { signature value }
+          }
+        }
     """.trimIndent()
 
     val PUBLISH_CLIP = """

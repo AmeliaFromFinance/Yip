@@ -386,22 +386,35 @@ class TwitchRepository @Inject constructor(
     /** An unpublished clip: [videoUrl] holds about a minute and a half to trim from. */
     data class ClipDraft(val slug: String, val videoUrl: String, val durationSeconds: Double, val suggestedStart: Double)
 
-    /** Makes a draft clip with the editable raw video. Waits up to ~20s for Twitch to prepare it. */
+    /** The draft exists but Twitch didn't hand over its video in time; finish it on Twitch instead. */
+    class DraftNotReady(val slug: String) : Exception("Twitch is still preparing the clip")
+
+    /** Makes a draft clip with the editable raw video. Waits up to ~15s for Twitch to prepare it. */
     suspend fun createClipDraft(broadcasterId: String, offsetSeconds: Double, videoId: String?): ClipDraft {
         val r = withIntegrityRetry { gql.createClip(broadcasterId, offsetSeconds, videoId, it) }.obj("createClip")
         r?.obj("error")?.str("__typename")?.let { throw AppException(AppException.Kind.UNKNOWN, clipError(it)) }
         val slug = r?.obj("clip")?.str("slug") ?: throw AppException(AppException.Kind.UNKNOWN, "Twitch didn't return a clip")
-        repeat(20) {
-            val raw = attempt { gql.clipDraft(slug).obj("clip")?.obj("rawMedia") }.getOrNull()
-            val url = raw?.str("videoURL")
-            if (!url.isNullOrBlank()) return ClipDraft(
-                slug, url,
-                raw.str("duration")?.toDoubleOrNull() ?: 90.0,
-                raw.str("defaultClipInitialOffset")?.toDoubleOrNull() ?: 0.0,
-            )
+        repeat(15) {
             kotlinx.coroutines.delay(1000)
+            val clip = attempt { gql.clipDraft(slug).obj("clip") }.getOrNull() ?: return@repeat
+            val token = clip.obj("playbackAccessToken")
+            val sig = token?.str("signature")
+            val value = token?.str("value")
+            val qualities = clip.arr("rawVideoQualities").mapNotNull { q ->
+                val o = q as? JsonObject ?: return@mapNotNull null
+                val url = o.str("sourceURL") ?: return@mapNotNull null
+                (o.str("quality")?.toIntOrNull() ?: 0) to url
+            }
+            // 480p is plenty for trimming on a phone and loads fast.
+            val pick = qualities.filter { it.first in 1..480 }.maxByOrNull { it.first } ?: qualities.minByOrNull { it.first }
+            if (pick != null) {
+                val url = if (sig != null && value != null && "nauth" in pick.second)
+                    pick.second + "?sig=" + java.net.URLEncoder.encode(sig, "UTF-8") + "&token=" + java.net.URLEncoder.encode(value, "UTF-8")
+                else pick.second
+                return ClipDraft(slug, url, RAW_CLIP_SECONDS, (RAW_CLIP_SECONDS - 30.0).coerceAtLeast(0.0))
+            }
         }
-        throw AppException(AppException.Kind.UNKNOWN, "Twitch is still preparing the clip. Try again in a moment.")
+        throw DraftNotReady(slug)
     }
 
     suspend fun publishClip(slug: String, title: String, startSeconds: Double, lengthSeconds: Double): String {
@@ -416,6 +429,8 @@ class TwitchRepository @Inject constructor(
         "Title" in type -> "That title isn't allowed"
         else -> "Twitch said no (${type.removeSuffix("Error")})"
     }
+
+    private companion object { const val RAW_CLIP_SECONDS = 90.0 }
 
     private var clipsCache: Pair<Long, List<Clip>>? = null
 
