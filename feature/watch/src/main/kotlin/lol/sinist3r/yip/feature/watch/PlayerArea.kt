@@ -147,11 +147,14 @@ fun PlayerArea(
     // With TalkBack on, controls stay up so they can be found by touch.
     val talkBack = remember { context.getSystemService(android.view.accessibility.AccessibilityManager::class.java)?.isTouchExplorationEnabled == true }
     var scrubbing by remember { mutableStateOf(false) }
+    // Open menus keep the controls up; otherwise the menu vanishes with them.
+    var rewindMenu by remember { mutableStateOf(false) }
+    var speedMenu by remember { mutableStateOf(false) }
     // Clips and downloads don't come with a length; ask the player once it knows.
     var playerDurationS by remember { mutableLongStateOf(0L) }
     val length = if (durationSeconds > 0) durationSeconds else playerDurationS
-    LaunchedEffect(controls, state.playing, scrubbing) {
-        if (controls && state.playing && !talkBack && !scrubbing) {
+    LaunchedEffect(controls, state.playing, scrubbing, rewindMenu, speedMenu) {
+        if (controls && state.playing && !talkBack && !scrubbing && !rewindMenu && !speedMenu) {
             delay(3500)
             controls = false
         }
@@ -279,13 +282,12 @@ fun PlayerArea(
                     }
                     onRewind?.let { rw ->
                         Box {
-                            var menu by remember { mutableStateOf(false) }
-                            IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.History, "Rewind", tint = Color.White) }
-                            androidx.compose.material3.DropdownMenu(menu, onDismissRequest = { menu = false }) {
+                            IconButton(onClick = { rewindMenu = true }) { Icon(Icons.Outlined.History, "Rewind", tint = Color.White) }
+                            androidx.compose.material3.DropdownMenu(rewindMenu, onDismissRequest = { rewindMenu = false }) {
                                 listOf(30 to "Back 30 seconds", 60 to "Back 1 minute", 300 to "Back 5 minutes", 900 to "Back 15 minutes", 1800 to "Back 30 minutes").forEach { (s, label) ->
-                                    androidx.compose.material3.DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; rw(s) })
+                                    androidx.compose.material3.DropdownMenuItem(text = { Text(label) }, onClick = { rewindMenu = false; rw(s) })
                                 }
-                                androidx.compose.material3.DropdownMenuItem(text = { Text("From the start") }, onClick = { menu = false; rw(null) })
+                                androidx.compose.material3.DropdownMenuItem(text = { Text("From the start") }, onClick = { rewindMenu = false; rw(null) })
                             }
                         }
                     }
@@ -323,7 +325,6 @@ fun PlayerArea(
                         if (state.selected != null) Pill(state.selected!!.label) else if (state.qualities.isNotEmpty()) Pill("Auto")
                         Spacer(Modifier.weight(1f))
                         if (speeds.isNotEmpty()) Box {
-                            var speedMenu by remember { mutableStateOf(false) }
                             androidx.compose.material3.TextButton(onClick = { speedMenu = true }) {
                                 Text(speedLabel(state.speed), color = Color.White, fontSize = 13.sp)
                             }
