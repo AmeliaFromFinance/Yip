@@ -122,6 +122,17 @@ class PlaybackController @Inject constructor(
     private val _state = MutableStateFlow(PlaybackUiState())
 
     init {
+        // Backup for "becoming noisy": some headsets and cars drop without it. Pause when an
+        // output we were likely using goes away.
+        context.getSystemService(android.media.AudioManager::class.java)?.registerAudioDeviceCallback(
+            object : android.media.AudioDeviceCallback() {
+                override fun onAudioDevicesRemoved(removed: Array<out android.media.AudioDeviceInfo>) {
+                    if (!settings.settings.value.player.pauseOnHeadphonesUnplugged) return
+                    if (removed.any { it.isSink && it.type in PERSONAL_OUTPUTS }) _player?.takeIf { it.playWhenReady }?.pause()
+                }
+            },
+            android.os.Handler(android.os.Looper.getMainLooper()),
+        )
         // Turning levelling on or off applies straight away to whatever's playing.
         scope.launch {
             settings.settings.map { it.player.volumeLevelling }.distinctUntilChanged().collect { on ->
@@ -489,3 +500,14 @@ class PlaybackController @Inject constructor(
         else -> "Playback error (${e.errorCodeName})"
     }
 }
+
+/** Headphones, Bluetooth and car outputs: losing one means sound would come out of the speaker. */
+private val PERSONAL_OUTPUTS = setOf(
+    android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+    android.media.AudioDeviceInfo.TYPE_BLUETOOTH_SCO,
+    android.media.AudioDeviceInfo.TYPE_BLE_HEADSET,
+    android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER,
+    android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET,
+    android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+    android.media.AudioDeviceInfo.TYPE_USB_HEADSET,
+)

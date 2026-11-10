@@ -1,5 +1,7 @@
 package lol.sinist3r.yip.feature.browse
 
+import androidx.compose.material.icons.outlined.ManageAccounts
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Star
@@ -114,6 +116,7 @@ interface BrowseNavigator {
     fun openLibrary() {}
     fun openManageFollows() {}
     fun openFollowsClips() {}
+    fun openAccounts() {}
 }
 
 internal fun gridCells(appearance: AppearanceSettings): GridCells = when {
@@ -140,6 +143,7 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
         topBar = {
             TopAppBar(
                 title = { Text("Following") },
+                navigationIcon = { AccountSwitcher(viewModel, nav) },
                 actions = {
                     val unread by viewModel.inboxUnread.collectAsStateWithLifecycle()
                     IconButton(onClick = nav::openInbox) {
@@ -677,6 +681,33 @@ private fun PinnedCategoryChips(pins: List<lol.sinist3r.yip.core.model.PinnedCat
                     androidx.compose.material3.DropdownMenuItem(text = { Text("Unpin") }, onClick = { onUnpin(p.id); menu = false })
                 }
             }
+        }
+    }
+}
+
+/** Your avatar on Following; tap to switch accounts. */
+@Composable
+private fun AccountSwitcher(viewModel: FollowingViewModel, nav: BrowseNavigator) {
+    val state by viewModel.accountsState.collectAsStateWithLifecycle()
+    val active = state.active ?: return
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { menu = true }) { Avatar(active.profileImageUrl, "Account: ${active.displayName}. Tap to switch", 32.dp) }
+        androidx.compose.material3.DropdownMenu(menu, onDismissRequest = { menu = false }) {
+            state.accounts.forEach { a ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(a.displayName) },
+                    leadingIcon = { Avatar(a.profileImageUrl, null, 28.dp) },
+                    trailingIcon = { if (a.userId == active.userId) Icon(Icons.Filled.Check, "Current") },
+                    onClick = { menu = false; if (a.userId != active.userId) viewModel.switchAccount(a.userId) },
+                )
+            }
+            androidx.compose.material3.HorizontalDivider()
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text(if (state.accounts.size > 1) "Manage accounts" else "Add another account") },
+                leadingIcon = { Icon(Icons.Outlined.ManageAccounts, null) },
+                onClick = { menu = false; nav.openAccounts() },
+            )
         }
     }
 }

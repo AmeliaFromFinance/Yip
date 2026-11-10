@@ -89,6 +89,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Browse filters: viewer count, how long they've been live, hide reruns
 - Pin categories to the top of Browse
 - Incognito mode: nothing saved to history or recent searches
+- Switch accounts from your avatar on Following
 - "What's new" after each update
 
 **Opt-in and experimental** (all off by default)

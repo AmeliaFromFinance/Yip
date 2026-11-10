@@ -188,7 +188,7 @@ object SettingsSpec {
             Row.Header("Background"),
             Row.Toggle("Keep playing in the background", get = { it.player.backgroundAudio }, set = { s, v -> s.copy(player = s.player.copy(backgroundAudio = v)) }),
             Row.Toggle("Picture-in-picture when leaving", get = { it.player.autoPip }, set = { s, v -> s.copy(player = s.player.copy(autoPip = v)) }),
-            Row.Toggle("Pause when headphones disconnect", get = { it.player.pauseOnHeadphonesUnplugged }, set = { s, v -> s.copy(player = s.player.copy(pauseOnHeadphonesUnplugged = v)) }),
+            Row.Toggle("Pause when headphones disconnect", "Wired, USB or Bluetooth, including car audio", get = { it.player.pauseOnHeadphonesUnplugged }, set = { s, v -> s.copy(player = s.player.copy(pauseOnHeadphonesUnplugged = v)) }),
             Row.Toggle("Pause during calls and other audio", get = { it.player.pauseOnCall }, set = { s, v -> s.copy(player = s.player.copy(pauseOnCall = v)) }),
             Row.Toggle("Keep screen on while watching", get = { it.player.keepScreenOn }, set = { s, v -> s.copy(player = s.player.copy(keepScreenOn = v)) }),
             Row.Toggle("Start muted", get = { it.player.startMuted }, set = { s, v -> s.copy(player = s.player.copy(startMuted = v)) }),

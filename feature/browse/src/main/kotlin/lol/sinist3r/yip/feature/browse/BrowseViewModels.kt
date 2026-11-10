@@ -121,8 +121,9 @@ class FollowingViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            accounts.isSignedIn.distinctUntilChanged().collect { signed ->
-                _state.update { it.copy(signedIn = signed) }
+            // Keyed on the user, so switching accounts reloads too, not just signing in or out.
+            accounts.active.map { it?.userId }.distinctUntilChanged().collect { id ->
+                _state.update { it.copy(signedIn = id != null) }
                 refresh()
             }
         }
@@ -172,6 +173,9 @@ class FollowingViewModel @Inject constructor(
     }
 
     fun removeHistory(key: String) = viewModelScope.launch { history.remove(key) }
+
+    val accountsState = accounts.state
+    fun switchAccount(userId: String) = viewModelScope.launch { accounts.switchTo(userId) }
 
     fun setIncognito(on: Boolean) = viewModelScope.launch {
         settingsRepo.update { it.copy(general = it.general.copy(incognito = on)) }

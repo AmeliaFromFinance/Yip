@@ -171,6 +171,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun openLibrary() = nav.navigate(LibraryRoute())
             override fun openManageFollows() = nav.navigate(ManageFollowsRoute)
             override fun openFollowsClips() = nav.navigate(FollowsClipsRoute)
+            override fun openAccounts() = nav.navigate(SettingsPageRoute("account"))
             override fun addToMultiView(login: String) {
                 if (login !in multiQueue) multiQueue += login
                 scope.launch {
