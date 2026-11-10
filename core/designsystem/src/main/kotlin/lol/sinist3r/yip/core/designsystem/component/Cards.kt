@@ -1,5 +1,16 @@
 package lol.sinist3r.yip.core.designsystem.component
 
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkAdd
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.alpha
 import lol.sinist3r.yip.core.designsystem.util.shareLink
 import lol.sinist3r.yip.core.designsystem.util.shareUrl
 import androidx.compose.material.icons.outlined.Share
@@ -149,27 +160,91 @@ fun CategoryCard(category: Category, onClick: () -> Unit, modifier: Modifier = M
 }
 
 @Composable
-fun VideoCard(video: Video, progress: Float?, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.clip(MaterialTheme.shapes.medium).combinedClickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Thumb(video.thumbnail(640, 360)) {
-            Pill(video.durationSeconds.secondsClock(), Modifier.align(Alignment.BottomEnd).padding(8.dp))
-            Pill("${video.viewCount.compactCount()} views", Modifier.align(Alignment.BottomStart).padding(8.dp))
-            progress?.takeIf { it > 0f }?.let {
-                LinearProgressIndicator(progress = { it }, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp), drawStopIndicator = {})
+fun VideoCard(
+    video: Video,
+    progress: Float?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    watched: Boolean = false,
+    inWatchLater: Boolean? = null,
+    onWatchLater: () -> Unit = {},
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var menu by remember { mutableStateOf(false) }
+    Column(
+        modifier.clip(MaterialTheme.shapes.medium).combinedClickable(onClick = onClick, onLongClick = { menu = true }),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box {
+            Thumb(video.thumbnail(640, 360), Modifier.alpha(if (watched) WATCHED_ALPHA else 1f)) {
+                Pill(video.durationSeconds.secondsClock(), Modifier.align(Alignment.BottomEnd).padding(8.dp))
+                Pill("${video.viewCount.compactCount()} views", Modifier.align(Alignment.BottomStart).padding(8.dp))
+                progress?.takeIf { it > 0f }?.let {
+                    LinearProgressIndicator(progress = { it }, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp), drawStopIndicator = {})
+                }
             }
+            if (watched) WatchedBadge(Modifier.align(Alignment.TopStart).padding(8.dp))
+            CardMenu(menu, { menu = false }, inWatchLater, onWatchLater) { context.shareLink("https://www.twitch.tv/videos/${video.id}", video.title) }
         }
-        Text(video.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(video.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.alpha(if (watched) WATCHED_TEXT_ALPHA else 1f))
         Text(video.userName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
+private const val WATCHED_ALPHA = 0.45f
+private const val WATCHED_TEXT_ALPHA = 0.7f
+
+/** Shown on videos and clips watched to the end. */
 @Composable
-fun ClipCard(clip: Clip, onClick: () -> Unit, modifier: Modifier = Modifier, showChannel: Boolean = false, share: Boolean = true) {
+private fun WatchedBadge(modifier: Modifier) {
+    Row(
+        modifier.background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(androidx.compose.material.icons.Icons.Filled.CheckCircle, null, tint = Color.White, modifier = Modifier.size(14.dp))
+        Text(" Watched", color = Color.White, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+private fun CardMenu(open: Boolean, onDismiss: () -> Unit, inWatchLater: Boolean?, onWatchLater: () -> Unit, onShare: () -> Unit) {
+    androidx.compose.material3.DropdownMenu(open, onDismissRequest = onDismiss) {
+        inWatchLater?.let { saved ->
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text(if (saved) "Remove from Watch later" else "Watch later") },
+                leadingIcon = { Icon(if (saved) androidx.compose.material.icons.Icons.Filled.Bookmark else androidx.compose.material.icons.Icons.Outlined.BookmarkAdd, null) },
+                onClick = { onWatchLater(); onDismiss() },
+            )
+        }
+        androidx.compose.material3.DropdownMenuItem(
+            text = { Text("Share") },
+            leadingIcon = { Icon(androidx.compose.material.icons.Icons.Outlined.Share, null) },
+            onClick = { onShare(); onDismiss() },
+        )
+    }
+}
+
+@Composable
+fun ClipCard(
+    clip: Clip,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    showChannel: Boolean = false,
+    share: Boolean = true,
+    watched: Boolean = false,
+    inWatchLater: Boolean? = null,
+    onWatchLater: () -> Unit = {},
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    Column(modifier.clip(MaterialTheme.shapes.medium).combinedClickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Thumb(clip.thumbnailUrl) {
-            Pill(clip.durationSeconds.toLong().secondsClock(), Modifier.align(Alignment.BottomEnd).padding(8.dp))
-            Pill("${clip.viewCount.compactCount()} views", Modifier.align(Alignment.BottomStart).padding(8.dp))
+    var menu by remember { mutableStateOf(false) }
+    Column(modifier.clip(MaterialTheme.shapes.medium).combinedClickable(onClick = onClick, onLongClick = { menu = true }), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box {
+            Thumb(clip.thumbnailUrl, Modifier.alpha(if (watched) WATCHED_ALPHA else 1f)) {
+                Pill(clip.durationSeconds.toLong().secondsClock(), Modifier.align(Alignment.BottomEnd).padding(8.dp))
+                Pill("${clip.viewCount.compactCount()} views", Modifier.align(Alignment.BottomStart).padding(8.dp))
+            }
+            if (watched) WatchedBadge(Modifier.align(Alignment.TopStart).padding(8.dp))
+            CardMenu(menu, { menu = false }, inWatchLater, onWatchLater) { context.shareLink(clip.shareUrl, clip.title) }
         }
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {

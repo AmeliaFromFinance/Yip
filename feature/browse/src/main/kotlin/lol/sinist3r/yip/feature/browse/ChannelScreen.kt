@@ -74,6 +74,8 @@ fun ChannelScreen(
     viewModel: ChannelViewModel = hiltViewModel(),
 ) {
     val header by viewModel.header.collectAsStateWithLifecycle()
+    val watched by viewModel.watched.collectAsStateWithLifecycle()
+    val later by viewModel.later.collectAsStateWithLifecycle()
     val videos by viewModel.videos.collectAsStateWithLifecycle()
     val clips by viewModel.clips.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -158,7 +160,10 @@ fun ChannelScreen(
                                 }
                             }
                             if (videos.initialized && videos.items.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.padding(32.dp)) { MessageState("No videos") } }
-                            items(videos.items, key = { "v" + it.id }) { v -> VideoCard(v, null, onClick = { nav.openVideo(v) }) }
+                            items(videos.items, key = { "v" + it.id }) { v ->
+                                val h = watched["VOD:${v.id}"]
+                                VideoCard(v, h?.progress?.takeIf { h.durationSeconds > 0 }, onClick = { nav.openVideo(v) }, watched = h?.finished == true, inWatchLater = "VOD:${v.id}" in later, onWatchLater = { viewModel.toggleLater(v) })
+                            }
                         }
                         2 -> {
                             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -169,7 +174,9 @@ fun ChannelScreen(
                                 }
                             }
                             if (clips.initialized && clips.items.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.padding(32.dp)) { MessageState("No clips in this period") } }
-                            items(clips.items, key = { "c" + it.id }) { c -> ClipCard(c, onClick = { nav.openClip(c) }) }
+                            items(clips.items, key = { "c" + it.id }) { c ->
+                                ClipCard(c, onClick = { nav.openClip(c) }, watched = watched["CLIP:${c.id}"]?.finished == true, inWatchLater = "CLIP:${c.id}" in later, onWatchLater = { viewModel.toggleLater(c) })
+                            }
                         }
                         else -> {
                             if (header.schedule.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Box(Modifier.padding(32.dp)) { MessageState("No schedule", "This channel hasn't published one, or you're signed out.") } }

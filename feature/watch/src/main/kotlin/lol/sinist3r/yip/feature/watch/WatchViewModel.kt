@@ -98,6 +98,7 @@ class WatchViewModel @Inject constructor(
     private val downloads: lol.sinist3r.yip.core.playback.Downloads,
     private val translator: ChatTranslator,
     private val emoteStats: lol.sinist3r.yip.core.data.chat.EmoteStats,
+    private val watchLater: lol.sinist3r.yip.core.data.history.WatchLaterRepository,
     @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
 ) : ViewModel() {
 
@@ -112,6 +113,55 @@ class WatchViewModel @Inject constructor(
     }
 
     val downloadItems = downloads.items
+
+    private val laterKind get() = if (kind == WatchKind.CLIP) "CLIP" else "VOD"
+
+    /** Whether this VOD or clip is in Watch later. */
+    val inWatchLater: StateFlow<Boolean> = watchLater.items
+        .map { list -> list.any { it.kind == laterKind && it.id == target } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun toggleWatchLater() {
+        if (kind != WatchKind.VOD && kind != WatchKind.CLIP) return
+        if (inWatchLater.value) { watchLater.remove(laterKind, target); return }
+        val i = _info.value
+        val src = playback.state.value.source
+        watchLater.add(
+            lol.sinist3r.yip.core.data.history.WatchLaterItem(
+                laterKind, target, i.user?.login ?: src?.channelLogin.orEmpty(), i.user?.displayName ?: src?.channelName.orEmpty(),
+                i.title.ifBlank { src?.title.orEmpty() }, src?.thumbnailUrl,
+                (playback.player.duration.takeIf { it > 0 } ?: 0L) / 1000, System.currentTimeMillis(),
+                vodId = (src as? lol.sinist3r.yip.core.playback.PlaybackSource.ClipSrc)?.vodId,
+                vodOffset = (src as? lol.sinist3r.yip.core.playback.PlaybackSource.ClipSrc)?.vodOffset,
+            ),
+        )
+    }
+
+    /** What plays after this ends: the next Watch later item, else the channel's next VOD. */
+    data class UpNext(val kind: String, val id: String, val title: String, val thumbnailUrl: String?, val channelName: String, val vodId: String? = null, val vodOffset: Int? = null)
+
+    private val _upNext = MutableStateFlow<UpNext?>(null)
+    val upNext = _upNext.asStateFlow()
+    fun cancelUpNext() { _upNext.value = null; upNextCancelled = true }
+    private var upNextCancelled = false
+
+    private suspend fun findUpNext(): UpNext? {
+        watchLater.after(laterKind, target)?.let { return UpNext(it.kind, it.id, it.title, it.thumbnailUrl, it.channelName, it.vodId, it.vodOffset) }
+        if (kind != WatchKind.VOD) return null
+        val ch = channelIdFlow.value ?: return null
+        val login = _info.value.user?.login ?: return null
+        // Newest first: the next broadcast is the one just before this in the list.
+        var cursor: String? = null
+        val seen = mutableListOf<lol.sinist3r.yip.core.model.Video>()
+        repeat(4) {
+            val page = attempt { twitch.videos(ch, login, lol.sinist3r.yip.core.model.VideoType.ARCHIVE, cursor) }.getOrNull() ?: return null
+            seen += page.items
+            val i = seen.indexOfFirst { it.id == target }
+            if (i >= 0) return seen.getOrNull(i - 1)?.let { UpNext("VOD", it.id, it.title, it.thumbnail(320, 180), it.userName) }
+            cursor = page.cursor ?: return null
+        }
+        return null
+    }
 
     /** Download id for this VOD or clip, or null for live. */
     val downloadId: String? get() = when (kind) {
@@ -199,13 +249,39 @@ class WatchViewModel @Inject constructor(
     private val _clip = MutableStateFlow<ClipState?>(null)
     val clip = _clip.asStateFlow()
 
+    /**
+     * Live: a draft you can trim and title (needs the twitch.tv connection), else Twitch's default 30s clip.
+     * VOD: always a draft, from the current position.
+     */
     fun createClip() = viewModelScope.launch {
         val ch = channelIdFlow.value ?: return@launch
         _clip.value = ClipState.Creating
+        val vod = playback.state.value.source as? lol.sinist3r.yip.core.playback.PlaybackSource.Vod
+        val offset = if (vod != null) playback.player.currentPosition / 1000.0 else {
+            val started = _info.value.stream?.startedAt?.toEpochMilliseconds() ?: System.currentTimeMillis()
+            val latency = playback.state.value.liveLatencyMs ?: 0L
+            ((System.currentTimeMillis() - started - latency) / 1000.0).coerceAtLeast(0.0)
+        }
+        val draft = attempt { twitch.createClipDraft(ch, offset, vod?.videoId) }
+        draft.onSuccess { d ->
+            _clip.value = ClipState.Editing(d.slug, d.videoUrl, d.durationSeconds, d.suggestedStart, _info.value.title.take(100))
+            return@launch
+        }
+        if (vod != null) {
+            _clip.value = ClipState.Failed(draft.exceptionOrNull()?.message ?: "Couldn't clip this VOD.")
+            return@launch
+        }
         _clip.value = attempt { helix.createClip(ch) }.fold(
             onSuccess = { id -> id?.let(ClipState::Ready) ?: ClipState.Failed("Twitch didn't return a clip.") },
             onFailure = { ClipState.Failed(it.message ?: "Unknown error. Clips may be off for this channel.") },
         )
+    }
+
+    fun publishClip(edit: ClipState.Editing, title: String, start: Double, length: Double) = viewModelScope.launch {
+        _clip.value = edit.copy(publishing = true, error = null)
+        attempt { twitch.publishClip(edit.slug, title.ifBlank { _info.value.title }.take(100), start, length) }
+            .onSuccess { _clip.value = ClipState.Ready(it) }
+            .onFailure { _clip.value = edit.copy(publishing = false, error = it.message ?: "Couldn't publish") }
     }
 
     fun dismissClip() { _clip.value = null }
@@ -347,6 +423,16 @@ class WatchViewModel @Inject constructor(
     private val savedStateVodId: String? = savedState["vodId"]
 
     init {
+        if (kind == WatchKind.VOD || kind == WatchKind.CLIP) viewModelScope.launch {
+            playback.state.map { it.ended && it.source != null }.distinctUntilChanged().collect { ended ->
+                if (!ended) return@collect
+                val stopping = playback.state.value.sleepAtEnd
+                val next = if (settings.value.player.autoPlayNext && !upNextCancelled && !stopping) findUpNext() else null
+                // Finished, so it leaves the queue.
+                if (inWatchLater.value) watchLater.remove(laterKind, target)
+                _upNext.value = next
+            }
+        }
         load()
         // Buzz on mentions in the chat being watched (setting).
         viewModelScope.launch {

@@ -30,6 +30,8 @@ import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.BookmarkAdd
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SpeakerNotesOff
@@ -121,6 +123,14 @@ fun PlayerArea(
     controlsEndInset: androidx.compose.ui.unit.Dp = 0.dp,
     extras: lol.sinist3r.yip.core.model.VideoExtras = lol.sinist3r.yip.core.model.VideoExtras(),
     onShare: (() -> Unit)? = null,
+    /** Speeds for the quick speed menu; empty hides it. */
+    speeds: List<Float> = emptyList(),
+    onSpeed: (Float) -> Unit = {},
+    /** Null hides the Watch later button. */
+    inWatchLater: Boolean? = null,
+    onWatchLater: () -> Unit = {},
+    /** Drawn over the video, e.g. the Up next card. */
+    overlay: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {},
 ) {
     val host = LocalWatchHost.current
     val context = LocalContext.current
@@ -250,6 +260,7 @@ fun PlayerArea(
         gestureHint?.let { Pill(it, Modifier.align(Alignment.Center)) }
 
         if (inPip) return@Box
+        overlay()
 
         AnimatedVisibility(controls, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize().padding(end = controlsEndInset)) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f))) {
@@ -262,6 +273,11 @@ fun PlayerArea(
                     onDownload?.let { IconButton(onClick = it) { Icon(Icons.Outlined.Download, "Download", tint = Color.White) } }
                     onClip?.let { IconButton(onClick = it) { Icon(Icons.Outlined.ContentCut, "Clip", tint = Color.White) } }
                     onShare?.let { IconButton(onClick = it) { Icon(Icons.Outlined.Share, "Share", tint = Color.White) } }
+                    inWatchLater?.let { saved ->
+                        IconButton(onClick = onWatchLater) {
+                            Icon(if (saved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkAdd, if (saved) "Remove from Watch later" else "Watch later", tint = Color.White)
+                        }
+                    }
                     onMultiView?.let { IconButton(onClick = it) { Icon(Icons.Outlined.GridView, "Watch with another stream", tint = Color.White) } }
                     onToggleChat?.let { IconButton(onClick = it) { Icon(if (chatOpen) Icons.Outlined.SpeakerNotesOff else Icons.Outlined.Forum, if (chatOpen) "Hide chat" else "Show chat", tint = Color.White) } }
                     IconButton(onClick = { host?.enterPip() }) { Icon(Icons.Outlined.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
@@ -289,6 +305,20 @@ fun PlayerArea(
                         Spacer(Modifier.width(6.dp))
                         if (state.selected != null) Pill(state.selected!!.label) else if (state.qualities.isNotEmpty()) Pill("Auto")
                         Spacer(Modifier.weight(1f))
+                        if (speeds.isNotEmpty()) Box {
+                            var speedMenu by remember { mutableStateOf(false) }
+                            androidx.compose.material3.TextButton(onClick = { speedMenu = true }) {
+                                Text(speedLabel(state.speed), color = Color.White, fontSize = 13.sp)
+                            }
+                            androidx.compose.material3.DropdownMenu(speedMenu, onDismissRequest = { speedMenu = false }) {
+                                speeds.forEach { sp ->
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = { Text(speedLabel(sp) + if (sp == state.speed) "  ✓" else "") },
+                                        onClick = { onSpeed(sp); speedMenu = false },
+                                    )
+                                }
+                            }
+                        }
                         val muted = state.muted
                         IconButton(onClick = onToggleMute) {
                             Icon(if (muted) Icons.AutoMirrored.Outlined.VolumeOff else Icons.AutoMirrored.Outlined.VolumeUp, if (muted) "Unmute" else "Mute", tint = Color.White)
@@ -339,3 +369,5 @@ private fun StatsOverlay(player: Player, stats: lol.sinist3r.yip.core.playback.P
 }
 
 private fun mbps(bps: Long) = "%.1f Mbps".format(bps / 1_000_000.0)
+
+internal fun speedLabel(s: Float): String = (if (s % 1f == 0f) s.toInt().toString() else s.toString().trimEnd('0')) + "x"

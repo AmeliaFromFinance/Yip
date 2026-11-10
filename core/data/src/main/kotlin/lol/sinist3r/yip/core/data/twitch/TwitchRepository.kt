@@ -383,6 +383,40 @@ class TwitchRepository @Inject constructor(
         else -> "Couldn't pin (${code.lowercase()})"
     }
 
+    /** An unpublished clip: [videoUrl] holds about a minute and a half to trim from. */
+    data class ClipDraft(val slug: String, val videoUrl: String, val durationSeconds: Double, val suggestedStart: Double)
+
+    /** Makes a draft clip with the editable raw video. Waits up to ~20s for Twitch to prepare it. */
+    suspend fun createClipDraft(broadcasterId: String, offsetSeconds: Double, videoId: String?): ClipDraft {
+        val r = withIntegrityRetry { gql.createClip(broadcasterId, offsetSeconds, videoId, it) }.obj("createClip")
+        r?.obj("error")?.str("__typename")?.let { throw AppException(AppException.Kind.UNKNOWN, clipError(it)) }
+        val slug = r?.obj("clip")?.str("slug") ?: throw AppException(AppException.Kind.UNKNOWN, "Twitch didn't return a clip")
+        repeat(20) {
+            val raw = attempt { gql.clipDraft(slug).obj("clip")?.obj("rawMedia") }.getOrNull()
+            val url = raw?.str("videoURL")
+            if (!url.isNullOrBlank()) return ClipDraft(
+                slug, url,
+                raw.str("duration")?.toDoubleOrNull() ?: 90.0,
+                raw.str("defaultClipInitialOffset")?.toDoubleOrNull() ?: 0.0,
+            )
+            kotlinx.coroutines.delay(1000)
+        }
+        throw AppException(AppException.Kind.UNKNOWN, "Twitch is still preparing the clip. Try again in a moment.")
+    }
+
+    suspend fun publishClip(slug: String, title: String, startSeconds: Double, lengthSeconds: Double): String {
+        val r = withIntegrityRetry { gql.publishClip(slug, title, startSeconds, lengthSeconds, it) }.obj("publishClip")
+        r?.obj("error")?.str("__typename")?.let { throw AppException(AppException.Kind.UNKNOWN, clipError(it)) }
+        return r?.obj("clip")?.str("slug") ?: slug
+    }
+
+    private fun clipError(type: String) = when {
+        "Forbidden" in type || "Unauthorized" in type -> "Clips are off for this channel"
+        "Length" in type || "Duration" in type -> "Clips must be 5 to 60 seconds"
+        "Title" in type -> "That title isn't allowed"
+        else -> "Twitch said no (${type.removeSuffix("Error")})"
+    }
+
     private var clipsCache: Pair<Long, List<Clip>>? = null
 
     /** Top clips of the last week from channels you follow, most viewed first. */

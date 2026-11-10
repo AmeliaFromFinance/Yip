@@ -202,6 +202,7 @@ object SettingsSpec {
                 get = { it.player.doubleTapSeekSeconds.toFloat() }, set = { s, v -> s.copy(player = s.player.copy(doubleTapSeekSeconds = v.toInt())) }),
             Row.Toggle("Resume VODs where you left off", get = { it.player.resumeVods }, set = { s, v -> s.copy(player = s.player.copy(resumeVods = v)) }),
             Row.Toggle("Audio only on mobile data", "Starts streams without video when you're not on Wi-Fi", get = { it.player.audioOnlyOnMobile }, set = { s, v -> s.copy(player = s.player.copy(audioOnlyOnMobile = v)) }),
+            Row.Toggle("Auto-play next", "When a VOD or clip ends, play the next Watch later item or the channel's next VOD after a short countdown", get = { it.player.autoPlayNext }, set = { s, v -> s.copy(player = s.player.copy(autoPlayNext = v)) }),
             Row.Toggle("Skip muted parts", "Jumps past parts of VODs Twitch muted for music. They show in amber on the seek bar.", get = { it.player.skipMutedParts }, set = { s, v -> s.copy(player = s.player.copy(skipMutedParts = v)) }),
             Row.Toggle("Auto catch-up", "Jumps back to live if the stream falls well behind", get = { it.player.autoCatchUp }, set = { s, v -> s.copy(player = s.player.copy(autoCatchUp = v)) }),
             Row.Header("Landscape"),

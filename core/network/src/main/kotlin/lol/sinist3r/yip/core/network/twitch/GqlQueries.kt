@@ -206,4 +206,16 @@ internal object GqlQueries {
           user(login: ${'$'}login) { displayName profileImageURL(width: 150) description stream { viewersCount game { displayName } } }
         }
     """.trimIndent()
+
+    val CREATE_CLIP = """
+        mutation CreateClip(${'$'}input: CreateClipInput!) { createClip(input: ${'$'}input) { clip { slug } error { __typename } } }
+    """.trimIndent()
+
+    val CLIP_DRAFT = """
+        query ClipDraft(${'$'}slug: ID!) { clip(slug: ${'$'}slug) { slug title isPublished rawMedia { videoURL duration defaultClipInitialOffset } } }
+    """.trimIndent()
+
+    val PUBLISH_CLIP = """
+        mutation PublishClip(${'$'}input: PublishClipInput!) { publishClip(input: ${'$'}input) { clip { slug title } error { __typename } } }
+    """.trimIndent()
 }

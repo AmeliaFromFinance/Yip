@@ -335,6 +335,27 @@ class GqlApi @Inject constructor(
         put("first", perChannel)
     })
 
+    /** Starts a clip draft. Live: [offsetSeconds] into the broadcast. VOD: into [videoId]. */
+    suspend fun createClip(broadcasterId: String, offsetSeconds: Double, videoId: String?, integrity: Boolean = false): JsonObject =
+        queryAuthed(GqlQueries.CREATE_CLIP, buildJsonObject {
+            putJsonObject("input") {
+                put("broadcasterID", broadcasterId)
+                put("offsetSeconds", offsetSeconds)
+                if (videoId != null) put("videoID", videoId)
+            }
+        }, integrity)
+
+    suspend fun clipDraft(slug: String): JsonObject = queryAuthed(GqlQueries.CLIP_DRAFT, buildJsonObject { put("slug", slug) })
+
+    suspend fun publishClip(slug: String, title: String, offsetSeconds: Double, durationSeconds: Double, integrity: Boolean = false): JsonObject =
+        queryAuthed(GqlQueries.PUBLISH_CLIP, buildJsonObject {
+            putJsonObject("input") {
+                put("slug", slug)
+                put("title", title)
+                put("segments", JsonArray(listOf(buildJsonObject { put("offsetSeconds", offsetSeconds); put("durationSeconds", durationSeconds); put("speed", 1.0) })))
+            }
+        }, integrity)
+
     suspend fun clipPreview(slug: String) = query(GqlQueries.CLIP_PREVIEW, buildJsonObject { put("slug", slug) })
     suspend fun videoPreview(id: String) = query(GqlQueries.VIDEO_PREVIEW, buildJsonObject { put("id", id) })
     suspend fun userPreview(login: String) = query(GqlQueries.USER_PREVIEW, buildJsonObject { put("login", login) })

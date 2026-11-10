@@ -86,6 +86,8 @@ data class PlaybackUiState(
     val muted: Boolean = false,
     /** Player volume, 0..1, separate from the device volume. */
     val volume: Float = 1f,
+    /** A VOD or clip played to the end. */
+    val ended: Boolean = false,
 )
 
 /**
@@ -158,7 +160,8 @@ class PlaybackController @Inject constructor(
             remember { m -> if (volume == 0f) m.copy(muted = true) else m.copy(volume = volume, muted = false) }
         }
         override fun onPlaybackStateChanged(playbackState: Int) {
-            _state.update { it.copy(loading = playbackState == Player.STATE_BUFFERING) }
+            _state.update { it.copy(loading = playbackState == Player.STATE_BUFFERING, ended = playbackState == Player.STATE_ENDED) }
+            if (playbackState == Player.STATE_ENDED) recordProgress()
             if (playbackState == Player.STATE_ENDED && _state.value.sleepAtEnd) stop()
         }
         override fun onPlayerError(error: PlaybackException) {
@@ -432,11 +435,12 @@ class PlaybackController @Inject constructor(
         val src = _state.value.source ?: return
         val p = _player ?: return
         val pos = p.currentPosition / 1000
+        val length = p.duration.takeIf { it != androidx.media3.common.C.TIME_UNSET && it > 0 }?.div(1000) ?: 0L
         scope.launch {
             when (src) {
                 is PlaybackSource.Live -> history.record(HistoryKind.LIVE, src.channelId, src.channelId, src.channelLogin, src.channelName, src.title, src.thumbnailUrl, 0, 0)
-                is PlaybackSource.Vod -> history.record(HistoryKind.VOD, src.videoId, src.channelId, src.channelLogin, src.channelName, src.title, src.thumbnailUrl, pos, src.durationSeconds)
-                is PlaybackSource.ClipSrc -> Unit
+                is PlaybackSource.Vod -> history.record(HistoryKind.VOD, src.videoId, src.channelId, src.channelLogin, src.channelName, src.title, src.thumbnailUrl, pos, src.durationSeconds.takeIf { it > 0 } ?: length)
+                is PlaybackSource.ClipSrc -> history.record(HistoryKind.CLIP, src.slug, src.channelId, src.channelLogin, src.channelName, src.title, src.thumbnailUrl, pos, length)
             }
         }
     }

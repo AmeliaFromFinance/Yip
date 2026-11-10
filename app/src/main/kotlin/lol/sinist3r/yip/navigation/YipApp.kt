@@ -188,6 +188,8 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun back() { nav.popBackStack() }
             override fun openHistory(entry: HistoryEntry) = browseNav.openHistory(entry)
             override fun openDownload(kind: String, contentId: String) = nav.navigate(WatchRoute(kind, contentId))
+            override fun openWatchLater(item: lol.sinist3r.yip.core.data.history.WatchLaterItem) =
+                nav.navigate(if (item.kind == "CLIP") WatchRoute("CLIP", item.id, item.vodOffset ?: -1, null, item.title, item.vodId) else WatchRoute("VOD", item.id))
         }
     }
     val inboxNav = remember {
@@ -209,6 +211,10 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun openLive(login: String) {
                 nav.popBackStack()
                 nav.navigate(WatchRoute("LIVE", login))
+            }
+            override fun openNext(kind: String, id: String, title: String?, vodId: String?, vodOffset: Int?) {
+                nav.popBackStack()
+                nav.navigate(if (kind == "CLIP") WatchRoute("CLIP", id, vodOffset ?: -1, null, title, vodId) else WatchRoute("VOD", id, 0))
             }
             override fun openMultiView(logins: List<String>) {
                 nav.popBackStack()

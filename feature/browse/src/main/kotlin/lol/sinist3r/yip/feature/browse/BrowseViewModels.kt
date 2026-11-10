@@ -356,8 +356,16 @@ class ChannelViewModel @Inject constructor(
     private val twitch: TwitchRepository,
     settingsRepo: SettingsRepository,
     private val accounts: lol.sinist3r.yip.core.data.account.AccountRepository,
+    history: HistoryRepository,
+    private val watchLater: lol.sinist3r.yip.core.data.history.WatchLaterRepository,
 ) : ViewModel() {
     private val login: String = checkNotNull(savedState["login"])
+
+    /** History by "VOD:id" / "CLIP:slug", for progress and the watched look. */
+    val watched = history.all.map { l -> l.associateBy { it.key } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    val later = watchLater.items.map { l -> l.mapTo(HashSet()) { it.key } }.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+    fun toggleLater(v: lol.sinist3r.yip.core.model.Video) = watchLater.toggle(lol.sinist3r.yip.core.data.history.WatchLaterItem.of(v))
+    fun toggleLater(c: lol.sinist3r.yip.core.model.Clip) = watchLater.toggle(lol.sinist3r.yip.core.data.history.WatchLaterItem.of(c))
     val settings = settingsRepo.settings
 
     /** Flips the button now; checks with Twitch shortly after and corrects it if the change didn't stick. */

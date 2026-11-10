@@ -25,7 +25,11 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Android Auto: favourites and followed channels that are live, played audio-only, with voice search
 - Bedtime mode: black theme, dimmer player and an automatic sleep timer at set hours
 - Clip the last 30 seconds and share the link
-- Share any clip from the player or clip lists
+- Share streams, VODs (at the current time) and clips
+- Clip editor: trim up to 60 seconds and set the title before publishing; clip VODs too
+- Speed button on VODs and clips (down to 0.25x on clips)
+- Watch later queue in Library; auto-play next (queue, then the channel's next VOD)
+- Watched videos and clips are dimmed and marked
 - Notification controls: play, pause and mute without opening the app
 - Swipe for brightness and volume, double-tap to seek, pinch to fill
 - Theatre-style landscape chat: collapsible panel beside or over the video, with a chat box

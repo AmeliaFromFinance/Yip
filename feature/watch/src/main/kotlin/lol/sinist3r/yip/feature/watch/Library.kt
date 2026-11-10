@@ -1,5 +1,6 @@
 package lol.sinist3r.yip.feature.watch
 
+import lol.sinist3r.yip.core.common.secondsClock
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -66,6 +67,7 @@ interface LibraryNavigator {
     fun back()
     fun openHistory(entry: HistoryEntry)
     fun openDownload(kind: String, contentId: String)
+    fun openWatchLater(item: lol.sinist3r.yip.core.data.history.WatchLaterItem) = openDownload(item.kind, item.id)
 }
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -73,7 +75,11 @@ interface LibraryNavigator {
 class LibraryViewModel @Inject constructor(
     private val history: HistoryRepository,
     private val downloads: Downloads,
+    private val watchLater: lol.sinist3r.yip.core.data.history.WatchLaterRepository,
 ) : ViewModel() {
+    val later = watchLater.items
+    fun removeLater(i: lol.sinist3r.yip.core.data.history.WatchLaterItem) = watchLater.remove(i.kind, i.id)
+    fun clearLater() = watchLater.clear()
     val entries = history.all.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val downloadItems = downloads.items
     fun remove(key: String) = viewModelScope.launch { history.remove(key) }
@@ -86,6 +92,7 @@ class LibraryViewModel @Inject constructor(
 fun LibraryScreen(nav: LibraryNavigator, startTab: Int = 0, viewModel: LibraryViewModel = hiltViewModel()) {
     val entries by viewModel.entries.collectAsStateWithLifecycle()
     val items by viewModel.downloadItems.collectAsStateWithLifecycle()
+    val later by viewModel.later.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(startTab) }
     var confirmClear by remember { mutableStateOf(false) }
     Scaffold(
@@ -94,10 +101,15 @@ fun LibraryScreen(nav: LibraryNavigator, startTab: Int = 0, viewModel: LibraryVi
                 TopAppBar(
                     title = { Text("Library") },
                     navigationIcon = { IconButton(onClick = nav::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-                    actions = { if (tab == 0 && entries.isNotEmpty()) TextButton(onClick = { confirmClear = true }) { Text("Clear") } },
+                    actions = {
+                        if (tab == 0 && entries.isNotEmpty()) TextButton(onClick = { confirmClear = true }) { Text("Clear") }
+                        if (tab == 2 && later.isNotEmpty()) TextButton(onClick = viewModel::clearLater) { Text("Clear") }
+                    },
                 )
-                PrimaryTabRow(selectedTabIndex = tab) {
+                // Tab 2 (Watch later) sits in the middle; indices stay stable for links into Downloads.
+                PrimaryTabRow(selectedTabIndex = when (tab) { 2 -> 1; 1 -> 2; else -> 0 }) {
                     Tab(tab == 0, { tab = 0 }, text = { Text("History") })
+                    Tab(tab == 2, { tab = 2 }, text = { Text("Watch later") })
                     Tab(tab == 1, { tab = 1 }, text = { Text("Downloads") })
                 }
             }
@@ -109,9 +121,19 @@ fun LibraryScreen(nav: LibraryNavigator, startTab: Int = 0, viewModel: LibraryVi
                 tab == 0 -> LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
                     items(entries, key = { it.key }) { e ->
                         MediaRow(
-                            e.thumbnailUrl, e.title.ifBlank { e.channelName }, "${e.channelName} · ${e.kind.name.lowercase().replaceFirstChar(Char::uppercase)} · ${ago(e.updatedAt)}",
+                            e.thumbnailUrl, e.title.ifBlank { e.channelName }, "${e.channelName} · ${e.kind.name.lowercase().replaceFirstChar(Char::uppercase)} · ${if (e.finished) "Watched · " else ""}${ago(e.updatedAt)}",
                             progress = e.progress.takeIf { e.durationSeconds > 0 }, onClick = { nav.openHistory(e) },
                         ) { IconButton(onClick = { viewModel.remove(e.key) }) { Icon(Icons.Outlined.Delete, "Remove from history") } }
+                    }
+                }
+                tab == 2 && later.isEmpty() -> LibraryEmpty("Nothing saved. Tap the bookmark in the player, or long-press a video or clip.")
+                tab == 2 -> LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+                    items(later, key = { it.key }) { i ->
+                        MediaRow(
+                            i.thumbnailUrl, i.title.ifBlank { i.channelName },
+                            listOfNotNull(i.channelName.ifBlank { null }, if (i.kind == "CLIP") "Clip" else "VOD", i.durationSeconds.takeIf { it > 0 }?.secondsClock()).joinToString(" · "),
+                            progress = null, onClick = { nav.openWatchLater(i) },
+                        ) { IconButton(onClick = { viewModel.removeLater(i) }) { Icon(Icons.Outlined.Delete, "Remove from Watch later") } }
                     }
                 }
                 items.isEmpty() -> LibraryEmpty("No downloads. Open a video or clip and tap the download button.")

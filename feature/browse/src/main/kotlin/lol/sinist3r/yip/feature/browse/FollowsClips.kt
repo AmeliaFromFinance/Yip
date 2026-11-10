@@ -27,7 +27,10 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import lol.sinist3r.yip.core.common.attempt
@@ -42,7 +45,15 @@ import lol.sinist3r.yip.core.model.Clip
 data class FollowsClipsState(val loading: Boolean = true, val clips: List<Clip> = emptyList(), val error: String? = null)
 
 @HiltViewModel
-class FollowsClipsViewModel @Inject constructor(private val twitch: TwitchRepository, settingsRepo: SettingsRepository) : ViewModel() {
+class FollowsClipsViewModel @Inject constructor(
+    private val twitch: TwitchRepository,
+    settingsRepo: SettingsRepository,
+    history: lol.sinist3r.yip.core.data.history.HistoryRepository,
+    private val watchLater: lol.sinist3r.yip.core.data.history.WatchLaterRepository,
+) : ViewModel() {
+    val watched = history.all.map { l -> l.filter { it.finished }.mapTo(HashSet()) { it.key } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+    val later = watchLater.items.map { l -> l.mapTo(HashSet()) { it.key } }.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+    fun toggleLater(c: Clip) = watchLater.toggle(lol.sinist3r.yip.core.data.history.WatchLaterItem.of(c))
     val settings = settingsRepo.settings
     private val _state = MutableStateFlow(FollowsClipsState())
     val state = _state.asStateFlow()
@@ -63,6 +74,8 @@ class FollowsClipsViewModel @Inject constructor(private val twitch: TwitchReposi
 fun FollowsClipsScreen(onBack: () -> Unit, onOpenClip: (Clip) -> Unit, viewModel: FollowsClipsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val watched by viewModel.watched.collectAsStateWithLifecycle()
+    val later by viewModel.later.collectAsStateWithLifecycle()
     Scaffold(topBar = {
         TopAppBar(
             title = { Text("Top clips this week") },
@@ -82,7 +95,9 @@ fun FollowsClipsScreen(onBack: () -> Unit, onOpenClip: (Clip) -> Unit, viewModel
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(state.clips, key = { it.id }) { c -> ClipCard(c, onClick = { onOpenClip(c) }, showChannel = true) }
+                        items(state.clips, key = { it.id }) { c ->
+                            ClipCard(c, onClick = { onOpenClip(c) }, showChannel = true, watched = "CLIP:${c.id}" in watched, inWatchLater = "CLIP:${c.id}" in later, onWatchLater = { viewModel.toggleLater(c) })
+                        }
                     }
                 }
             }
