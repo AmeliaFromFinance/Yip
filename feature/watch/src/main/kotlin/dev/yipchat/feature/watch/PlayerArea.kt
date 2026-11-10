@@ -1,0 +1,403 @@
+package dev.yipchat.feature.watch
+
+import android.media.AudioManager
+import android.view.accessibility.AccessibilityManager
+import androidx.annotation.OptIn
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.VolumeOff
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkAdd
+import androidx.compose.material.icons.outlined.ContentCut
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Forum
+import androidx.compose.material.icons.outlined.Fullscreen
+import androidx.compose.material.icons.outlined.FullscreenExit
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PictureInPictureAlt
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.SpeakerNotesOff
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.media3.common.C
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.compose.PlayerSurface
+import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
+import androidx.media3.ui.compose.modifiers.resizeWithContentScale
+import androidx.media3.ui.compose.state.rememberPresentationState
+import dev.yipchat.core.common.secondsClock
+import dev.yipchat.core.designsystem.component.LivePill
+import dev.yipchat.core.designsystem.component.Pill
+import dev.yipchat.core.model.PlayerSettings
+import dev.yipchat.core.model.VideoChapter
+import dev.yipchat.core.model.VideoExtras
+import dev.yipchat.core.playback.PlaybackStats
+import dev.yipchat.core.playback.PlaybackUiState
+import kotlin.math.abs
+import kotlinx.coroutines.delay
+
+/** Activity-level hooks the watch screen needs. Provided by the app. */
+interface WatchHost {
+    fun enterPip()
+    fun setFullscreen(on: Boolean)
+    fun isFullscreen(): Boolean
+    /** True only when the user turned fullscreen on, ignoring orientation. */
+    fun isFullscreenRequested(): Boolean = isFullscreen()
+    fun setBrightness(value: Float)
+    fun currentBrightness(): Float
+    fun setWatching(active: Boolean, autoPip: Boolean, keepScreenOn: Boolean)
+    fun openSignIn()
+}
+
+val LocalWatchHost = staticCompositionLocalOf<WatchHost?> { null }
+
+@OptIn(UnstableApi::class)
+@Composable
+fun PlayerArea(
+    player: Player,
+    state: PlaybackUiState,
+    settings: PlayerSettings,
+    title: String,
+    subtitle: String,
+    isLive: Boolean,
+    durationSeconds: Long,
+    chapters: List<VideoChapter>,
+    inPip: Boolean,
+    showAdBanner: Boolean,
+    onBack: () -> Unit,
+    onQuality: () -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    stats: PlaybackStats? = null,
+    onToggleMute: () -> Unit = { player.volume = if (player.volume == 0f) 1f else 0f },
+    onMultiView: (() -> Unit)? = null,
+    onClip: (() -> Unit)? = null,
+    onDownload: (() -> Unit)? = null,
+    onCatchUp: (() -> Unit)? = null,
+    /** Landscape chat toggle; null hides the button. */
+    onToggleChat: (() -> Unit)? = null,
+    chatOpen: Boolean = false,
+    /** Keeps the controls clear of a chat panel drawn over the right side. */
+    controlsEndInset: Dp = 0.dp,
+    extras: VideoExtras = VideoExtras(),
+    onShare: (() -> Unit)? = null,
+    /** Speeds for the quick speed menu; empty hides it. */
+    speeds: List<Float> = emptyList(),
+    onSpeed: (Float) -> Unit = {},
+    /** Null hides the Watch later button. */
+    inWatchLater: Boolean? = null,
+    onWatchLater: () -> Unit = {},
+    /** Live only: jump back [Int] seconds into the VOD being recorded; null means from the start. */
+    onRewind: ((Int?) -> Unit)? = null,
+    /** VOD of a stream that's still live: jump to the live stream. */
+    onGoLive: (() -> Unit)? = null,
+) {
+    val host = LocalWatchHost.current
+    val context = LocalContext.current
+    val audio = remember { context.getSystemService(AudioManager::class.java) }
+    var controls by remember { mutableStateOf(true) }
+    var zoomed by remember { mutableStateOf(false) }
+    var gestureHint by remember { mutableStateOf<String?>(null) }
+    var position by remember { mutableLongStateOf(0L) }
+    val presentation = rememberPresentationState(player)
+
+    // With TalkBack on, controls stay up so they can be found by touch.
+    val talkBack = remember { context.getSystemService(AccessibilityManager::class.java)?.isTouchExplorationEnabled == true }
+    var scrubbing by remember { mutableStateOf(false) }
+    // Open menus keep the controls up; otherwise the menu vanishes with them.
+    var rewindMenu by remember { mutableStateOf(false) }
+    var speedMenu by remember { mutableStateOf(false) }
+    // Clips and downloads don't come with a length; ask the player once it knows.
+    var playerDurationS by remember { mutableLongStateOf(0L) }
+    val length = if (durationSeconds > 0) durationSeconds else playerDurationS
+    LaunchedEffect(controls, state.playing, scrubbing, rewindMenu, speedMenu) {
+        if (controls && state.playing && !talkBack && !scrubbing && !rewindMenu && !speedMenu) {
+            delay(3500)
+            controls = false
+        }
+    }
+    LaunchedEffect(gestureHint) { if (gestureHint != null) { delay(900); gestureHint = null } }
+    // Only tick the seek bar while it's on screen.
+    LaunchedEffect(controls, isLive) {
+        if (!controls || isLive) return@LaunchedEffect
+        while (true) {
+            position = player.currentPosition
+            player.duration.takeIf { it != C.TIME_UNSET && it > 0 }?.let { playerDurationS = it / 1000 }
+            delay(500)
+        }
+    }
+
+    Box(
+        modifier.background(Color.Black)
+            .pointerInput(isLive, settings.doubleTapSeekSeconds) {
+                detectTapGestures(
+                    onTap = { controls = !controls },
+                    onDoubleTap = { o ->
+                        if (!isLive) {
+                            val forward = o.x > size.width / 2
+                            if (forward) player.seekForward() else player.seekBack()
+                            gestureHint = if (forward) "+${settings.doubleTapSeekSeconds}s" else "-${settings.doubleTapSeekSeconds}s"
+                        } else {
+                            zoomed = !zoomed
+                        }
+                    },
+                )
+            }
+            .pointerInput(settings.swipeBrightness, settings.swipeVolume) {
+                var acc = 0f
+                detectVerticalDragGestures(onDragStart = { acc = 0f }) { change, drag ->
+                    val left = change.position.x < size.width / 2
+                    acc -= drag / size.height
+                    if (left && settings.swipeBrightness && host != null) {
+                        val b = (host.currentBrightness() + acc).coerceIn(0.02f, 1f)
+                        host.setBrightness(b)
+                        gestureHint = "Brightness ${(b * 100).toInt()}%"
+                        acc = 0f
+                    } else if (!left && settings.swipeVolume && audio != null) {
+                        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                        if (abs(acc) > 1f / max) {
+                            val step = if (acc > 0) 1 else -1
+                            val v = (audio.getStreamVolume(AudioManager.STREAM_MUSIC) + step).coerceIn(0, max)
+                            audio.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0)
+                            gestureHint = "Volume ${v * 100 / max}%"
+                            acc = 0f
+                        }
+                    }
+                }
+            }
+            .pointerInput(settings.pinchToZoom) {
+                // Two fingers only, so one-finger swipes still reach brightness and volume.
+                if (settings.pinchToZoom) awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    var start = 0f
+                    do {
+                        val event = awaitPointerEvent()
+                        val pressed = event.changes.filter { it.pressed }
+                        if (pressed.size >= 2) {
+                            val span = (pressed[0].position - pressed[1].position).getDistance()
+                            if (start == 0f) start = span
+                            else if (span > start * 1.15f) zoomed = true
+                            else if (span < start * 0.87f) zoomed = false
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            },
+    ) {
+        PlayerSurface(
+            player = player,
+            surfaceType = SURFACE_TYPE_SURFACE_VIEW,
+            modifier = Modifier.align(Alignment.Center).resizeWithContentScale(
+                if (zoomed) ContentScale.Crop else ContentScale.Fit,
+                presentation.videoSizeDp,
+            ),
+        )
+        if (settings.showStatsOverlay && !inPip && stats != null) {
+            StatsOverlay(player, stats, state, isLive, Modifier.align(Alignment.TopStart).padding(top = 44.dp, start = 8.dp))
+        }
+        if (presentation.coverSurface) Box(Modifier.fillMaxSize().background(Color.Black))
+
+        if (state.audioOnly && !inPip) {
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Outlined.Headphones, null, tint = Color.White, modifier = Modifier.size(48.dp))
+                Text("Audio only", color = Color.White)
+            }
+        }
+        if (state.loading && state.error == null) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color.White)
+
+        state.error?.let { err ->
+            Column(Modifier.align(Alignment.Center).padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(err, color = Color.White)
+                FilledTonalButton(onClick = onRetry) { Text("Retry") }
+            }
+        }
+
+        if (state.adBreak && showAdBanner) {
+            Pill(
+                if (state.viaProxy) "Ad break (proxy)" else "Ad break · stream resumes after",
+                Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
+            )
+        }
+
+        gestureHint?.let { Pill(it, Modifier.align(Alignment.Center)) }
+
+        if (inPip) return@Box
+
+        AnimatedVisibility(controls, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize().padding(end = controlsEndInset)) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f))) {
+                Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White) }
+                    Column(Modifier.weight(1f)) {
+                        Text(title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 14.sp)
+                        Text(subtitle, color = Color.White.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 12.sp)
+                    }
+                    onDownload?.let { IconButton(onClick = it) { Icon(Icons.Outlined.Download, "Download", tint = Color.White) } }
+                    onClip?.let { IconButton(onClick = it) { Icon(Icons.Outlined.ContentCut, "Clip", tint = Color.White) } }
+                    onGoLive?.let {
+                        TextButton(onClick = it) { Text("● Go live", color = Color(0xFFFF5252), fontSize = 13.sp) }
+                    }
+                    onRewind?.let { rw ->
+                        Box {
+                            IconButton(onClick = { rewindMenu = true }) { Icon(Icons.Outlined.History, "Rewind", tint = Color.White) }
+                            DropdownMenu(rewindMenu, onDismissRequest = { rewindMenu = false }) {
+                                listOf(30 to "Back 30 seconds", 60 to "Back 1 minute", 300 to "Back 5 minutes", 900 to "Back 15 minutes", 1800 to "Back 30 minutes").forEach { (s, label) ->
+                                    DropdownMenuItem(text = { Text(label) }, onClick = { rewindMenu = false; rw(s) })
+                                }
+                                DropdownMenuItem(text = { Text("From the start") }, onClick = { rewindMenu = false; rw(null) })
+                            }
+                        }
+                    }
+                    onShare?.let { IconButton(onClick = it) { Icon(Icons.Outlined.Share, "Share", tint = Color.White) } }
+                    inWatchLater?.let { saved ->
+                        IconButton(onClick = onWatchLater) {
+                            Icon(if (saved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkAdd, if (saved) "Remove from Watch later" else "Watch later", tint = Color.White)
+                        }
+                    }
+                    onMultiView?.let { IconButton(onClick = it) { Icon(Icons.Outlined.GridView, "Watch with another stream", tint = Color.White) } }
+                    onToggleChat?.let { IconButton(onClick = it) { Icon(if (chatOpen) Icons.Outlined.SpeakerNotesOff else Icons.Outlined.Forum, if (chatOpen) "Hide chat" else "Show chat", tint = Color.White) } }
+                    IconButton(onClick = { host?.enterPip() }) { Icon(Icons.Outlined.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
+                    IconButton(onClick = onQuality) { Icon(Icons.Outlined.Settings, "Quality and options", tint = Color.White) }
+                }
+                IconButton(
+                    onClick = { if (player.isPlaying) player.pause() else player.play() },
+                    modifier = Modifier.align(Alignment.Center).size(64.dp).background(Color.Black.copy(alpha = 0.45f), CircleShape),
+                ) {
+                    Icon(if (state.playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow, if (state.playing) "Pause" else "Play", tint = Color.White, modifier = Modifier.size(36.dp))
+                }
+                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 8.dp)) {
+                    if (!isLive && length > 0) {
+                        VodSeekBar(position, length, extras, onSeek = { player.seekTo(it) }, onScrub = { scrubbing = it })
+                        val chapter = chapters.lastOrNull { it.startSeconds <= position / 1000 }
+                        chapter?.let { Text(it.title.ifBlank { it.gameName.orEmpty() }, color = Color.White, fontSize = 11.sp) }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isLive) {
+                            LivePill()
+                            onCatchUp?.let { IconButton(onClick = it) { Icon(Icons.Outlined.Refresh, "Jump to live", tint = Color.White) } }
+                        } else Text("${(position / 1000).secondsClock()} / ${length.secondsClock()}", color = Color.White, fontSize = 12.sp)
+                        Spacer(Modifier.width(8.dp))
+                        if (isLive && settings.showLatency) state.liveLatencyMs?.let { Pill("%.1fs".format(it / 1000f)) }
+                        Spacer(Modifier.width(6.dp))
+                        if (state.selected != null) Pill(state.selected!!.label) else if (state.qualities.isNotEmpty()) Pill("Auto")
+                        Spacer(Modifier.weight(1f))
+                        if (speeds.isNotEmpty()) Box {
+                            TextButton(onClick = { speedMenu = true }) {
+                                Text(speedLabel(state.speed), color = Color.White, fontSize = 13.sp)
+                            }
+                            DropdownMenu(speedMenu, onDismissRequest = { speedMenu = false }) {
+                                speeds.forEach { sp ->
+                                    DropdownMenuItem(
+                                        text = { Text(speedLabel(sp) + if (sp == state.speed) "  ✓" else "") },
+                                        onClick = { onSpeed(sp); speedMenu = false },
+                                    )
+                                }
+                            }
+                        }
+                        val muted = state.muted
+                        IconButton(onClick = onToggleMute) {
+                            Icon(if (muted) Icons.AutoMirrored.Outlined.VolumeOff else Icons.AutoMirrored.Outlined.VolumeUp, if (muted) "Unmute" else "Mute", tint = Color.White)
+                        }
+                        // Tablets show side-by-side in landscape, so only an explicit request counts there.
+                        val full = if (isTablet(LocalConfiguration.current)) host?.isFullscreenRequested() == true else host?.isFullscreen() == true
+                        IconButton(onClick = { host?.setFullscreen(!full) }) {
+                            Icon(if (full) Icons.Outlined.FullscreenExit else Icons.Outlined.Fullscreen, if (full) "Exit fullscreen" else "Fullscreen", tint = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Small always-on panel for checking stream health. Updates once a second. */
+@androidx.annotation.OptIn(UnstableApi::class)
+@Composable
+private fun StatsOverlay(player: Player, stats: PlaybackStats, state: PlaybackUiState, isLive: Boolean, modifier: Modifier) {
+    val lines by produceState(emptyList<Pair<String, String>>(), player, stats, isLive) {
+        while (true) {
+            val exo = player as? ExoPlayer
+            val f = exo?.videoFormat
+            value = buildList {
+                if (isLive) state.liveLatencyMs?.let { add("Delay" to "%.1fs".format(it / 1000f)) }
+                f?.let { add("Video" to "${it.width}×${it.height}" + (if (it.frameRate > 0) " @${it.frameRate.toInt()}" else "") + (it.codecs?.substringBefore('.')?.let { c -> " · $c" } ?: "")) }
+                val bitrate = stats.variantBps.takeIf { it > 0 } ?: f?.bitrate?.toLong()?.takeIf { it > 0 } ?: state.selected?.bandwidth
+                bitrate?.let { add("Bitrate" to mbps(it)) }
+                stats.networkBps.takeIf { it > 0 }?.let { add("Network" to mbps(it)) }
+                add("Buffer" to "%.1fs".format(player.totalBufferedDuration / 1000f))
+                add("Dropped" to "${stats.droppedFrames} frames")
+            }
+            delay(1000)
+        }
+    }
+    if (lines.isEmpty()) return
+    Column(
+        modifier.background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        lines.forEach { (k, v) ->
+            Row {
+                Text(k, color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp, modifier = Modifier.width(56.dp))
+                Text(v, color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+    }
+}
+
+private fun mbps(bps: Long) = "%.1f Mbps".format(bps / 1_000_000.0)
+
+internal fun speedLabel(s: Float): String = (if (s % 1f == 0f) s.toInt().toString() else s.toString().trimEnd('0')) + "x"

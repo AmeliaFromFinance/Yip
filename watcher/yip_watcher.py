@@ -290,8 +290,6 @@ def _run_locked(args) -> int:
         "hashes": dict(sorted(hashes.items())),
         "queries": dict(sorted(queries.items())),
         "userAgent": None,
-        "killSwitches": previous.get("killSwitches", []),
-        "minAppVersion": previous.get("minAppVersion", 0),
         "message": args.message if args.message is not None else previous.get("message"),
     }
 
@@ -343,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
 
     r = sub.add_parser("run", help="discover, validate, sign, publish")
     r.add_argument("--key", default=str(here / "keys" / "config_ed25519.pem"))
-    r.add_argument("--out", default=os.environ.get("YIP_CONFIG_OUT", "/var/www/config.sinist3r.lol/yip/playback.json"))
+    r.add_argument("--out", default=os.environ.get("YIP_CONFIG_OUT", "/var/www/config.yipchat.dev/yip/playback.json"))
     r.add_argument("--state", default=str(here / "state" / "last.json"))
     r.add_argument("--timeout", type=int, default=25, help="page load timeout, seconds")
     r.add_argument("--refresh-hours", type=float, default=24, help="re-sign even without changes after this long")

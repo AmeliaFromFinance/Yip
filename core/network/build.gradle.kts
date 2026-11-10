@@ -16,7 +16,7 @@ android {
         val configKey = props.getProperty("yip.configPublicKey") ?: System.getenv("YIP_CONFIG_PUBLIC_KEY") ?: ""
         buildConfigField("String", "TWITCH_CLIENT_ID", "\"$clientId\"")
         buildConfigField("String", "CONFIG_PUBLIC_KEY", "\"$configKey\"")
-        buildConfigField("String", "AUTH_REDIRECT_URI", "\"https://yip.sinist3r.lol/auth\"")
+        buildConfigField("String", "AUTH_REDIRECT_URI", "\"https://yipchat.dev/auth\"")
         // owner/repo that publishes release APKs. CI fills it from the repository it runs in.
         val updateRepo = props.getProperty("yip.updateRepo") ?: System.getenv("YIP_UPDATE_REPO") ?: ""
         require(updateRepo.isEmpty() || Regex("^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$").matches(updateRepo)) { "yip.updateRepo must look like owner/repo" }

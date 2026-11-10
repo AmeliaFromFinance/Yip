@@ -1,0 +1,53 @@
+package dev.yipchat.core.network.twitch
+
+import dev.yipchat.core.model.ChannelEvents
+import dev.yipchat.core.model.ChannelPoll
+import dev.yipchat.core.model.HypeTrain
+import dev.yipchat.core.model.PollChoice
+import dev.yipchat.core.model.Prediction
+import dev.yipchat.core.model.PredictionOutcome
+import dev.yipchat.core.model.PredictionStatus
+import java.time.Instant
+import kotlinx.serialization.json.JsonObject
+
+/** Turns the [GqlQueries.CHANNEL_EVENTS] response into [ChannelEvents]. [now] is injectable for tests. */
+object ChannelEventsParser {
+    fun parse(data: JsonObject, now: Long = System.currentTimeMillis()): ChannelEvents {
+        val user = data.obj("user") ?: return ChannelEvents()
+        return ChannelEvents(poll(user.obj("viewablePoll"), now), prediction(user.path("channel")), hypeTrain(user.path("channel", "hypeTrain", "execution")))
+    }
+
+    private fun poll(o: JsonObject?, now: Long): ChannelPoll? {
+        o ?: return null
+        val status = o.str("status").orEmpty()
+        // Twitch keeps showing a finished poll briefly; drop archived/terminated ones.
+        if (status !in setOf("ACTIVE", "COMPLETED")) return null
+        val choices = o.arr("choices").mapNotNull { it as? JsonObject }.map { PollChoice(it.str("title").orEmpty(), it.obj("votes")?.int("total") ?: 0, it.str("id").orEmpty()) }
+        val remaining = o.long("remainingDurationMilliseconds")
+        val points = o.path("settings", "communityPointsVotes")?.takeIf { it.bool("isEnabled") == true }?.int("cost")
+        return ChannelPoll(o.str("id") ?: return null, o.str("title").orEmpty(), choices, remaining?.takeIf { it > 0 }?.let { now + it }, active = status == "ACTIVE", pointsVoteCost = points)
+    }
+
+    private fun prediction(channel: JsonObject?): Prediction? {
+        val o = channel?.arr("activePredictionEvents")?.firstOrNull() as? JsonObject ?: return null
+        val status = runCatching { PredictionStatus.valueOf(o.str("status").orEmpty()) }.getOrDefault(PredictionStatus.OTHER)
+        val created = o.str("createdAt")?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+        val window = o.long("predictionWindowSeconds")
+        val outcomes = o.arr("outcomes").mapNotNull { it as? JsonObject }.map {
+            PredictionOutcome(it.str("title").orEmpty(), it.str("color").orEmpty(), it.long("totalPoints") ?: 0, it.int("totalUsers") ?: 0, it.str("id").orEmpty())
+        }
+        val mine = o.path("self", "prediction")
+        return Prediction(
+            o.str("id") ?: return null, o.str("title").orEmpty(), status, if (created != null && window != null) created + window * 1000 else null, outcomes,
+            myOutcomeId = mine?.obj("outcome")?.str("id"), myPoints = mine?.long("points"),
+        )
+    }
+
+    private fun hypeTrain(o: JsonObject?): HypeTrain? {
+        o ?: return null
+        if (o.bool("isActive") == false) return null
+        val p = o.obj("progress") ?: return null
+        val ends = o.str("expiresAt")?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
+        return HypeTrain(o.str("id").orEmpty(), p.obj("level")?.int("value") ?: 1, p.int("progression") ?: p.int("total") ?: 0, p.int("goal") ?: 1, ends)
+    }
+}

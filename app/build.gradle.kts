@@ -13,12 +13,12 @@ val keystoreProps = Properties().apply {
 fun signingValue(key: String, env: String): String? = keystoreProps.getProperty(key) ?: System.getenv(env)
 
 android {
-    namespace = "lol.sinist3r.yip"
+    namespace = "dev.yipchat"
 
     defaultConfig {
-        applicationId = "lol.sinist3r.yip"
+        applicationId = "dev.yipchat"
         versionCode = (project.findProperty("yip.versionCode") as String?)?.toInt() ?: 1
-        versionName = (project.findProperty("yip.versionName") as String?) ?: "0.1.0"
+        versionName = (project.findProperty("yip.versionName") as String?) ?: "1.0.0"
         vectorDrawables.useSupportLibrary = true
     }
 

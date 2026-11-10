@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
-        <receiver android:name="lol.sinist3r.yip.core.data.update.UpdateInstallReceiver" android:exported="false" />
+        <receiver android:name="dev.yipchat.core.data.update.UpdateInstallReceiver" android:exported="false" />
     </application>
 </manifest>

@@ -1,0 +1,400 @@
+package dev.yipchat.core.network.twitch
+
+import dev.yipchat.core.common.AppException
+import dev.yipchat.core.model.ChannelEvents
+import dev.yipchat.core.model.ChannelRewards
+import dev.yipchat.core.model.FollowedCategory
+import dev.yipchat.core.model.RemoteConfig
+import dev.yipchat.core.network.WebTokenProvider
+import dev.yipchat.core.network.config.RemoteConfigSource
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.expectSuccess
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
+import io.ktor.http.isSuccess
+import java.net.URLEncoder
+import java.security.SecureRandom
+import java.time.Instant
+import java.util.UUID
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
+
+/**
+ * Twitch's private GraphQL API, called the way the web player calls it.
+ * Raw queries for browse data; persisted operations (hashes from [RemoteConfigSource]) for the rest.
+ */
+@Singleton
+class GqlApi @Inject constructor(
+    private val http: HttpClient,
+    private val json: Json,
+    private val config: RemoteConfigSource,
+    private val webTokens: WebTokenProvider,
+) {
+    /** Stable per-install device id, as the web player sends. */
+    val deviceId: String by lazy {
+        val chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        val rnd = SecureRandom()
+        (1..32).map { chars[rnd.nextInt(chars.length)] }.joinToString("")
+    }
+
+    suspend fun query(document: String, variables: JsonObject = JsonObject(emptyMap())): JsonObject {
+        val body = buildJsonObject {
+            put("query", document)
+            put("variables", variables)
+        }
+        return send(body, authenticated = false)
+    }
+
+    /** Raw query/mutation as the twitch.tv-connected user. */
+    suspend fun queryAuthed(document: String, variables: JsonObject = JsonObject(emptyMap()), integrity: Boolean = false): JsonObject {
+        val body = buildJsonObject {
+            put("query", document)
+            put("variables", variables)
+        }
+        return send(body, authenticated = true, integrity = integrity)
+    }
+
+    /** [authed] adds your balance; needs the twitch.tv connection. */
+    suspend fun channelRewards(login: String, authed: Boolean): ChannelRewards? {
+        val vars = buildJsonObject { put("login", login.lowercase()) }
+        return RewardsParser.parse(if (authed) queryAuthed(GqlQueries.CHANNEL_REWARDS, vars) else query(GqlQueries.CHANNEL_REWARDS, vars))
+    }
+
+    suspend fun redeemReward(input: JsonObject): JsonObject =
+        queryAuthed(GqlQueries.REDEEM_REWARD, buildJsonObject { put("input", input) }, integrity = true)
+
+    suspend fun persisted(
+        operation: String,
+        variables: JsonObject,
+        authenticated: Boolean = false,
+        integrity: Boolean = false,
+    ): JsonObject {
+        val cfg = config.current()
+        val hash = cfg.hash(operation) ?: throw AppException(AppException.Kind.CONFIG, "No hash for $operation")
+        val body = buildJsonObject {
+            put("operationName", operation)
+            put("variables", variables)
+            putJsonObject("extensions") {
+                putJsonObject("persistedQuery") {
+                    put("version", 1)
+                    put("sha256Hash", hash)
+                }
+            }
+        }
+        return send(body, authenticated, integrity, cfg)
+    }
+
+    private suspend fun send(
+        body: JsonObject,
+        authenticated: Boolean,
+        integrity: Boolean = false,
+        cfg: RemoteConfig? = null,
+    ): JsonObject {
+        val conf = cfg ?: config.current()
+        val webToken = if (authenticated) webTokens.webToken() ?: throw AppException(AppException.Kind.AUTH, "twitch.tv not connected") else null
+        val clientId = if (webToken != null) webTokens.webClientId() ?: conf.clientId else conf.clientId
+        // TV app tokens don't need an integrity token, and fetching one is slow.
+        val needsIntegrity = integrity && clientId != TwitchAuthApi.TV_CLIENT_ID
+        val integrityToken = if (needsIntegrity) runCatching { webTokens.integrityToken() }.getOrNull() else null
+        val res = http.post("https://gql.twitch.tv/gql") {
+            expectSuccess = false
+            header("Client-Id", clientId)
+            header("Device-Id", integrityToken?.deviceId ?: deviceId)
+            conf.userAgent?.let { header(HttpHeaders.UserAgent, it) }
+            webToken?.let { header(HttpHeaders.Authorization, "OAuth $it") }
+            integrityToken?.let { header("Client-Integrity", it.token) }
+            contentType(ContentType.Application.Json)
+            setBody(body.toString())
+        }
+        val text = res.bodyAsText()
+        if (!res.status.isSuccess()) throw AppException(AppException.Kind.NETWORK, "GQL ${res.status.value}: ${text.take(160)}")
+        val root = json.parseToJsonElement(text).jsonObject
+        root["errors"]?.let { errs ->
+            val msg = (errs as? JsonArray)?.firstOrNull()?.jsonObject?.get("message")?.str() ?: errs.toString()
+            val data = root["data"] as? JsonObject
+            // All fields null means the request was refused, not an empty answer.
+            if (data == null || data.values.all { it is JsonNull }) {
+                val kind = when {
+                    "PersistedQueryNotFound" in msg -> AppException.Kind.CONFIG
+                    "integrity" in msg.lowercase() -> AppException.Kind.PLAYBACK_BLOCKED
+                    "unauthorized" in msg.lowercase() -> AppException.Kind.AUTH
+                    else -> AppException.Kind.UNKNOWN
+                }
+                throw AppException(kind, "GQL error: $msg")
+            }
+        }
+        return root["data"]?.let { it as? JsonObject } ?: JsonObject(emptyMap())
+    }
+
+    // region typed helpers
+
+    data class AccessToken(val value: String, val signature: String)
+
+    /** Uses the raw template query (no hash to rotate) and falls back to the persisted op. */
+    private suspend fun playbackToken(login: String, videoId: String, live: Boolean, playerType: String, platform: String): JsonObject {
+        val vars = buildJsonObject {
+            put("isLive", live)
+            put("login", if (live) login.lowercase() else "")
+            put("isVod", !live)
+            put("vodID", if (live) "" else videoId)
+            put("playerType", playerType)
+            put("platform", platform)
+        }
+        val template = config.current().query("PlaybackAccessToken_Template")
+        if (template != null) {
+            val body = buildJsonObject {
+                put("operationName", "PlaybackAccessToken_Template")
+                put("query", template)
+                put("variables", vars)
+            }
+            val result = runCatching { send(body, authenticated = false) }
+            result.getOrNull()?.let { return it }
+        }
+        return persisted("PlaybackAccessToken", vars)
+    }
+
+    suspend fun streamAccessToken(login: String, playerType: String, platform: String = "web"): AccessToken? =
+        playbackToken(login, "", live = true, playerType, platform).obj("streamPlaybackAccessToken")?.toToken()
+
+    suspend fun videoAccessToken(videoId: String, playerType: String): AccessToken? =
+        playbackToken("", videoId, live = false, playerType, "web").obj("videoPlaybackAccessToken")?.toToken()
+
+    data class ClipSource(val quality: String, val frameRate: Int?, val url: String)
+
+    suspend fun clipSources(slug: String): List<ClipSource> {
+        val clip = persisted(
+            "VideoAccessToken_Clip",
+            buildJsonObject {
+                put("slug", slug)
+                put("platform", "web")
+            },
+        ).obj("clip") ?: return emptyList()
+        val token = clip.obj("playbackAccessToken")?.toToken() ?: return emptyList()
+        val sig = URLEncoder.encode(token.signature, "UTF-8")
+        val tok = URLEncoder.encode(token.value, "UTF-8")
+        return clip.arr("videoQualities").mapNotNull { q ->
+            val o = q.jsonObject
+            val url = o.str("sourceURL") ?: return@mapNotNull null
+            ClipSource(o.str("quality") ?: "?", o["frameRate"]?.str()?.toDoubleOrNull()?.toInt(), "$url?sig=$sig&token=$tok")
+        }
+    }
+
+    suspend fun videoComments(videoId: String, offsetSeconds: Int?, cursor: String?): JsonObject =
+        persisted(
+            "VideoCommentsByOffsetOrCursor",
+            buildJsonObject {
+                put("videoID", videoId)
+                if (cursor != null) put("cursor", cursor) else put("contentOffsetSeconds", offsetSeconds ?: 0)
+            },
+        )
+
+    suspend fun channelPointsContext(channelLogin: String): JsonObject =
+        persisted(
+            "ChannelPointsContext",
+            buildJsonObject {
+                put("channelLogin", channelLogin)
+                put("includeGoalTypes", JsonArray(listOf(JsonPrimitive("CREATOR"), JsonPrimitive("BOOST"))))
+            },
+            authenticated = true,
+        )
+
+    suspend fun claimPoints(channelId: String, claimId: String): JsonObject =
+        persisted(
+            "ClaimCommunityPoints",
+            buildJsonObject {
+                putJsonObject("input") {
+                    put("channelID", channelId)
+                    put("claimID", claimId)
+                }
+            },
+            authenticated = true,
+            integrity = true,
+        )
+
+    suspend fun chapters(videoId: String): JsonObject =
+        persisted("VideoPlayer_ChapterSelectButtonVideo", buildJsonObject { put("videoID", videoId); put("includePrivate", false) })
+
+    // Raw browse queries
+    suspend fun topStreams(languages: List<String>, first: Int, after: String?) = query(GqlQueries.TOP_STREAMS, vars(first, after) {
+        if (languages.isNotEmpty()) put("languages", JsonArray(languages.map { JsonPrimitive(it.uppercase()) }))
+    })
+
+    suspend fun gameStreams(gameId: String, languages: List<String>, first: Int, after: String?) = query(GqlQueries.GAME_STREAMS, vars(first, after) {
+        put("id", gameId)
+        if (languages.isNotEmpty()) put("languages", JsonArray(languages.map { JsonPrimitive(it.uppercase()) }))
+    })
+
+    suspend fun topGames(first: Int, after: String?) = query(GqlQueries.TOP_GAMES, vars(first, after))
+    suspend fun searchChannels(q: String, first: Int, after: String?) = query(GqlQueries.SEARCH_CHANNELS, vars(first, after) { put("query", q) })
+    suspend fun searchGames(q: String, first: Int, after: String?) = query(GqlQueries.SEARCH_GAMES, vars(first, after) { put("query", q) })
+    suspend fun usersStream(ids: List<String> = emptyList(), logins: List<String> = emptyList()) = query(
+        GqlQueries.USERS_STREAM,
+        buildJsonObject {
+            if (ids.isNotEmpty()) put("ids", JsonArray(ids.map(::JsonPrimitive)))
+            if (logins.isNotEmpty()) put("logins", JsonArray(logins.map(::JsonPrimitive)))
+        },
+    )
+
+    suspend fun userVideos(login: String, types: List<String>?, first: Int, after: String?) = query(GqlQueries.USER_VIDEOS, vars(first, after) {
+        put("login", login)
+        types?.let { put("types", JsonArray(it.map(::JsonPrimitive))) }
+    })
+
+    suspend fun userClips(login: String, period: String, first: Int, after: String?) = query(GqlQueries.USER_CLIPS, vars(first, after) {
+        put("login", login)
+        put("period", period)
+    })
+
+    suspend fun globalBadges() = query(GqlQueries.GLOBAL_BADGES)
+    /** [authed] adds your own prediction; needs the twitch.tv connection. */
+    suspend fun channelEvents(login: String, authed: Boolean = false): ChannelEvents {
+        val vars = buildJsonObject { put("login", login.lowercase()) }
+        return ChannelEventsParser.parse(if (authed) queryAuthed(GqlQueries.CHANNEL_EVENTS, vars) else query(GqlQueries.CHANNEL_EVENTS, vars))
+    }
+
+    suspend fun followedGames(): List<FollowedCategory> = WebFeaturesParser.followedGames(queryAuthed(GqlQueries.FOLLOWED_GAMES))
+
+    suspend fun setFollowingGame(gameId: String, follow: Boolean) {
+        queryAuthed(if (follow) GqlQueries.FOLLOW_GAME else GqlQueries.UNFOLLOW_GAME, buildJsonObject { put("id", gameId) }, integrity = true)
+    }
+
+    /** When each channel last went live (null if never or unknown). Up to 100 ids; no sign-in needed. */
+    suspend fun lastBroadcasts(ids: List<String>): Map<String, Instant?> {
+        val data = query("query(${'$'}ids: [ID!]) { users(ids: ${'$'}ids) { id lastBroadcast { startedAt } } }", buildJsonObject {
+            put("ids", JsonArray(ids.take(100).map { JsonPrimitive(it) }))
+        })
+        return data.arr("users").mapNotNull { it as? JsonObject }.associate { u ->
+            u.str("id").orEmpty() to u.obj("lastBroadcast")?.str("startedAt")?.let { runCatching { Instant.parse(it) }.getOrNull() }
+        }
+    }
+
+    /** Display name for a user id, without signing in. */
+    suspend fun displayName(userId: String): String? =
+        query("query(${'$'}id: ID!) { user(id: ${'$'}id) { displayName } }", buildJsonObject { put("id", userId) }).obj("user")?.str("displayName")
+
+    suspend fun votePoll(pollId: String, choiceId: String, userId: String, pointsVotes: Int = 0): JsonObject =
+        queryAuthed(GqlQueries.VOTE_POLL, buildJsonObject {
+            putJsonObject("input") {
+                put("pollID", pollId)
+                put("choiceID", choiceId)
+                put("userID", userId)
+                put("voteID", UUID.randomUUID().toString())
+                if (pointsVotes > 0) putJsonObject("tokens") { put("channelPoints", pointsVotes) }
+            }
+        }, integrity = true)
+
+    suspend fun makePrediction(eventId: String, outcomeId: String, points: Int): JsonObject =
+        queryAuthed(GqlQueries.MAKE_PREDICTION, buildJsonObject {
+            putJsonObject("input") {
+                put("eventID", eventId)
+                put("outcomeID", outcomeId)
+                put("points", points)
+                put("transactionID", UUID.randomUUID().toString().replace("-", ""))
+            }
+        }, integrity = true)
+
+    suspend fun channelBadges(channelId: String) = query(GqlQueries.CHANNEL_BADGES, buildJsonObject { put("id", channelId) })
+
+    suspend fun videoInfo(id: String) = query(GqlQueries.VIDEO_INFO, buildJsonObject { put("id", id) })
+
+    suspend fun videoExtras(id: String) = query(GqlQueries.VIDEO_EXTRAS, buildJsonObject { put("id", id) })
+
+    /** Raw GET for small JSON files (storyboard info, oEmbed). */
+    suspend fun getText(url: String): String? = runCatching {
+        val r = http.get(url) { expectSuccess = false }
+        if (r.status.isSuccess()) r.bodyAsText() else null
+    }.getOrNull()
+
+    suspend fun pinnedMessage(login: String) = query(GqlQueries.PINNED_MESSAGE, buildJsonObject { put("login", login) })
+
+    suspend fun pinMessage(channelId: String, messageId: String, durationSeconds: Int?, integrity: Boolean = false): JsonObject =
+        queryAuthed(GqlQueries.PIN_MESSAGE, buildJsonObject {
+            putJsonObject("input") {
+                put("channelID", channelId)
+                put("messageID", messageId)
+                put("type", "MOD")
+                if (durationSeconds != null) put("durationSeconds", durationSeconds)
+            }
+        }, integrity)
+
+    suspend fun unpinMessage(pinId: String, integrity: Boolean = false): JsonObject =
+        queryAuthed(GqlQueries.UNPIN_MESSAGE, buildJsonObject { putJsonObject("input") { put("id", pinId); put("reason", "UNPIN") } }, integrity)
+
+    suspend fun followsClips(ids: List<String>, perChannel: Int) = query(GqlQueries.FOLLOWS_CLIPS, buildJsonObject {
+        put("ids", JsonArray(ids.map(::JsonPrimitive)))
+        put("first", perChannel)
+    })
+
+    /** Starts a clip draft. Live: [offsetSeconds] into the broadcast. VOD: into [videoId]. */
+    suspend fun createClip(broadcasterId: String, offsetSeconds: Double, videoId: String?, integrity: Boolean = false): JsonObject =
+        queryAuthed(GqlQueries.CREATE_CLIP, buildJsonObject {
+            putJsonObject("input") {
+                put("broadcasterID", broadcasterId)
+                put("offsetSeconds", offsetSeconds)
+                if (videoId != null) put("videoID", videoId)
+            }
+        }, integrity)
+
+    suspend fun clipDraft(slug: String): JsonObject = queryAuthed(GqlQueries.CLIP_DRAFT, buildJsonObject { put("slug", slug) })
+
+    suspend fun publishClip(slug: String, title: String, offsetSeconds: Double, durationSeconds: Double, integrity: Boolean = false): JsonObject =
+        queryAuthed(GqlQueries.PUBLISH_CLIP, buildJsonObject {
+            putJsonObject("input") {
+                put("slug", slug)
+                put("title", title)
+                put("segments", JsonArray(listOf(buildJsonObject { put("offsetSeconds", offsetSeconds); put("durationSeconds", durationSeconds); put("speed", 1.0) })))
+            }
+        }, integrity)
+
+    suspend fun updateClipTitle(slug: String, title: String, integrity: Boolean = false): JsonObject =
+        queryAuthed(GqlQueries.UPDATE_CLIP, buildJsonObject { putJsonObject("input") { put("slug", slug); put("title", title) } }, integrity)
+
+    suspend fun liveArchive(login: String) = query(GqlQueries.LIVE_ARCHIVE, buildJsonObject { put("login", login) })
+
+    suspend fun clipPreview(slug: String) = query(GqlQueries.CLIP_PREVIEW, buildJsonObject { put("slug", slug) })
+    suspend fun videoPreview(id: String) = query(GqlQueries.VIDEO_PREVIEW, buildJsonObject { put("id", id) })
+    suspend fun userPreview(login: String) = query(GqlQueries.USER_PREVIEW, buildJsonObject { put("login", login) })
+
+    private inline fun vars(first: Int, after: String?, extra: JsonObjectBuilder.() -> Unit = {}) = buildJsonObject {
+        put("first", first)
+        after?.let { put("after", it) }
+        extra()
+    }
+
+    private fun JsonObject.toToken(): AccessToken? {
+        val v = str("value") ?: return null
+        val s = str("signature") ?: return null
+        return AccessToken(v, s)
+    }
+
+    // endregion
+}
+
+// Small JSON navigation helpers shared by the data layer.
+fun JsonElement?.str(): String? = (this as? JsonPrimitive)?.contentOrNull
+fun JsonObject.str(key: String): String? = this[key].str()
+fun JsonObject.int(key: String): Int? = str(key)?.toDoubleOrNull()?.toInt()
+fun JsonObject.long(key: String): Long? = str(key)?.toDoubleOrNull()?.toLong()
+fun JsonObject.bool(key: String): Boolean? = str(key)?.toBooleanStrictOrNull()
+fun JsonObject.obj(key: String): JsonObject? = this[key] as? JsonObject
+fun JsonObject.arr(key: String): List<JsonElement> = (this[key] as? JsonArray) ?: emptyList()
+fun JsonObject.path(vararg keys: String): JsonObject? = keys.fold(this as JsonObject?) { acc, k -> acc?.obj(k) }
+fun JsonObject.edges(vararg path: String): List<JsonObject> = (path(*path)?.arr("edges") ?: emptyList()).mapNotNull { it as? JsonObject }

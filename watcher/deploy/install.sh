@@ -3,7 +3,7 @@
 # Usage: sudo ./install.sh [output_path]
 set -euo pipefail
 
-OUT="${1:-/var/www/config.sinist3r.lol/yip/playback.json}"
+OUT="${1:-/var/www/config.yipchat.dev/yip/playback.json}"
 PREFIX=/opt/yip-watcher
 USER_NAME=yipwatch
 SRC="$(cd "$(dirname "$0")/.." && pwd)"

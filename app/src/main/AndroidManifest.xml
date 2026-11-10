@@ -36,12 +36,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Browser sign-in and settings QR links. Verified via assetlinks.json on yip.sinist3r.lol. -->
+            <!-- Browser sign-in and settings QR links. Verified via assetlinks.json on yipchat.dev. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="yip.sinist3r.lol" android:path="/auth" />
+                <data android:scheme="https" android:host="yipchat.dev" android:path="/auth" />
                 <data android:path="/import" />
             </intent-filter>
 

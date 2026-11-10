@@ -11,7 +11,7 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
             configureKotlinAndroid(this)
             defaultConfig.consumerProguardFiles("consumer-rules.pro")
             val path = target.path.removePrefix(":").replace(':', '.').replace('-', '_')
-            namespace = "lol.sinist3r.yip.$path"
+            namespace = "dev.yipchat.$path"
         }
         dependencies {
             add("implementation", libs.findLibrary("kotlinx-coroutines-android").get())

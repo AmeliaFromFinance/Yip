@@ -1,0 +1,513 @@
+package dev.yipchat.core.data.chat
+
+import dev.yipchat.core.common.AppException
+import dev.yipchat.core.common.DefaultDispatcher
+import dev.yipchat.core.common.attempt
+import dev.yipchat.core.data.account.AccountRepository
+import dev.yipchat.core.data.cosmetics.CosmeticsRepository
+import dev.yipchat.core.data.settings.SettingsRepository
+import dev.yipchat.core.model.AppSettings
+import dev.yipchat.core.model.BadgeSource
+import dev.yipchat.core.model.ChatItem
+import dev.yipchat.core.model.HighlightKind
+import dev.yipchat.core.model.NoticeKind
+import dev.yipchat.core.model.PaintMode
+import dev.yipchat.core.model.RoomState
+import dev.yipchat.core.network.chat.EventSubChatClient
+import dev.yipchat.core.network.chat.HermesClient
+import dev.yipchat.core.network.chat.IrcChatClient
+import dev.yipchat.core.network.chat.IrcParser
+import dev.yipchat.core.network.chat.RawChat
+import dev.yipchat.core.network.chat.RawNoticeKind
+import dev.yipchat.core.network.cosmetics.BttvFfzApi
+import dev.yipchat.core.network.logs.ChatLogsApi
+import dev.yipchat.core.network.twitch.HelixApi
+import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlin.time.Clock
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.transformWhile
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import timber.log.Timber
+
+data class ChatConnection(val connected: Boolean = false, val readOnly: Boolean = true, val message: String? = null)
+
+/** One live chat. Shared by every screen showing the same channel (reference counted). */
+class ChatSession internal constructor(
+    val channelId: String,
+    val channelLogin: String,
+    private val repo: ChatRepository,
+    private val dispatcher: CoroutineDispatcher,
+) {
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
+    private val buffer = ArrayDeque<ChatItem>()
+    private val ids = HashSet<String>()
+    private val incoming = Channel<RawChat>(Channel.UNLIMITED)
+    @Volatile private var dirty = false
+    private val knownChatters = LinkedHashSet<String>()
+
+    private val _items = MutableStateFlow<ImmutableList<ChatItem>>(persistentListOf())
+    val items: StateFlow<ImmutableList<ChatItem>> = _items.asStateFlow()
+
+    private val _room = MutableStateFlow(RoomState())
+    val room: StateFlow<RoomState> = _room.asStateFlow()
+
+    private val _connection = MutableStateFlow(ChatConnection())
+    val connection: StateFlow<ChatConnection> = _connection.asStateFlow()
+
+    /** Set when this channel raids out; the watch screen offers to follow it. */
+    private val _raid = MutableStateFlow<RaidTarget?>(null)
+    val raid: StateFlow<RaidTarget?> = _raid.asStateFlow()
+    fun dismissRaid() { _raid.value = null }
+
+    /**
+     * Stream delay in ms. Live messages wait this long before showing, so chat lines up with
+     * what's on screen. Your own messages and history show straight away.
+     */
+    @Volatile var displayDelayMs: Long = 0
+    private val arrivedAt = HashMap<String, Long>()
+
+    /** Recent chatter logins, newest last, for @-autocomplete. */
+    fun chatters(): List<String> = synchronized(knownChatters) { knownChatters.toList().asReversed() }
+
+    internal fun start() {
+        scope.launch { repo.cosmetics.loadChannel(channelId) }
+        scope.launch { repo.cosmetics.emoteChanges.collect { if (it.channelId == channelId) system(it.text) } }
+        scope.launch { repo.cosmetics.cosmeticsUpdated.collect(::restyle) }
+        scope.launch { repo.pronouns.pronounsUpdated.collect(::restyle) }
+        // New filters also clear matching messages already on screen.
+        scope.launch {
+            repo.settings.settings.map { it.filters }.distinctUntilChanged().drop(1).collect {
+                val s = repo.settings.settings.value
+                mutate { list -> list.filterNot { it is ChatItem.Message && repo.pipeline.hides(it, s) } }
+            }
+        }
+        scope.launch { consume() }
+        scope.launch { publisher() }
+        scope.launch { transport() }
+        // Redemptions only reach the broadcaster through EventSub; Twitch's web socket shows them to everyone.
+        scope.launch {
+            repo.hermes.redemptions(channelId).collect { if (repo.settings.settings.value.chat.showRedemptions) incoming.send(RawChat.Redemption(it)) }
+        }
+    }
+
+    /** Reward titles by id, for messages sent with a redemption. */
+    private val rewardTitles = HashMap<String, String>()
+
+    internal fun stop() {
+        repo.cosmetics.releaseChannel(channelId)
+        scope.cancel()
+    }
+
+    private suspend fun transport() {
+        val settings = repo.settings.current()
+        if (settings.chat.loadRecentHistory) {
+            attempt { repo.bttvFfz.recentMessages(channelLogin, 100) }.getOrNull()?.forEach { line ->
+                IrcParser.parseLine(line)?.let { IrcParser.toRawChat(it, isHistory = true) }?.let { incoming.trySend(it) }
+            }
+        }
+        val userId = repo.accounts.userId()
+        if (userId == null) {
+            repo.irc.join(channelLogin).collect { incoming.send(it) }
+            return
+        }
+        attempt { repo.helix.chatSettings(channelId) }.getOrNull()?.let { s ->
+            incoming.trySend(RawChat.Room(s.emoteMode, s.followerModeDuration, s.followerMode, if (s.slowMode) s.slowModeWaitTime else 0, s.subscriberMode, s.uniqueChatMode))
+        }
+        // EventSub doesn't say who's chatting for the first time; anonymous IRC does. Only the flag is used.
+        val firstMessages = if (settings.chat.showFirstMessageTag) scope.launch {
+            repo.irc.join(channelLogin).collect { ev ->
+                if (ev is RawChat.Message && ev.msg.isFirstMessage && !ev.msg.isHistory) incoming.send(RawChat.FirstMessage(ev.msg.id))
+            }
+        } else null
+        var failure: RawChat.JoinFailed? = null
+        repo.eventSub.join(channelId, userId).transformWhile { ev ->
+            if (ev is RawChat.JoinFailed) { failure = ev; false } else { emit(ev); true }
+        }.collect { incoming.send(it) }
+        firstMessages?.cancel()
+        val f = failure ?: return
+        // EventSub refused: read chat over IRC instead of reconnecting forever. Sending still goes through Helix.
+        incoming.send(RawChat.ServerNotice(
+            if (f.notAllowed) "Twitch didn't allow live chat for this account (${f.reason}). Showing chat without it."
+            else "Live chat connection failed (${f.reason}). Using backup connection.",
+        ))
+        repo.irc.join(channelLogin)
+            .map { if (it is RawChat.Status) it.copy(readOnly = false) else it }
+            .collect { incoming.send(it) }
+    }
+
+    private val earlyFirsts = LinkedHashSet<String>()
+
+    private suspend fun consume() {
+        // Wait briefly for emotes so the first screen of messages renders with images.
+        val cos = repo.cosmetics.channel(channelId)
+        withTimeoutOrNull(4000) { cos.first { it.loaded } }
+        for (ev in incoming) {
+            val settings = repo.settings.settings.value
+            val self = repo.accounts.state.value.active?.login
+            when (ev) {
+                is RawChat.Message -> {
+                    val raw = if (!ev.msg.isFirstMessage && earlyFirsts.remove(ev.msg.id)) ev.msg.copy(isFirstMessage = true) else ev.msg
+                    repo.pipeline.process(raw, cos.value, settings, self)
+                        ?.let { m -> m.rewardId?.let(rewardTitles::get)?.let { m.copy(rewardTitle = it) } ?: m }
+                        ?.let(::append)
+                    synchronized(knownChatters) {
+                        knownChatters.remove(ev.msg.login)
+                        knownChatters += ev.msg.login
+                        if (knownChatters.size > 500) knownChatters.remove(knownChatters.first())
+                    }
+                }
+                is RawChat.Notice -> {
+                    if (!noticeAllowed(ev.kind, settings)) continue
+                    val msg = ev.msg?.let { repo.pipeline.process(it, cos.value, settings, self) }
+                    append(ChatItem.Notice(ev.id, ev.timestamp, ev.kind.toModel(), ev.systemText, msg))
+                }
+                is RawChat.FirstMessage -> if (settings.chat.showFirstMessageTag) {
+                    // IRC can beat EventSub; remember the id for when the message lands.
+                    earlyFirsts += ev.messageId
+                    while (earlyFirsts.size > 100) earlyFirsts.remove(earlyFirsts.first())
+                    mutate { list ->
+                    list.map { if (it is ChatItem.Message && it.id == ev.messageId && !it.isFirstMessage) it.copy(isFirstMessage = true, highlight = if (it.highlight == HighlightKind.NONE) HighlightKind.FIRST_MESSAGE else it.highlight).also { _ -> earlyFirsts.remove(ev.messageId) } else it }
+                    }
+                }
+                is RawChat.Redemption -> {
+                    val r = ev.r
+                    if (r.needsInput) {
+                        // The viewer's message carries it; label that message instead of adding a line.
+                        rewardTitles[r.rewardId] = r.rewardTitle
+                        mutate { list ->
+                            list.map {
+                                if (it is ChatItem.Message && it.rewardId == r.rewardId && it.rewardTitle == null && it.user.login.equals(r.userLogin, true)) it.copy(rewardTitle = r.rewardTitle) else it
+                            }
+                        }
+                    } else {
+                        append(ChatItem.Notice("rd-" + r.id, r.timestamp, NoticeKind.REDEMPTION, "${r.userName} redeemed ${r.rewardTitle}" + if (r.cost > 0) " · ${r.cost}" else "", null))
+                    }
+                }
+                is RawChat.Deleted -> mutate { list -> list.map { if (it is ChatItem.Message && it.id == ev.messageId) it.copy(isDeleted = true) else it } }
+                is RawChat.ClearUser -> {
+                    mutate { list -> list.map { if (it is ChatItem.Message && it.user.id == ev.userId) it.copy(isDeleted = true) else it } }
+                    if (settings.chat.showModActions) {
+                        val name = buffer.lastOrNull { it is ChatItem.Message && it.user.id == ev.userId }?.let { (it as ChatItem.Message).user.displayName } ?: "A user"
+                        system(if (ev.durationSeconds != null) "$name was timed out for ${ev.durationSeconds}s" else "$name's messages were cleared")
+                    }
+                }
+                RawChat.Clear -> { mutate { emptyList() }; if (settings.chat.showModActions) system("Chat was cleared by a moderator") }
+                is RawChat.Room -> _room.update { r ->
+                    r.copy(
+                        emoteOnly = ev.emoteOnly ?: r.emoteOnly,
+                        followersOnlyMinutes = if (ev.followersOnly == false) null else ev.followersOnlyMinutes ?: r.followersOnlyMinutes,
+                        slowSeconds = ev.slowSeconds ?: r.slowSeconds,
+                        subscriberOnly = ev.subsOnly ?: r.subscriberOnly,
+                        uniqueChat = ev.unique ?: r.uniqueChat,
+                    )
+                }
+                is RawChat.Status -> {
+                    val was = _connection.value.connected
+                    _connection.value = ChatConnection(ev.connected, ev.readOnly, ev.message)
+                    if (ev.connected && !was && settings.chat.showJoinMessage) system("Joined #$channelLogin" + if (ev.readOnly) " (read only, sign in to chat)" else "")
+                    if (!ev.connected && was) system("Disconnected, reconnecting...")
+                }
+                is RawChat.ServerNotice -> system(ev.text)
+                is RawChat.RaidOut -> {
+                    _raid.value = RaidTarget(ev.toLogin, ev.toName, ev.viewers)
+                    system("Raiding ${ev.toName} with ${ev.viewers} viewers")
+                }
+                is RawChat.JoinFailed -> Unit // handled in transport()
+                is RawChat.Whisper -> Unit // WhisperRepository
+                is RawChat.AutoModHeld -> append(ChatItem.AutoMod("automod-${ev.messageId}", Clock.System.now(), ev.login, ev.displayName, ev.text, ev.reason))
+                is RawChat.AutoModResolved -> markAutoMod(ev.messageId, ev.status)
+            }
+        }
+    }
+
+    private fun noticeAllowed(kind: RawNoticeKind, s: AppSettings) = when (kind) {
+        RawNoticeKind.SUB, RawNoticeKind.RESUB, RawNoticeKind.GIFT, RawNoticeKind.MYSTERY_GIFT -> s.chat.showSubNotices
+        RawNoticeKind.RAID -> s.chat.showRaids
+        RawNoticeKind.REDEMPTION -> s.chat.showRedemptions
+        else -> true
+    }
+
+    private fun RawNoticeKind.toModel() = when (this) {
+        RawNoticeKind.SUB -> NoticeKind.SUB
+        RawNoticeKind.RESUB -> NoticeKind.RESUB
+        RawNoticeKind.GIFT -> NoticeKind.GIFT
+        RawNoticeKind.MYSTERY_GIFT -> NoticeKind.MYSTERY_GIFT
+        RawNoticeKind.RAID -> NoticeKind.RAID
+        RawNoticeKind.ANNOUNCEMENT -> NoticeKind.ANNOUNCEMENT
+        RawNoticeKind.BITS_BADGE -> NoticeKind.BITS_BADGE
+        RawNoticeKind.CHARITY -> NoticeKind.CHARITY
+        RawNoticeKind.WATCH_STREAK -> NoticeKind.WATCH_STREAK
+        RawNoticeKind.REDEMPTION -> NoticeKind.REDEMPTION
+        RawNoticeKind.OTHER -> NoticeKind.OTHER
+    }
+
+    /** The thread [m] belongs to (or starts), oldest first. */
+    fun thread(m: ChatItem.Message): List<ChatItem.Message> {
+        val root = m.threadId ?: m.id
+        return synchronized(buffer) {
+            buffer.filterIsInstance<ChatItem.Message>().filter { it.id == root || it.threadId == root }
+        }
+    }
+
+    /** Live mentions of you in this chat, for the vibration. */
+    private val _mentionsHere = MutableSharedFlow<ChatItem.Message>(extraBufferCapacity = 4)
+    val mentionsHere: SharedFlow<ChatItem.Message> = _mentionsHere
+    private val _broadcasterHere = MutableSharedFlow<ChatItem.Message>(extraBufferCapacity = 4)
+    /** New messages from the channel owner. */
+    val broadcasterHere: SharedFlow<ChatItem.Message> = _broadcasterHere
+
+    /** Older messages from logs.ivr.fi, newest first; null if that channel isn't logged there. */
+    suspend fun logsFor(login: String): Result<List<ChatItem.Message>?> = dev.yipchat.core.common.attempt {
+        when (val r = repo.logs.userLines(channelLogin, login)) {
+            ChatLogsApi.Result.NotLogged -> null
+            is ChatLogsApi.Result.Lines -> {
+                val settings = repo.settings.settings.value
+                val self = repo.accounts.state.value.active?.login
+                val cos = repo.cosmetics.channel(channelId).value
+                r.lines.mapNotNull { line ->
+                    val raw = IrcParser.parseLine(line)?.let { IrcParser.toRawChat(it, isHistory = true) } as? RawChat.Message
+                    raw?.let { repo.pipeline.process(it.msg, cos, settings, self) }
+                }
+            }
+        }
+    }
+
+    fun system(text: String) = append(ChatItem.System("sys-${System.nanoTime()}", Clock.System.now(), text))
+
+    /** Drops duplicates (history and live overlap); list keys must be unique. */
+    private fun append(item: ChatItem) = synchronized(buffer) {
+        // Same message again straight after: bump the count on the one already shown.
+        if (item is ChatItem.Message && !item.isHistory && repo.settings.settings.value.chat.collapseRepeats) {
+            val last = buffer.lastOrNull() as? ChatItem.Message
+            if (last != null && isRepeat(last, item)) {
+                buffer.removeLast()
+                buffer.addLast(last.copy(repeats = last.repeats + 1))
+                dirty = true
+                return@synchronized
+            }
+        }
+        if (!ids.add(item.id)) return@synchronized
+        buffer.addLast(item)
+        if (item is ChatItem.Message && item.highlight == HighlightKind.MENTION && !item.isHistory && !item.isSelf) _mentionsHere.tryEmit(item)
+        if (item is ChatItem.Message && item.highlight == HighlightKind.BROADCASTER && !item.isHistory && !item.isSelf) _broadcasterHere.tryEmit(item)
+        val delayable = when (item) {
+            is ChatItem.Message -> !item.isHistory && !item.isSelf
+            is ChatItem.Notice -> item.message?.isHistory != true
+            else -> false
+        }
+        if (delayable) arrivedAt[item.id] = System.currentTimeMillis()
+        (item as? ChatItem.Message ?: (item as? ChatItem.Notice)?.message)?.let {
+            repo.mentions.onMessage(channelId, channelLogin, it)
+            repo.inbox.onMessage(channelLogin, it)
+        }
+        val limit = repo.settings.settings.value.chat.messageLimit.coerceIn(50, 5000)
+        while (buffer.size > limit) buffer.removeFirst().id.let { ids.remove(it); arrivedAt.remove(it) }
+        dirty = true
+    }
+
+    /** [messageId] is Twitch's id (without our "automod-" prefix). */
+    fun markAutoMod(messageId: String, status: String) = mutate { list ->
+        list.map { if (it is ChatItem.AutoMod && it.id == "automod-$messageId") it.copy(status = status) else it }
+    }
+
+    /** Applies a paint/badge that arrived after the user's messages were already shown. */
+    private fun restyle(userIds: Set<String>) {
+        val hit = synchronized(buffer) { buffer.any { it.authorId() in userIds } }
+        if (!hit) return
+        mutate { list -> list.map { item -> if (item.authorId() in userIds) item.restyled() else item } }
+    }
+
+    private fun ChatItem.authorId(): String? = when (this) {
+        is ChatItem.Message -> user.id
+        is ChatItem.Notice -> message?.user?.id
+        else -> null
+    }
+
+    private fun ChatItem.restyled(): ChatItem = when (this) {
+        is ChatItem.Message -> restyled()
+        is ChatItem.Notice -> copy(message = message?.restyled())
+        else -> this
+    }
+
+    private fun ChatItem.Message.restyled(): ChatItem.Message {
+        val s = repo.settings.settings.value
+        val paint = if (s.thirdParty.seventvPaints != PaintMode.OFF) repo.cosmetics.paintFor(user.id) else null
+        val pronouns = if (s.chat.showPronouns) repo.pronouns.cached(user.login) else null
+        if (!s.chat.showBadges) return copy(paint = paint, pronouns = pronouns)
+        // Keep the channel's own badges (Twitch, FFZ mod/VIP) and rebuild the third-party ones, as on first render.
+        val own = badges.filter { it.source == BadgeSource.TWITCH || it.id == "ffz:mod" || it.id == "ffz:vip" }
+        return copy(paint = paint, pronouns = pronouns, badges = own + repo.cosmetics.extraBadges(user.id))
+    }
+
+    private fun mutate(block: (List<ChatItem>) -> List<ChatItem>) = synchronized(buffer) {
+        val next = block(buffer.toList())
+        buffer.clear()
+        ids.clear()
+        next.forEach { if (ids.add(it.id)) buffer.addLast(it) }
+        arrivedAt.keys.retainAll(ids)
+        dirty = true
+    }
+
+    /** Publishes at most ~30 times a second so a spam wave becomes one list update. */
+    private suspend fun publisher() {
+        var shown = -1 // items published last time, when holding some back
+        while (scope.isActive) {
+            delay(33)
+            val snapshot = synchronized(buffer) {
+                val visible = visibleItems(buffer, arrivedAt, displayDelayMs, System.currentTimeMillis())
+                if (!dirty && visible.size == shown) return@synchronized null
+                dirty = false
+                shown = visible.size
+                visible.toImmutableList()
+            } ?: continue
+            _items.value = snapshot
+        }
+    }
+
+    suspend fun send(text: String, replyToId: String? = null): Result<Unit> = repo.send(this, text, replyToId)
+}
+
+/** Creates and shares chat sessions; handles sending and slash commands. */
+@Singleton
+class ChatRepository @Inject constructor(
+    internal val cosmetics: CosmeticsRepository,
+    internal val settings: SettingsRepository,
+    internal val accounts: AccountRepository,
+    internal val eventSub: EventSubChatClient,
+    internal val irc: IrcChatClient,
+    internal val hermes: HermesClient,
+    internal val bttvFfz: BttvFfzApi,
+    internal val helix: HelixApi,
+    internal val mentions: MentionNotifier,
+    internal val inbox: MentionInbox,
+    internal val pronouns: PronounRepository,
+    sharedNames: SharedChatNames,
+    internal val logs: ChatLogsApi,
+    @DefaultDispatcher private val dispatcher: CoroutineDispatcher,
+) {
+    internal val pipeline = ChatPipeline(cosmetics, pronouns, sharedNames)
+    private val sessions = ConcurrentHashMap<String, Pair<ChatSession, Int>>()
+
+    @Synchronized
+    fun open(channelId: String, channelLogin: String): ChatSession {
+        val existing = sessions[channelId]
+        if (existing != null) {
+            sessions[channelId] = existing.first to existing.second + 1
+            return existing.first
+        }
+        val s = ChatSession(channelId, channelLogin.lowercase(), this, dispatcher)
+        sessions[channelId] = s to 1
+        s.start()
+        return s
+    }
+
+    @Synchronized
+    fun close(session: ChatSession) {
+        val (s, refs) = sessions[session.channelId] ?: return
+        if (refs <= 1) {
+            sessions.remove(session.channelId)
+            s.stop()
+        } else {
+            sessions[session.channelId] = s to refs - 1
+        }
+    }
+
+    internal suspend fun send(session: ChatSession, text: String, replyTo: String?): Result<Unit> = attempt {
+        val me = accounts.userId() ?: throw AppException(AppException.Kind.AUTH, "Sign in to chat")
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return@attempt
+        if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+            command(session, me, trimmed)
+            return@attempt
+        }
+        val result = helix.sendMessage(session.channelId, me, trimmed.removePrefix("/"), replyTo)
+        if (!result.isSent) session.system("Message not sent: ${result.dropReason?.message ?: "rejected by Twitch"}")
+    }.onFailure { Timber.w(it, "send failed"); session.system(it.message ?: "Couldn't send") }
+
+    private suspend fun userId(login: String): String =
+        helix.users(logins = listOf(login.removePrefix("@"))).firstOrNull()?.id ?: throw AppException(AppException.Kind.NOT_FOUND, "No user called $login")
+
+    private suspend fun command(s: ChatSession, me: String, line: String) {
+        val args = line.split(' ').filter { it.isNotBlank() }
+        val cmd = args[0].lowercase()
+        val ch = s.channelId
+        // Missing a required argument: show how to use it rather than a cryptic error.
+        ChatCommands.find(cmd)?.takeIf { it.args.startsWith("<") && args.size < 2 }?.let {
+            s.system("Usage: ${it.name} ${it.args}")
+            return
+        }
+        when (cmd) {
+            "/me" -> helix.sendMessage(ch, me, args.drop(1).joinToString(" ")) // Helix has no /me; send as plain text
+            "/ban" -> helix.ban(ch, me, userId(args[1]), null, args.drop(2).joinToString(" ").ifBlank { null })
+            "/timeout" -> helix.ban(ch, me, userId(args[1]), args.getOrNull(2)?.toIntOrNull() ?: 600, args.drop(3).joinToString(" ").ifBlank { null })
+            "/unban", "/untimeout" -> helix.unban(ch, me, userId(args[1]))
+            "/clear" -> helix.deleteMessage(ch, me, null)
+            "/slow" -> helix.updateChatSettings(ch, me, mapOf("slow_mode" to true, "slow_mode_wait_time" to (args.getOrNull(1)?.toIntOrNull() ?: 30)))
+            "/slowoff" -> helix.updateChatSettings(ch, me, mapOf("slow_mode" to false))
+            "/followers" -> helix.updateChatSettings(ch, me, mapOf("follower_mode" to true, "follower_mode_duration" to (args.getOrNull(1)?.toIntOrNull() ?: 0)))
+            "/followersoff" -> helix.updateChatSettings(ch, me, mapOf("follower_mode" to false))
+            "/emoteonly" -> helix.updateChatSettings(ch, me, mapOf("emote_mode" to true))
+            "/emoteonlyoff" -> helix.updateChatSettings(ch, me, mapOf("emote_mode" to false))
+            "/subscribers" -> helix.updateChatSettings(ch, me, mapOf("subscriber_mode" to true))
+            "/subscribersoff" -> helix.updateChatSettings(ch, me, mapOf("subscriber_mode" to false))
+            "/uniquechat" -> helix.updateChatSettings(ch, me, mapOf("unique_chat_mode" to true))
+            "/uniquechatoff" -> helix.updateChatSettings(ch, me, mapOf("unique_chat_mode" to false))
+            "/announce" -> helix.announce(ch, me, args.drop(1).joinToString(" "))
+            "/shoutout" -> helix.shoutout(ch, userId(args[1]), me)
+            "/color" -> helix.setChatColor(me, args.getOrNull(1) ?: "blue")
+            "/block" -> helix.block(userId(args[1]))
+            "/unblock" -> helix.unblock(userId(args[1]))
+            "/vip" -> helix.setVip(ch, userId(args[1]), true)
+            "/unvip" -> helix.setVip(ch, userId(args[1]), false)
+            "/mod" -> helix.setModerator(ch, userId(args[1]), true)
+            "/unmod" -> helix.setModerator(ch, userId(args[1]), false)
+            "/raid" -> helix.startRaid(ch, userId(args[1]))
+            "/unraid" -> helix.cancelRaid(ch)
+            "/marker" -> helix.createMarker(ch, args.drop(1).joinToString(" ").ifBlank { null })
+            "/commercial" -> helix.startCommercial(ch, args.getOrNull(1)?.toIntOrNull() ?: 30)
+            "/w" -> helix.sendWhisper(me, userId(args[1]), args.drop(2).joinToString(" "))
+            "/help" -> s.system(HELP)
+            else -> s.system("Unknown command $cmd. Type /help for the list.")
+        }
+    }
+
+    companion object {
+        val HELP = "Commands: " + ChatCommands.all.joinToString(", ") { it.name }
+    }
+}
+
+data class RaidTarget(val login: String, val displayName: String, val viewers: Int)
+
+/** Items to show now: anything that arrived more than [delayMs] ago, or isn't delayed at all. */
+internal fun visibleItems(buffer: Collection<ChatItem>, arrivedAt: Map<String, Long>, delayMs: Long, now: Long): List<ChatItem> {
+    if (delayMs <= 0) return buffer.toList()
+    val cutoff = now - delayMs
+    return buffer.filter { (arrivedAt[it.id] ?: Long.MIN_VALUE) <= cutoff }
+}
+
+/** Same text, ignoring case and spacing, from anyone. Replies don't count. */
+internal fun isRepeat(last: ChatItem.Message, next: ChatItem.Message): Boolean =
+    last.replyParentLogin == null && next.replyParentLogin == null && last.raw.isNotBlank() &&
+        last.raw.trim().replace(Regex("\\s+"), " ").equals(next.raw.trim().replace(Regex("\\s+"), " "), ignoreCase = true)

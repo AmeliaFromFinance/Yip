@@ -2,101 +2,96 @@
 
 An unofficial Twitch client for Android with 7TV, BetterTTV and FrankerFaceZ built in.
 
-Watch live streams, VODs and clips, chat with every third-party emote, see 7TV name paints and badges, and set almost everything up the way you like it.
+Watch live streams, VODs and clips, chat with every third-party emote, and set almost everything up the way you like it.
 
 > Yip is not affiliated with Twitch or Amazon. It uses Twitch's official APIs where they exist and Twitch's private web API where they don't.
 
 ## Features
 
-**Watching**
-- Live, VODs (with chapters and resume), clips
-- VOD seek bar with scrub thumbnails; muted parts marked, with an option to skip them
-- Download VODs and clips to watch offline
-- Library: full watch history and downloads
-- Continue watching: unfinished VODs only, resumes where you stopped, drops deleted VODs
-- Quality picker, separate defaults for Wi-Fi and mobile data, remember per channel
-- Low-latency, balanced or stable buffering, with live latency shown on the player
-- Uses Twitch's low-latency segments, a jump-to-live button and auto catch-up
-- Chat synced to the stream delay
-- Stats overlay: delay, resolution, bitrate, network speed, buffer and dropped frames
-- Background audio, audio-only mode, picture-in-picture, mini-player
-- Sleep timer: fixed times or when the stream ends
-- Rewind a live stream through its VOD, with Go live to jump back
-- Volume levelling (optional) so quiet and loud streams sound alike
-- Per-channel memory (optional): volume, mute and audio-only kept for each channel
-- Android Auto: favourites and followed channels that are live, played audio-only, with voice search
-- Bedtime mode: black theme, dimmer player and an automatic sleep timer at set hours
-- Clip the last 30 seconds and share the link
-- Share streams, VODs (at the current time) and clips
-- Clips: pick the length and title before making one; on VODs pick the exact range with a preview
-- Speed button on VODs and clips (down to 0.25x on clips)
-- Watch later queue in Library
-- Watched videos and clips are dimmed and marked
-- Notification controls: play, pause and mute without opening the app
+### Watching
+
+- Live streams, VODs and clips, with VOD chapters and resume
+- Quality picker with separate defaults for Wi-Fi and mobile data, remembered per channel
+- Low-latency, balanced or stable buffering, with the live delay shown, jump to live and auto catch-up
+- Rewind a live stream through its VOD, then Go live to return
+- VOD seek bar with scrub thumbnails and muted parts marked, with an option to skip them
+- Speed control on VODs and clips, down to 0.25x on clips
+- Background audio, audio-only mode, picture-in-picture, mini-player and notification controls
 - Swipe for brightness and volume, double-tap to seek, pinch to fill
-- Theatre-style landscape chat: collapsible panel beside or over the video, with a chat box
-- Multi-view: up to four streams with chat for each, grid or focus layout. Start it from any stream, tap one to hear it
+- Landscape chat panel beside or over the video; side-by-side layout on tablets and foldables
+- Multi-view: up to four streams, each with its own chat
+- Sleep timer (fixed time or end of stream) and bedtime mode (black theme, dimmer player, auto sleep timer)
+- Optional volume levelling and per-channel volume, mute and audio-only
+- Pauses when headphones, Bluetooth or car audio disconnect
+- Stats overlay: delay, resolution, bitrate, network speed, buffer, dropped frames
+- Android Auto: live favourites and follows, audio-only, with voice search
 
-**Chat**
+### Clips, downloads and library
+
+- Make clips: pick the length and title on live streams, or the exact range with a preview on VODs
+- Share streams, VODs (at the current time) and clips
+- Download VODs and clips to watch offline
+- Library: watch history, Watch later and downloads
+- Continue watching for unfinished VODs; watched videos and clips are dimmed and marked
+- Top clips this week from the channels you follow
+
+### Chat
+
 - 7TV, BTTV and FFZ emotes with live 7TV updates, personal emotes and zero-width overlays
-- 7TV name paints (incl. animated) and badges, FFZ custom mod/VIP badges
-- Badges from BTTV, FFZ, FFZ:AP, Chatterino, Chatterino Homies (incl. custom) and Moltorino
-- Recent messages on open, replies, mentions, sub/raid/redemption notices
-- First-time chatters tagged and highlighted; streamer messages highlighted
-- Channel points redemptions in chat for everyone ("name redeemed reward")
-- Hide someone in chat on this device without blocking them
-- Link previews for Twitch clips, VODs, channels and YouTube (Wi-Fi only by default)
-- Mods: pin messages for everyone (timed or until removed), one-tap quick buttons like "10m Spam"
-- Filters sheet in chat: hide bots in one tap, block words or /patterns/, hide users
-- Highlights for keywords and users
-- Emote card: long-press an emote to see it large, its source and creator, and favourite it
-- Pronouns next to names, from pronouns.alejo.io
-- Shared chat: messages from other channels in a shared session show where they came from
-- Inbox: every mention from chats you opened, plus whispers (read and reply)
-- Search a chat by word or `from:name`
-- Slash commands with suggestions, quick replies, reply threads, repeats collapsed as ×count
-- Chat fonts including Atkinson Hyperlegible and OpenDyslexic, letter spacing, vibrate on mention
-- Translate a message with the phone's built-in translator (Android 12+, on-device)
-- Private nicknames and notes on chatters
-- Older messages on user cards, from logs.ivr.fi
-- Most used emotes in the picker
-- Raid prompt: jump to the channel being raided in one tap
-- Poll, prediction and Hype Train cards above chat; vote and predict with the twitch.tv connection
-- Pings for mentions, keywords and highlighted users when that chat isn't on screen
-- Emote picker (Favourites, Recent, Twitch, 3rd Party) with locked tiers greyed out, emote and @name suggestions, Tab completion on keyboards
-- Moderation: timeouts, bans, deletes and slash commands; AutoMod holds in your own chat and channels you moderate
-- VOD chat replay, synced to playback
+- 7TV name paints (including animated) and badges; badges from BTTV, FFZ, FFZ:AP, Chatterino, Homies and Moltorino
+- Recent messages on open, replies and threads, mentions, sub and raid notices
+- Channel points redemptions shown for everyone
+- First-time chatters and the streamer highlighted
+- Emote picker (Favourites, Recent, Twitch, 3rd Party) with most-used emotes and locked tiers greyed out
+- Emote and @name suggestions, slash commands with hints, quick replies
+- Filters: hide bots, block words or /patterns/, hide users on this device
+- Highlights and pings for mentions, keywords and chosen users
+- Link previews for Twitch and YouTube links
+- Pronouns, shared chat labels, private nicknames and notes, older messages on user cards
+- Translate a message on-device (Android 12+)
+- Search a chat by word or `from:name`; repeated messages collapse into a count
+- Poll, prediction and Hype Train cards, raid prompt and pinned message above chat
+- Inbox for mentions and whispers
+- Chat fonts including Atkinson Hyperlegible and OpenDyslexic, letter spacing, high contrast
+- Chat synced to the stream delay; VOD chat replay
+- Moderation: timeouts, bans, deletes, AutoMod, pinned messages and one-tap quick buttons
 
-**Everything else**
-- Following with pinned favourites at the top, browse, categories, search, channel pages (videos, clips, schedule)
-- Hide channels or categories from browse, filter by language
-- Long-press a stream for a muted preview plus quick actions: watch, pin, multi-view, hide
-- Category alerts: get notified when someone you follow streams a chosen category
-- Go-live notifications for everyone or just pinned favourites, with muting and quiet hours
-- Multiple accounts
-- Stream manager for your own channel: title, category, tags, markers, ads, unban requests, who's in chat
-- Updates itself from GitHub releases (checksum-verified)
-- Themes: system, light, dark, OLED black, eight accents including Material You
-- Home screen widget and Quick Settings tile showing who's live
-- Tablet and foldable layout: player and chat side by side
-- Accessibility: high-contrast chat, screen reader labels, controls stay up with TalkBack
-- Searchable settings with import and export
-- Move settings to another device by QR code or file
-- Data usage: mobile data and Wi-Fi per day and per channel
-- Battery saver: follows the system saver with lower quality, still emotes and no previews
-- Unread count on mentions and whispers, shown on the app icon badge where the launcher supports it
+### Browsing
+
+- Following with pinned favourites, Browse, categories, search and channel pages (videos, clips, schedule)
+- Browse filters for language, viewer count, uptime and reruns
+- Pin categories to the top of Browse; hide channels and categories
+- Long-press a stream for a muted preview and quick actions
 - Manage follows: sort by last live, bulk unfollow
-- Top clips this week from everyone you follow
-- Browse filters: viewer count, how long they've been live, hide reruns
-- Pin categories to the top of Browse
+- Stream manager for your own channel: title, category, tags, markers, ads, unban requests, viewer list
 - Incognito mode: nothing saved to history or recent searches
-- Switch accounts from your avatar on Following
-- "What's new" after each update
 
-**Opt-in and experimental** (all off by default)
-- Ad handling: swaps to an ad-free stream copy during ad breaks, or uses proxy servers you add yourself
-- Channel points: balance, auto-claim and redeeming rewards; follow and unfollow in the app (need the optional twitch.tv connection)
-- Follow categories (twitch.tv connection)
+### Notifications
+
+- Go-live notifications for everyone or just favourites, with muting and quiet hours
+- Category alerts when someone you follow streams a chosen category
+- Unread count on the app icon for mentions and whispers, where the launcher supports it
+- Home screen widget and Quick Settings tile showing who's live
+
+### App
+
+- Multiple accounts, switched from your avatar on Following
+- Themes: system, light, dark and OLED black, with eight accents including Material You
+- Searchable settings with import, export and transfer to another device by QR code or file
+- Data usage per day and per channel; data saver and battery saver modes
+- Accessibility: screen reader labels, high-contrast chat, controls that stay up with TalkBack
+- Updates itself from GitHub releases (checksum-verified), with release notes after each update
+
+### Opt-in
+
+All off by default.
+
+- Ad handling: swaps to an ad-free copy of the stream during ad breaks, or uses proxy servers you add
+- twitch.tv connection, for things Twitch only allows from its own apps:
+  - Channel points: balance, auto-claim and redeeming rewards
+  - Following and unfollowing channels and categories
+  - Voting in polls and predictions
+  - Pinning chat messages and clipping VODs
 
 ## Building
 
@@ -104,7 +99,7 @@ Requirements: JDK 21 and the Android SDK (API 37).
 
 1. Register an application at [dev.twitch.tv/console](https://dev.twitch.tv/console/apps):
    - Client type: **Public**
-   - OAuth redirect URL: `https://yip.sinist3r.lol/auth`
+   - OAuth redirect URL: `https://yipchat.dev/auth`
 2. Create `local.properties` in the project root:
    ```properties
    sdk.dir=/path/to/Android/Sdk
@@ -120,6 +115,10 @@ Requirements: JDK 21 and the Android SDK (API 37).
 
 Without `yip.configPublicKey` the app ignores the remote config and uses its built-in defaults.
 
+### Releasing
+
+Push a tag like `v1.0.0`. The release workflow builds a signed APK, attaches it with its checksum to a GitHub release, and installed copies of Yip offer the update.
+
 ### Signing releases
 
 Create `keystore.properties` in the project root (never commit it):
@@ -133,7 +132,7 @@ keyPassword=...
 
 Or set `YIP_KEYSTORE_PATH`, `YIP_KEYSTORE_PASSWORD`, `YIP_KEY_ALIAS` and `YIP_KEY_PASSWORD`.
 
-Then put the certificate's SHA-256 fingerprint into `watcher/deploy/web/yip.sinist3r.lol/.well-known/assetlinks.json` so browser sign-in can return to the app:
+Then put the certificate's SHA-256 fingerprint into `watcher/deploy/web/yipchat.dev/.well-known/assetlinks.json` so browser sign-in can return to the app:
 
 ```bash
 keytool -list -v -keystore yip-release.jks -alias yip | grep SHA256
@@ -152,7 +151,7 @@ On the server (Debian/Ubuntu shown; Arch notes below):
 ```bash
 sudo apt install python3-venv
 cd watcher/deploy
-sudo ./install.sh /var/www/config.sinist3r.lol/yip/playback.json
+sudo ./install.sh /var/www/config.yipchat.dev/yip/playback.json
 ```
 
 This creates a `yipwatch` system user, installs everything under `/opt/yip-watcher`, generates the signing key, adds the cron job and runs it once. Copy the `yip.configPublicKey=...` line it prints into the app's `local.properties`.
@@ -168,7 +167,7 @@ sudo -u yipwatch PLAYWRIGHT_BROWSERS_PATH=/opt/yip-watcher/browsers \
 
 # check the published file
 /opt/yip-watcher/.venv/bin/python /opt/yip-watcher/yip_watcher.py verify \
-  /var/www/config.sinist3r.lol/yip/playback.json --key /opt/yip-watcher/keys/config_ed25519.pem
+  /var/www/config.yipchat.dev/yip/playback.json --key /opt/yip-watcher/keys/config_ed25519.pem
 
 # show a notice in every app's About screen
 ... yip_watcher.py run --message "Playback is being fixed, hang tight"
@@ -184,35 +183,36 @@ Two subdomains, both with HTTPS:
 
 | Subdomain | Serves |
 | --- | --- |
-| `config.sinist3r.lol` | `/yip/playback.json` from the watcher |
-| `yip.sinist3r.lol` | `/auth` (browser sign-in return page) and `/.well-known/assetlinks.json` |
+| `config.yipchat.dev` | `/yip/playback.json` from the watcher |
+| `yipchat.dev` | `/auth` (browser sign-in return page) and `/.well-known/assetlinks.json` |
 
 ```bash
 sudo cp watcher/deploy/apache/*.conf /etc/apache2/sites-available/
-sudo mkdir -p /var/www/yip.sinist3r.lol
-sudo cp -r watcher/deploy/web/yip.sinist3r.lol/. /var/www/yip.sinist3r.lol/
+sudo mkdir -p /var/www/yipchat.dev
+sudo cp -r watcher/deploy/web/yipchat.dev/. /var/www/yipchat.dev/
 sudo a2enmod ssl headers
-sudo a2ensite config.sinist3r.lol yip.sinist3r.lol
-sudo certbot --apache -d config.sinist3r.lol -d yip.sinist3r.lol
+sudo a2ensite config.yipchat.dev yipchat.dev
+sudo certbot --apache -d config.yipchat.dev -d yipchat.dev
 sudo systemctl reload apache2
 ```
 
-If you change the script in `auth/index.html`, update its hash in the Content-Security-Policy line of `yip.sinist3r.lol.conf`.
+If you change the script in `auth/index.html`, update its hash in the Content-Security-Policy line of `yipchat.dev.conf`.
 
 ## Project layout
 
 | Module | What's in it |
 | --- | --- |
-| `app` | Activity, navigation, notifications, picture-in-picture |
+| `app` | Activity, navigation, notifications, picture-in-picture, widget and tile |
 | `core:model` | Data classes, including the full settings schema |
-| `core:network` | Twitch Helix, GQL, OAuth, EventSub and IRC chat, 7TV (API v4, EventAPI), BTTV/FFZ, signed config |
+| `core:common` | Dispatchers, logging, formatting helpers |
+| `core:network` | Twitch Helix, GQL, OAuth, EventSub, IRC and Hermes chat, 7TV (API v4, EventAPI), BTTV/FFZ, signed config |
 | `core:data` | Repositories: accounts, browsing, playback, emotes, chat pipeline |
-| `core:playback` | Media3 player, background service, playlist hook |
+| `core:playback` | Media3 player, background service, Android Auto, downloads, playlist hook |
 | `core:datastore` | Settings and encrypted account storage |
 | `core:database` | Watch history, emote cache, notification state |
 | `core:designsystem` | Theme, cards, chat renderer, 7TV paints |
 | `feature:browse` | Following, browse, search, categories, channels |
-| `feature:watch` | Player screen, chat, emote picker, multi-view |
+| `feature:watch` | Player screen, chat, emote picker, multi-view, library |
 | `feature:settings` | Settings, accounts, sign-in |
 | `watcher` | Server script that keeps the playback config current |
 

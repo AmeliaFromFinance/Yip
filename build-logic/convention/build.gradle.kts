@@ -2,7 +2,7 @@ plugins {
     `kotlin-dsl`
 }
 
-group = "lol.sinist3r.yip.buildlogic"
+group = "dev.yipchat.buildlogic"
 
 kotlin { jvmToolchain(21) }
 
