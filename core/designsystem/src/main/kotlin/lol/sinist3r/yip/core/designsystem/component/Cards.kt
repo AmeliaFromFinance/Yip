@@ -1,5 +1,8 @@
 package lol.sinist3r.yip.core.designsystem.component
 
+import lol.sinist3r.yip.core.designsystem.util.shareLink
+import lol.sinist3r.yip.core.designsystem.util.shareUrl
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -161,13 +164,21 @@ fun VideoCard(video: Video, progress: Float?, onClick: () -> Unit, modifier: Mod
 }
 
 @Composable
-fun ClipCard(clip: Clip, onClick: () -> Unit, modifier: Modifier = Modifier, showChannel: Boolean = false) {
+fun ClipCard(clip: Clip, onClick: () -> Unit, modifier: Modifier = Modifier, showChannel: Boolean = false, share: Boolean = true) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Column(modifier.clip(MaterialTheme.shapes.medium).combinedClickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Thumb(clip.thumbnailUrl) {
             Pill(clip.durationSeconds.toLong().secondsClock(), Modifier.align(Alignment.BottomEnd).padding(8.dp))
             Pill("${clip.viewCount.compactCount()} views", Modifier.align(Alignment.BottomStart).padding(8.dp))
         }
-        Text(clip.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text(if (showChannel) "${clip.broadcasterName} · clipped by ${clip.creatorName}" else "Clipped by ${clip.creatorName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(clip.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(if (showChannel) "${clip.broadcasterName} · clipped by ${clip.creatorName}" else "Clipped by ${clip.creatorName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (share) androidx.compose.material3.IconButton(onClick = { context.shareLink(clip.shareUrl, clip.title) }) {
+                androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Share, "Share clip", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }

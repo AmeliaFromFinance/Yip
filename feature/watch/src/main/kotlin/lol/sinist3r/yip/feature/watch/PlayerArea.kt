@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.FullscreenExit
 import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.ContentCut
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SpeakerNotesOff
@@ -119,6 +120,7 @@ fun PlayerArea(
     /** Keeps the controls clear of a chat panel drawn over the right side. */
     controlsEndInset: androidx.compose.ui.unit.Dp = 0.dp,
     extras: lol.sinist3r.yip.core.model.VideoExtras = lol.sinist3r.yip.core.model.VideoExtras(),
+    onShare: (() -> Unit)? = null,
 ) {
     val host = LocalWatchHost.current
     val context = LocalContext.current
@@ -131,8 +133,12 @@ fun PlayerArea(
 
     // With TalkBack on, controls stay up so they can be found by touch.
     val talkBack = remember { context.getSystemService(android.view.accessibility.AccessibilityManager::class.java)?.isTouchExplorationEnabled == true }
-    LaunchedEffect(controls, state.playing) {
-        if (controls && state.playing && !talkBack) {
+    var scrubbing by remember { mutableStateOf(false) }
+    // Clips and downloads don't come with a length; ask the player once it knows.
+    var playerDurationS by remember { mutableLongStateOf(0L) }
+    val length = if (durationSeconds > 0) durationSeconds else playerDurationS
+    LaunchedEffect(controls, state.playing, scrubbing) {
+        if (controls && state.playing && !talkBack && !scrubbing) {
             delay(3500)
             controls = false
         }
@@ -143,6 +149,7 @@ fun PlayerArea(
         if (!controls || isLive) return@LaunchedEffect
         while (true) {
             position = player.currentPosition
+            player.duration.takeIf { it != androidx.media3.common.C.TIME_UNSET && it > 0 }?.let { playerDurationS = it / 1000 }
             delay(500)
         }
     }
@@ -254,6 +261,7 @@ fun PlayerArea(
                     }
                     onDownload?.let { IconButton(onClick = it) { Icon(Icons.Outlined.Download, "Download", tint = Color.White) } }
                     onClip?.let { IconButton(onClick = it) { Icon(Icons.Outlined.ContentCut, "Clip", tint = Color.White) } }
+                    onShare?.let { IconButton(onClick = it) { Icon(Icons.Outlined.Share, "Share", tint = Color.White) } }
                     onMultiView?.let { IconButton(onClick = it) { Icon(Icons.Outlined.GridView, "Watch with another stream", tint = Color.White) } }
                     onToggleChat?.let { IconButton(onClick = it) { Icon(if (chatOpen) Icons.Outlined.SpeakerNotesOff else Icons.Outlined.Forum, if (chatOpen) "Hide chat" else "Show chat", tint = Color.White) } }
                     IconButton(onClick = { host?.enterPip() }) { Icon(Icons.Outlined.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
@@ -266,8 +274,8 @@ fun PlayerArea(
                     Icon(if (state.playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow, if (state.playing) "Pause" else "Play", tint = Color.White, modifier = Modifier.size(36.dp))
                 }
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 8.dp)) {
-                    if (!isLive && durationSeconds > 0) {
-                        VodSeekBar(position, durationSeconds, extras, onSeek = { player.seekTo(it) })
+                    if (!isLive && length > 0) {
+                        VodSeekBar(position, length, extras, onSeek = { player.seekTo(it) }, onScrub = { scrubbing = it })
                         val chapter = chapters.lastOrNull { it.startSeconds <= position / 1000 }
                         chapter?.let { Text(it.title.ifBlank { it.gameName.orEmpty() }, color = Color.White, fontSize = 11.sp) }
                     }
@@ -275,7 +283,7 @@ fun PlayerArea(
                         if (isLive) {
                             LivePill()
                             onCatchUp?.let { IconButton(onClick = it) { Icon(Icons.Outlined.Refresh, "Jump to live", tint = Color.White) } }
-                        } else Text("${(position / 1000).secondsClock()} / ${durationSeconds.secondsClock()}", color = Color.White, fontSize = 12.sp)
+                        } else Text("${(position / 1000).secondsClock()} / ${length.secondsClock()}", color = Color.White, fontSize = 12.sp)
                         Spacer(Modifier.width(8.dp))
                         if (isLive && settings.showLatency) state.liveLatencyMs?.let { Pill("%.1fs".format(it / 1000f)) }
                         Spacer(Modifier.width(6.dp))

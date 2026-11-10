@@ -1,5 +1,6 @@
 package lol.sinist3r.yip.feature.watch
 
+import lol.sinist3r.yip.core.designsystem.util.shareLink
 import lol.sinist3r.yip.core.common.isPowerSaving
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
@@ -220,6 +221,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             durationSeconds = duration,
             chapters = info.chapters,
             extras = info.extras,
+            onShare = (playState.source as? PlaybackSource.ClipSrc)?.let { c -> { context.shareLink(lol.sinist3r.yip.core.designsystem.util.clipLink(c.slug), c.title.ifBlank { null }) } },
             inPip = inPip,
             showAdBanner = settings.adBlock.showAdBreakBanner,
             onBack = nav::back,

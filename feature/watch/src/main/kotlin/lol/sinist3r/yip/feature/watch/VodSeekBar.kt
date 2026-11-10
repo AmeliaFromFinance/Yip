@@ -51,11 +51,12 @@ private const val PREVIEW_WIDTH_DP = 160
 /** VOD seek bar with scrub thumbnails and muted parts marked in amber. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun VodSeekBar(positionMs: Long, durationSeconds: Long, extras: VideoExtras, onSeek: (Long) -> Unit, modifier: Modifier = Modifier) {
+internal fun VodSeekBar(positionMs: Long, durationSeconds: Long, extras: VideoExtras, onSeek: (Long) -> Unit, modifier: Modifier = Modifier, onScrub: (Boolean) -> Unit = {}) {
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableFloatStateOf(0f) }
     val fraction = if (dragging) dragValue else (positionMs / 1000f / durationSeconds).coerceIn(0f, 1f)
     val sprites = rememberSprites(extras, load = dragging)
+    LaunchedEffect(dragging) { onScrub(dragging) }
 
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val width = maxWidth
