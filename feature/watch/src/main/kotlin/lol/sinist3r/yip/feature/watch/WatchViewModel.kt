@@ -86,7 +86,18 @@ class WatchViewModel @Inject constructor(
     private val replay: ReplaySession,
     private val mentions: lol.sinist3r.yip.core.data.chat.MentionNotifier,
     private val downloads: lol.sinist3r.yip.core.playback.Downloads,
+    private val translator: ChatTranslator,
 ) : ViewModel() {
+
+    val canTranslate get() = translator.available
+    private val _translations = MutableStateFlow<Map<String, Translation>>(emptyMap())
+    val translations = _translations.asStateFlow()
+
+    fun translate(m: ChatItem.Message) {
+        if (_translations.value[m.id] is Translation.Done) return
+        _translations.update { it + (m.id to Translation.Working) }
+        viewModelScope.launch { _translations.update { it + (m.id to translator.translate(m.raw)) } }
+    }
 
     val downloadItems = downloads.items
 

@@ -76,7 +76,14 @@ import lol.sinist3r.yip.core.model.RoomState
  * pauses (like Twitch) until they tap the pill or scroll back down to the newest message.
  */
 @Composable
-fun ChatList(items: ImmutableList<ChatItem>, options: ChatRenderOptions, actions: ChatActions, modifier: Modifier = Modifier) {
+fun ChatList(
+    items: ImmutableList<ChatItem>,
+    options: ChatRenderOptions,
+    actions: ChatActions,
+    modifier: Modifier = Modifier,
+    translations: Map<String, Translation> = emptyMap(),
+    onTranslationFix: (android.app.PendingIntent) -> Unit = {},
+) {
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var following by remember { mutableStateOf(true) }
@@ -125,7 +132,13 @@ fun ChatList(items: ImmutableList<ChatItem>, options: ChatRenderOptions, actions
             val size = items.size
             items(count = size, key = { items[size - 1 - it].id }, contentType = { items[size - 1 - it]::class }) { i ->
                 val idx = size - 1 - i
-                ChatRow(items[idx], options, actions, alternate = idx % 2 == 1)
+                val item = items[idx]
+                if (translations.isEmpty() || item.id !in translations) {
+                    ChatRow(item, options, actions, alternate = idx % 2 == 1)
+                } else androidx.compose.foundation.layout.Column {
+                    ChatRow(item, options, actions, alternate = idx % 2 == 1)
+                    TranslationLine(translations.getValue(item.id), onTranslationFix)
+                }
             }
         }
         AnimatedVisibility(!following, Modifier.align(Alignment.BottomCenter).padding(10.dp), enter = fadeIn(), exit = fadeOut()) {
@@ -296,6 +309,24 @@ fun RaidBanner(raid: lol.sinist3r.yip.core.data.chat.RaidTarget, onGo: () -> Uni
             Text("Raiding ${raid.displayName}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
             androidx.compose.material3.FilledTonalButton(onClick = onGo) { Text("Go") }
             androidx.compose.material3.IconButton(onClick = onDismiss) { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Outlined.Close, "Dismiss") }
+        }
+    }
+}
+
+@Composable
+private fun TranslationLine(t: Translation, onFix: (android.app.PendingIntent) -> Unit) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, bottom = 4.dp)) {
+        when (t) {
+            Translation.Working -> Text("Translating…", style = MaterialTheme.typography.bodySmall, color = muted)
+            is Translation.Done -> {
+                Text(t.text, style = MaterialTheme.typography.bodyMedium)
+                Text("Translated from ${t.fromLanguage} on this phone", style = MaterialTheme.typography.labelSmall, color = muted)
+            }
+            is Translation.Failed -> androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(t.reason, style = MaterialTheme.typography.bodySmall, color = muted, modifier = Modifier.weight(1f))
+                t.fix?.let { intent -> androidx.compose.material3.TextButton(onClick = { onFix(intent) }) { Text("Download") } }
+            }
         }
     }
 }

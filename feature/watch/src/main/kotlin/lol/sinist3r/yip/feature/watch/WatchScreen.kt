@@ -209,7 +209,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
                 )
             }
             raid?.let { r -> RaidBanner(r, onGo = { viewModel.dismissRaid(); nav.openLive(r.login) }, onDismiss = viewModel::dismissRaid) }
-            ChatList(chat, options, actions, Modifier.weight(1f))
+            val translations by viewModel.translations.collectAsStateWithLifecycle()
+            ChatList(chat, options, actions, Modifier.weight(1f), translations, onTranslationFix = { runCatching { it.send() } })
             if (isLive || chatOnly) {
                 Composer(
                     enabled = connection.connected && !connection.readOnly,
@@ -394,6 +395,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onDismiss = { menuFor = null },
             onHideUser = { viewModel.updateFilters { f -> f.copy(hiddenUsers = (f.hiddenUsers + m.user.login.lowercase()).distinct()) } },
             onMarkBot = { viewModel.updateFilters { f -> f.copy(botNames = (f.botNames + m.user.login.lowercase()).distinct(), hideBots = true) } },
+            onTranslate = if (viewModel.canTranslate) ({ viewModel.translate(m) }) else null,
         )
     }
 }

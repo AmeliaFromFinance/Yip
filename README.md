@@ -38,6 +38,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Shared chat: messages from other channels in a shared session show where they came from
 - Inbox: every mention from chats you opened, plus whispers (read and reply)
 - Search a chat by word or `from:name`
+- Translate a message with the phone's built-in translator (Android 12+, on-device)
 - Private nicknames and notes on chatters
 - Raid prompt: jump to the channel being raided in one tap
 - Poll, prediction and Hype Train cards above chat; vote and predict with the twitch.tv connection
@@ -66,7 +67,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 **Opt-in and experimental** (all off by default)
 - Ad handling: swaps to an ad-free stream copy during ad breaks, or uses proxy servers you add yourself
 - Channel points: balance, auto-claim and redeeming rewards; follow and unfollow in the app (need the optional twitch.tv connection)
-- Follow categories and claim Drops (twitch.tv connection)
+- Follow categories (twitch.tv connection)
 
 ## Building
 

@@ -267,12 +267,6 @@ class GqlApi @Inject constructor(
         queryAuthed(if (follow) GqlQueries.FOLLOW_GAME else GqlQueries.UNFOLLOW_GAME, buildJsonObject { put("id", gameId) }, integrity = true)
     }
 
-    suspend fun drops(): List<lol.sinist3r.yip.core.model.DropCampaign> = WebFeaturesParser.drops(queryAuthed(GqlQueries.DROPS))
-
-    /** Twitch's status, e.g. ELIGIBLE_FOR_ALL on success. */
-    suspend fun claimDrop(claimId: String): String? =
-        queryAuthed(GqlQueries.CLAIM_DROP, buildJsonObject { put("id", claimId) }, integrity = true).obj("claimDropRewards")?.str("status")
-
     /** Display name for a user id, without signing in. */
     suspend fun displayName(userId: String): String? =
         query("query(${'$'}id: ID!) { user(id: ${'$'}id) { displayName } }", buildJsonObject { put("id", userId) }).obj("user")?.str("displayName")

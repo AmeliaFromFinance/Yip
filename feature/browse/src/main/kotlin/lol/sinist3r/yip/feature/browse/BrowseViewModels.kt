@@ -230,7 +230,9 @@ class CategoryViewModel @Inject constructor(
 
     fun toggleFollow() = viewModelScope.launch {
         val follow = !followed.value
-        web.setFollowingCategory(lol.sinist3r.yip.core.model.FollowedCategory(categoryId, categoryName, null), follow)
+        // Twitch box art by id, so the row has artwork straight away.
+        val art = "https://static-cdn.jtvnw.net/ttv-boxart/$categoryId-144x192.jpg"
+        web.setFollowingCategory(lol.sinist3r.yip.core.model.FollowedCategory(categoryId, categoryName, art), follow)
             ?.let { messages.tryEmit(it) } ?: messages.tryEmit(if (follow) "Following $categoryName" else "Unfollowed $categoryName")
     }
 

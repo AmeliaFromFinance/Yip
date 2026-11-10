@@ -73,22 +73,9 @@ interface LibraryNavigator {
 class LibraryViewModel @Inject constructor(
     private val history: HistoryRepository,
     private val downloads: Downloads,
-    private val web: lol.sinist3r.yip.core.data.web.WebFeatures,
 ) : ViewModel() {
     val entries = history.all.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val downloadItems = downloads.items
-
-    /** null = not loaded yet. */
-    val drops = kotlinx.coroutines.flow.MutableStateFlow<Result<List<lol.sinist3r.yip.core.model.DropCampaign>>?>(null)
-    val dropMessage = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
-
-    fun loadDrops() = viewModelScope.launch { drops.value = web.drops() }
-
-    fun claim(drop: lol.sinist3r.yip.core.model.TimedDrop) = viewModelScope.launch {
-        val claimId = drop.claimId ?: return@launch
-        dropMessage.value = web.claim(claimId)?.let { "Couldn't claim: $it" } ?: "Claimed ${drop.rewardName ?: drop.name}"
-        drops.value = web.drops()
-    }
     fun remove(key: String) = viewModelScope.launch { history.remove(key) }
     fun clear() = viewModelScope.launch { history.clear() }
     fun removeDownload(id: String) = downloads.remove(id)
@@ -99,8 +86,6 @@ class LibraryViewModel @Inject constructor(
 fun LibraryScreen(nav: LibraryNavigator, startTab: Int = 0, viewModel: LibraryViewModel = hiltViewModel()) {
     val entries by viewModel.entries.collectAsStateWithLifecycle()
     val items by viewModel.downloadItems.collectAsStateWithLifecycle()
-    val drops by viewModel.drops.collectAsStateWithLifecycle()
-    val dropMessage by viewModel.dropMessage.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(startTab) }
     var confirmClear by remember { mutableStateOf(false) }
     Scaffold(
@@ -114,15 +99,12 @@ fun LibraryScreen(nav: LibraryNavigator, startTab: Int = 0, viewModel: LibraryVi
                 PrimaryTabRow(selectedTabIndex = tab) {
                     Tab(tab == 0, { tab = 0 }, text = { Text("History") })
                     Tab(tab == 1, { tab = 1 }, text = { Text("Downloads") })
-                    Tab(tab == 2, { tab = 2 }, text = { Text("Drops") })
                 }
             }
         },
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
-            androidx.compose.runtime.LaunchedEffect(tab) { if (tab == 2) viewModel.loadDrops() }
             when {
-                tab == 2 -> DropsTab(drops, dropMessage, onClaim = viewModel::claim)
                 tab == 0 && entries.isEmpty() -> LibraryEmpty("Nothing watched yet.")
                 tab == 0 -> LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
                     items(entries, key = { it.key }) { e ->
@@ -231,48 +213,3 @@ fun DownloadSheet(qualities: List<StreamQuality>, durationSeconds: Long, existin
     }
 }
 
-@Composable
-private fun DropsTab(state: Result<List<lol.sinist3r.yip.core.model.DropCampaign>>?, message: String?, onClaim: (lol.sinist3r.yip.core.model.TimedDrop) -> Unit) {
-    when {
-        state == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator() }
-        state.isFailure -> LibraryEmpty(state.exceptionOrNull()?.message ?: "Couldn't load Drops")
-        state.getOrNull().isNullOrEmpty() -> LibraryEmpty("No Drops in progress. Campaigns you've started on Twitch show up here.")
-        else -> LazyColumn(contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item {
-                Text(
-                    "Watch time for Drops is counted by Twitch's own player, so keep watching on twitch.tv or the Twitch app. Claim rewards here.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                message?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 6.dp)) }
-            }
-            items(state.getOrThrow(), key = { it.id }) { c ->
-                androidx.compose.material3.Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            AsyncImage(c.boxArtUrl, null, Modifier.width(36.dp).aspectRatio(3f / 4f).clip(RoundedCornerShape(4.dp)))
-                            Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                                Text(c.name, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(listOfNotNull(c.gameName, c.endsAtMillis?.let { "ends ${java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate()}" }).joinToString(" · "),
-                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                        c.drops.forEach { d ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                AsyncImage(d.imageUrl, null, Modifier.width(40.dp).aspectRatio(1f).clip(RoundedCornerShape(6.dp)))
-                                Column(Modifier.weight(1f).padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Text(d.rewardName ?: d.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    LinearProgressIndicator(progress = { d.progress }, modifier = Modifier.fillMaxWidth(), drawStopIndicator = {})
-                                    Text(
-                                        if (d.claimed) "Claimed" else "${d.watchedMinutes} / ${d.requiredMinutes} min",
-                                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                if (d.claimable) androidx.compose.material3.FilledTonalButton(onClick = { onClaim(d) }) { Text("Claim") }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
