@@ -63,7 +63,9 @@ class MainActivity : ComponentActivity(), WatchHost {
         lifecycleScope.launch { accounts.validateActive() }
         setContent {
             val s by settings.settings.collectAsStateWithLifecycle()
-            YipTheme(s.appearance) {
+            val bedtime = lol.sinist3r.yip.core.designsystem.util.rememberBedtimeActive(s.general.bedtime)
+            val appearance = if (bedtime && s.general.bedtime.oledTheme) s.appearance.copy(theme = lol.sinist3r.yip.core.model.ThemeMode.BLACK) else s.appearance
+            YipTheme(appearance) {
                 CompositionLocalProvider(LocalWatchHost provides this) {
                     YipApp(activity = this, settings = s, inPip = inPip)
                     pendingImport?.let { incoming ->

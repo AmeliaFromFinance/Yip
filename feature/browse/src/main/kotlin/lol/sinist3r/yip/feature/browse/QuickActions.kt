@@ -1,5 +1,6 @@
 package lol.sinist3r.yip.feature.browse
 
+import lol.sinist3r.yip.core.common.isPowerSaving
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -55,6 +56,8 @@ class QuickActionsViewModel @Inject constructor(
         // Data saver on mobile data: no preview.
         val metered = context.getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered != false
         if (settings.settings.value.data.dataSaver && metered) return
+        // Battery saver: no preview.
+        if (settings.settings.value.data.batterySaver && context.isPowerSaving()) return
         previewJob = viewModelScope.launch {
             val resolved = lol.sinist3r.yip.core.common.attempt { playbackRepo.resolveLive(login) }.getOrNull() ?: return@launch
             val url = resolved.qualities.filterNot { it.isAudioOnly }.lastOrNull { (it.height ?: 0) >= 160 }?.url ?: resolved.masterPlaylistUrl

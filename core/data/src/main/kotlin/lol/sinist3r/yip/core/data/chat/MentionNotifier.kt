@@ -27,6 +27,7 @@ class MentionNotifier @Inject constructor(
 ) {
     private class Thread(val lines: ArrayDeque<String> = ArrayDeque(), var lastAlertAt: Long = 0)
     private val threads = ConcurrentHashMap<String, Thread>()
+    private val whisperCounts = ConcurrentHashMap<String, Int>()
     @Volatile private var channelReady = false
 
     fun onMessage(channelId: String, channelLogin: String, m: ChatItem.Message) {
@@ -66,6 +67,7 @@ class MentionNotifier @Inject constructor(
             .setContentText(lines.last())
             .setStyle(NotificationCompat.InboxStyle().also { s -> lines.forEach(s::addLine) })
             .setNumber(lines.size)
+            .setBadgeIconType(NotificationCompat.BADGE_ICON_SMALL)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setContentIntent(pi)
             .setAutoCancel(true)
@@ -84,10 +86,14 @@ class MentionNotifier @Inject constructor(
         ensureChannel()
         val open = Intent(Intent.ACTION_VIEW, "yip://whisper/$login".toUri()).setPackage(context.packageName)
         val pi = PendingIntent.getActivity(context, ("w" + login).hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        // Unread count shows on the launcher icon badge where the launcher supports numbers.
+        val count = whisperCounts.merge(login.lowercase(), 1, Int::plus) ?: 1
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(smallIcon())
-            .setContentTitle("Whisper from $name")
+            .setContentTitle(if (count > 1) "$count whispers from $name" else "Whisper from $name")
             .setContentText(text.take(200))
+            .setNumber(count)
+            .setBadgeIconType(NotificationCompat.BADGE_ICON_SMALL)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setContentIntent(pi)
             .setAutoCancel(true)
@@ -97,7 +103,10 @@ class MentionNotifier @Inject constructor(
         nm.notify(WHISPER_TAG, login.lowercase().hashCode(), notification)
     }
 
-    fun clearWhisper(login: String) = NotificationManagerCompat.from(context).cancel(WHISPER_TAG, login.lowercase().hashCode())
+    fun clearWhisper(login: String) {
+        whisperCounts.remove(login.lowercase())
+        NotificationManagerCompat.from(context).cancel(WHISPER_TAG, login.lowercase().hashCode())
+    }
 
     /** Opening the chat clears its pings. */
     fun clear(channelLogin: String) {
@@ -110,6 +119,7 @@ class MentionNotifier @Inject constructor(
         context.getSystemService(NotificationManager::class.java)?.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Chat pings", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Mentions, whispers, highlight keywords and highlighted users"
+                setShowBadge(true)
             },
         )
         channelReady = true

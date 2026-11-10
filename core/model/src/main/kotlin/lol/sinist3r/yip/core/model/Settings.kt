@@ -38,6 +38,7 @@ enum class LinkOpening { IN_APP, BROWSER, ASK }
 
 @Serializable
 data class GeneralSettings(
+    val bedtime: BedtimeSettings = BedtimeSettings(),
     val startScreen: StartScreen = StartScreen.FOLLOWING,
     val openLinks: LinkOpening = LinkOpening.IN_APP,
     val confirmBeforeExit: Boolean = false,
@@ -101,6 +102,8 @@ data class PlayerSettings(
     val autoCatchUp: Boolean = true,
     /** Start in audio-only when not on Wi-Fi. */
     val audioOnlyOnMobile: Boolean = false,
+    /** Remember volume, mute and audio-only for each channel. */
+    val perChannelMemory: Boolean = false,
     val backgroundAudio: Boolean = true,
     val autoPip: Boolean = true,
     val pauseOnHeadphonesUnplugged: Boolean = true,
@@ -150,8 +153,6 @@ data class ChatSettings(
     val quickReplies: List<String> = emptyList(),
     /** Identical messages in a row show once with a count. */
     val collapseRepeats: Boolean = true,
-    /** Short vibration when someone @'s you in the chat you're watching. */
-    val mentionVibration: Boolean = false,
     val font: ChatFont = ChatFont.DEFAULT,
     /** Extra letter spacing in sp. */
     val letterSpacing: Float = 0f,
@@ -322,6 +323,8 @@ data class DataSettings(
     val remoteConfigUrl: String = DEFAULT_CONFIG_URL,
     val verboseLogging: Boolean = false,
     val dataSaver: Boolean = false,
+    /** When the phone's battery saver is on: lower quality, still emotes, no long-press preview. */
+    val batterySaver: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_CONFIG_URL = "https://config.sinist3r.lol/yip/playback.json"
@@ -332,3 +335,23 @@ data class DataSettings(
 
 @Serializable
 enum class ChatFont { DEFAULT, HYPERLEGIBLE, DYSLEXIC, SERIF, MONO }
+
+/** Night-time: OLED theme, dimmer player, automatic sleep timer. Times are minutes after midnight. */
+@Serializable
+data class BedtimeSettings(
+    val enabled: Boolean = false,
+    val startMinutes: Int = 23 * 60,
+    val endMinutes: Int = 7 * 60,
+    val oledTheme: Boolean = true,
+    val dimPlayer: Boolean = true,
+    val sleepTimerMinutes: Int = 30,
+) {
+    /** Handles windows that cross midnight. */
+    fun activeAt(minutesOfDay: Int): Boolean {
+        if (!enabled || startMinutes == endMinutes) return false
+        return if (startMinutes < endMinutes) minutesOfDay in startMinutes until endMinutes
+        else minutesOfDay >= startMinutes || minutesOfDay < endMinutes
+    }
+
+    fun activeNow(): Boolean = java.time.LocalTime.now().let { activeAt(it.hour * 60 + it.minute) }
+}

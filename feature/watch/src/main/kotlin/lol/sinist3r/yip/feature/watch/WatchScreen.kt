@@ -1,5 +1,6 @@
 package lol.sinist3r.yip.feature.watch
 
+import lol.sinist3r.yip.core.common.isPowerSaving
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FilterAlt
@@ -69,13 +70,17 @@ interface WatchNavigator {
     fun openConnectWeb() {}
 }
 
+/** Window brightness while bedtime dims the player. */
+private const val BEDTIME_BRIGHTNESS = 0.08f
+
 @Composable
-internal fun rememberAnimate(mode: AnimateEmotes, reduceMotion: Boolean, dataSaver: Boolean): Boolean {
+internal fun rememberAnimate(mode: AnimateEmotes, reduceMotion: Boolean, dataSaver: Boolean, batterySaver: Boolean = false): Boolean {
     val context = LocalContext.current
-    return remember(mode, reduceMotion, dataSaver) {
+    return remember(mode, reduceMotion, dataSaver, batterySaver) {
         val metered = context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered != false
         when {
             reduceMotion -> false
+            batterySaver && context.isPowerSaving() -> false
             dataSaver && metered -> false
             mode == AnimateEmotes.ALWAYS -> true
             mode == AnimateEmotes.NEVER -> false
@@ -120,7 +125,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
 
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val twoPane = LocalConfiguration.current.let { isTablet(it) && it.screenWidthDp >= 840 }
-    val animate = rememberAnimate(settings.chat.animateEmotes, settings.appearance.reduceMotion, settings.data.dataSaver)
+    val animate = rememberAnimate(settings.chat.animateEmotes, settings.appearance.reduceMotion, settings.data.dataSaver, settings.data.batterySaver)
     val options = remember(settings.chat, settings.thirdParty, animate) { ChatRenderOptions(settings.chat, settings.thirdParty, animate) }
     val actions = remember {
         object : ChatActions {
@@ -154,14 +159,32 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         onDispose { lifecycle.removeObserver(observer); set(false) }
     }
     val context = LocalContext.current
-    val lastMention = chat.lastOrNull() as? ChatItem.Message
-    LaunchedEffect(lastMention?.id) {
-        if (lastMention != null && !lastMention.isHistory && lastMention.highlight == lol.sinist3r.yip.core.model.HighlightKind.MENTION && settings.chat.mentionVibrate) {
-            context.getSystemService(android.os.Vibrator::class.java)?.vibrate(android.os.VibrationEffect.createOneShot(60, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-        }
-    }
     LaunchedEffect(settings.player.sleepTimerMinutes) {
         if (!chatOnly && settings.player.sleepTimerMinutes > 0 && playState.sleepAtMillis == null && !playState.sleepAtEnd) viewModel.playback.setSleepTimer(settings.player.sleepTimerMinutes)
+    }
+    // Bedtime: dim the screen and start a sleep timer if none is set.
+    val bedtime = settings.general.bedtime
+    val bedtimeActive = lol.sinist3r.yip.core.designsystem.util.rememberBedtimeActive(bedtime)
+    LaunchedEffect(bedtimeActive) {
+        if (bedtimeActive && !chatOnly && bedtime.sleepTimerMinutes > 0 && playState.sleepAtMillis == null && !playState.sleepAtEnd) {
+            viewModel.playback.setSleepTimer(bedtime.sleepTimerMinutes)
+        }
+    }
+    val dim = bedtimeActive && bedtime.dimPlayer
+    DisposableEffect(dim) {
+        val window = generateSequence(context) { (it as? android.content.ContextWrapper)?.baseContext }.filterIsInstance<android.app.Activity>().firstOrNull()?.window
+        if (dim && window != null) {
+            val lp = window.attributes
+            lp.screenBrightness = BEDTIME_BRIGHTNESS
+            window.attributes = lp
+        }
+        onDispose {
+            if (dim && window != null) {
+                val lp = window.attributes
+                lp.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                window.attributes = lp
+            }
+        }
     }
 
     val src = playState.source
@@ -360,6 +383,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         onLowLatency = viewModel::setLowLatency,
         audioOnly = if (playState.qualities.any { it.isAudioOnly }) playState.audioOnly else null,
         onAudioOnly = viewModel.playback::toggleAudioOnly,
+        volume = if (settings.player.perChannelMemory) playState.volume else null,
+        onVolume = viewModel.playback::setVolume,
     )
     if (showEmotes) EmotePickerSheet(
         cosmetics, twitchEmotes, recent, animate,

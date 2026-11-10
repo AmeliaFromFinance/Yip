@@ -240,10 +240,20 @@ fun QualitySheet(
     /** "End of stream" / "End of video"; null hides the option. */
     sleepAtEndLabel: String? = null,
     sleepAtEnd: Boolean = false,
+    /** Stream volume, 0..1; null hides the slider. */
+    volume: Float? = null,
+    onVolume: (Float) -> Unit = {},
 ) {
     // Fully expanded straight away: a sheet still settling eats the first tap.
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+            if (volume != null) {
+                SheetTitle("Volume (this channel)")
+                androidx.compose.material3.Slider(
+                    value = volume, onValueChange = onVolume,
+                    modifier = Modifier.padding(horizontal = 24.dp),
+                )
+            }
             SheetTitle("Quality")
             Column(Modifier.selectableGroup()) {
                 if (showAuto) OptionRow("Auto", null, selected = auto) { onQuality(null) }

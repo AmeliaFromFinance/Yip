@@ -318,7 +318,7 @@ class WatchViewModel @Inject constructor(
         // Buzz on mentions in the chat being watched (setting).
         viewModelScope.launch {
             session.flatMapLatest { it?.mentionsHere ?: kotlinx.coroutines.flow.emptyFlow() }.collect {
-                if (settingsRepo.settings.value.chat.mentionVibration) vibrate()
+                if (settingsRepo.settings.value.chat.mentionVibrate) vibrate()
             }
         }
         // Chat waits for the stream: hold live messages by the player's delay, minus a little for chat's own lag.

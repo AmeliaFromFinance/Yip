@@ -110,7 +110,7 @@ fun InboxScreen(nav: InboxNavigator, viewModel: InboxViewModel = hiltViewModel()
     val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var newWhisper by remember { mutableStateOf(false) }
-    val animate = rememberAnimate(settings.chat.animateEmotes, settings.appearance.reduceMotion, settings.data.dataSaver)
+    val animate = rememberAnimate(settings.chat.animateEmotes, settings.appearance.reduceMotion, settings.data.dataSaver, settings.data.batterySaver)
     val options = remember(settings.chat, settings.thirdParty, animate) { ChatRenderOptions(settings.chat, settings.thirdParty, animate) }
     val actions = remember { object : ChatActions { override fun onLink(url: String) = nav.openLink(url) } }
     LaunchedEffect(tab, mentions.size) { if (tab == 0) viewModel.markMentionsRead() }

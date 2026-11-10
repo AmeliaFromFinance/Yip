@@ -26,6 +26,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import lol.sinist3r.yip.core.common.AppException
 import lol.sinist3r.yip.core.common.attempt
+import lol.sinist3r.yip.core.common.isPowerSaving
 import lol.sinist3r.yip.core.data.history.HistoryRepository
 import lol.sinist3r.yip.core.data.playback.PlaybackRepository
 import lol.sinist3r.yip.core.data.playback.PlaylistRewriter
@@ -83,6 +84,8 @@ data class PlaybackUiState(
     val sleepAtEnd: Boolean = false,
     val speed: Float = 1f,
     val muted: Boolean = false,
+    /** Player volume, 0..1, separate from the device volume. */
+    val volume: Float = 1f,
 )
 
 /**
@@ -100,6 +103,7 @@ class PlaybackController @Inject constructor(
     private val history: HistoryRepository,
     private val channelPrefs: ChannelPrefsDao,
     private val downloads: Downloads,
+    private val memory: ChannelMemory,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var _player: ExoPlayer? = null
@@ -107,6 +111,7 @@ class PlaybackController @Inject constructor(
     private var sleepJob: Job? = null
     private var tickJob: Job? = null
     private var volumeBeforeAd = 1f
+    private var suppressMemory = false
 
     private val _state = MutableStateFlow(PlaybackUiState())
     val state: StateFlow<PlaybackUiState> = _state.asStateFlow()
@@ -147,7 +152,10 @@ class PlaybackController @Inject constructor(
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) = _state.update { it.copy(playing = isPlaying) }
-        override fun onVolumeChanged(volume: Float) = _state.update { it.copy(muted = volume == 0f) }
+        override fun onVolumeChanged(volume: Float) {
+            _state.update { it.copy(muted = volume == 0f, volume = volume) }
+            remember { m -> if (volume == 0f) m.copy(muted = true) else m.copy(volume = volume, muted = false) }
+        }
         override fun onPlaybackStateChanged(playbackState: Int) {
             _state.update { it.copy(loading = playbackState == Player.STATE_BUFFERING) }
             if (playbackState == Player.STATE_ENDED && _state.value.sleepAtEnd) stop()
@@ -219,13 +227,16 @@ class PlaybackController @Inject constructor(
     private suspend fun pickInitial(channelId: String, qualities: List<StreamQuality>): StreamQuality? {
         val s = settings.current().player
         if (s.audioOnlyOnMobile && !isOnWifi()) qualities.firstOrNull { it.isAudioOnly }?.let { return it }
+        if (s.perChannelMemory && memory.get(channelId)?.audioOnly == true) qualities.firstOrNull { it.isAudioOnly }?.let { return it }
         if (s.rememberQualityPerChannel) {
             channelPrefs.get(channelId)?.qualityId?.let { id -> qualities.firstOrNull { it.id == id }?.let { return it } }
         }
         val wifi = isOnWifi()
         val base = if (wifi) s.qualityWifi else s.qualityMobile
-        // Data saver caps mobile data at 480p.
-        val pref = if (!wifi && settings.current().data.dataSaver && (base == QualityPreference.AUTO || base == QualityPreference.SOURCE || (base.height ?: 0) > 480)) QualityPreference.P480 else base
+        // Data saver caps mobile data at 480p; battery saver caps everything at 480p while the system saver is on.
+        val data = settings.current().data
+        val capped = (!wifi && data.dataSaver) || (data.batterySaver && context.isPowerSaving())
+        val pref = if (capped && (base == QualityPreference.AUTO || base == QualityPreference.SOURCE || (base.height ?: 0) > 480)) QualityPreference.P480 else base
         return when (pref) {
             QualityPreference.AUTO -> null
             QualityPreference.AUDIO_ONLY -> qualities.firstOrNull { it.isAudioOnly }
@@ -241,7 +252,14 @@ class PlaybackController @Inject constructor(
         stats.reset()
         player.setMediaSource(factory.hlsSource(url, live, profile, metadata(src)))
         player.prepare()
-        if (settings.settings.value.player.startMuted) player.volume = 0f
+        val ps = settings.settings.value.player
+        val memo = if (ps.perChannelMemory) memory.get(src.channelId) else null
+        suppressMemory = true
+        if (memo != null) {
+            volumeBeforeMute = memo.volume.takeIf { it > 0f } ?: 1f
+            player.volume = if (memo.muted || ps.startMuted) 0f else memo.volume
+        } else if (ps.startMuted) player.volume = 0f
+        suppressMemory = false
         player.play()
         _state.update { it.copy(selected = quality, auto = quality == null, audioOnly = quality?.isAudioOnly == true, error = null) }
     }
@@ -271,6 +289,21 @@ class PlaybackController @Inject constructor(
     fun toggleAudioOnly() {
         val s = _state.value
         if (s.audioOnly) selectQuality(null) else s.qualities.firstOrNull { it.isAudioOnly }?.let(::selectQuality)
+        remember { it.copy(audioOnly = !s.audioOnly) }
+    }
+
+    /** Stream volume, 0..1. Kept per channel when per-channel memory is on. */
+    fun setVolume(volume: Float) {
+        val v = volume.coerceIn(0f, 1f)
+        if (v > 0f) volumeBeforeMute = v
+        player.volume = v
+    }
+
+    private fun remember(change: (ChannelMemo) -> ChannelMemo) {
+        if (suppressMemory) return
+        val src = _state.value.source ?: return
+        if (!settings.settings.value.player.perChannelMemory) return
+        memory.update(src.channelId, change)
     }
 
     fun setSpeed(speed: Float) {
@@ -382,7 +415,9 @@ class PlaybackController @Inject constructor(
                 }
                 autoCatchUp(p, src)
                 if (settings.settings.value.adBlock.muteDuringAds && ad != wasAd) {
+                    suppressMemory = true
                     if (ad) { volumeBeforeAd = p.volume; p.volume = 0f } else p.volume = volumeBeforeAd
+                    suppressMemory = false
                 }
                 if (++n % 15 == 0) recordProgress()
             }
