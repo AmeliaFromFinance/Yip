@@ -51,6 +51,7 @@ sealed interface ChatItem {
         val isHistory: Boolean = false,
         val bits: Int = 0,
         val rewardTitle: String? = null,
+        val rewardId: String? = null,
     ) : ChatItem
 
     /** Sub, gift, raid, announcement, redemption and similar. */

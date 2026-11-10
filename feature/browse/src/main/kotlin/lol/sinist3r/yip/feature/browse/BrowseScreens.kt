@@ -1,5 +1,6 @@
 package lol.sinist3r.yip.feature.browse
 
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.ManageAccounts
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PushPin
@@ -689,17 +690,22 @@ private fun PinnedCategoryChips(pins: List<lol.sinist3r.yip.core.model.PinnedCat
 @Composable
 private fun AccountSwitcher(viewModel: FollowingViewModel, nav: BrowseNavigator) {
     val state by viewModel.accountsState.collectAsStateWithLifecycle()
-    val active = state.active ?: return
+    val active by viewModel.activeAccount.collectAsStateWithLifecycle()
     var menu by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { menu = true }) { Avatar(active.profileImageUrl, "Account: ${active.displayName}. Tap to switch", 32.dp) }
+        // Always shown: the avatar when there is one, a generic account icon otherwise.
+        IconButton(onClick = { if (state.accounts.isEmpty()) nav.openAccounts() else menu = true }) {
+            val a = active ?: state.accounts.firstOrNull()
+            if (a?.profileImageUrl != null) Avatar(a.profileImageUrl, "Account: ${a.displayName}. Tap to switch", 32.dp)
+            else Icon(Icons.Outlined.AccountCircle, if (a != null) "Account: ${a.displayName}. Tap to switch" else "Sign in")
+        }
         androidx.compose.material3.DropdownMenu(menu, onDismissRequest = { menu = false }) {
             state.accounts.forEach { a ->
                 androidx.compose.material3.DropdownMenuItem(
                     text = { Text(a.displayName) },
                     leadingIcon = { Avatar(a.profileImageUrl, null, 28.dp) },
-                    trailingIcon = { if (a.userId == active.userId) Icon(Icons.Filled.Check, "Current") },
-                    onClick = { menu = false; if (a.userId != active.userId) viewModel.switchAccount(a.userId) },
+                    trailingIcon = { if (a.userId == active?.userId) Icon(Icons.Filled.Check, "Current") },
+                    onClick = { menu = false; if (a.userId != active?.userId) viewModel.switchAccount(a.userId) },
                 )
             }
             androidx.compose.material3.HorizontalDivider()

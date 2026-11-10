@@ -206,6 +206,9 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
                     }
                 }
             }
+            m.rewardTitle?.let { t ->
+                withStyle(SpanStyle(color = muted, fontSize = (chat.fontSizeSp - 2).sp, fontWeight = FontWeight.Medium)) { append("✦ Redeemed $t\n") }
+            }
             if (m.isFirstMessage && chat.showFirstMessageTag) {
                 withStyle(SpanStyle(color = primary, fontWeight = FontWeight.Bold, fontSize = (chat.fontSizeSp - 3).sp, letterSpacing = 0.05.em)) { append("FIRST MESSAGE  ") }
             }

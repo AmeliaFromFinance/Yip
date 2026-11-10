@@ -43,6 +43,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Badges from BTTV, FFZ, FFZ:AP, Chatterino, Chatterino Homies (incl. custom) and Moltorino
 - Recent messages on open, replies, mentions, sub/raid/redemption notices
 - First-time chatters tagged and highlighted; streamer messages highlighted
+- Channel points redemptions in chat for everyone ("name redeemed reward")
 - Hide someone in chat on this device without blocking them
 - Link previews for Twitch clips, VODs, channels and YouTube (Wi-Fi only by default)
 - Mods: pin messages for everyone (timed or until removed), one-tap quick buttons like "10m Spam"

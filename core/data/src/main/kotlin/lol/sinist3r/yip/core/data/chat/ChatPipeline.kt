@@ -57,6 +57,7 @@ class ChatPipeline(private val cosmetics: CosmeticsRepository, private val prono
             isHistory = raw.isHistory,
             bits = raw.bits,
             sharedFrom = raw.sourceChannelId?.let { id -> raw.sourceChannelName ?: sharedNames?.nameFor(id) ?: "another channel" },
+            rewardId = raw.rewardId,
         )
     }
 

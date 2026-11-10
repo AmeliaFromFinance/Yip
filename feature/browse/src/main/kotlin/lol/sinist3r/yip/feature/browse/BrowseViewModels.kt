@@ -175,6 +175,7 @@ class FollowingViewModel @Inject constructor(
     fun removeHistory(key: String) = viewModelScope.launch { history.remove(key) }
 
     val accountsState = accounts.state
+    val activeAccount = accounts.active.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     fun switchAccount(userId: String) = viewModelScope.launch { accounts.switchTo(userId) }
 
     fun setIncognito(on: Boolean) = viewModelScope.launch {

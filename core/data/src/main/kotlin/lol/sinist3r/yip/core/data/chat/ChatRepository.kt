@@ -99,7 +99,14 @@ class ChatSession internal constructor(
         scope.launch { consume() }
         scope.launch { publisher() }
         scope.launch { transport() }
+        // Redemptions only reach the broadcaster through EventSub; Twitch's web socket shows them to everyone.
+        scope.launch {
+            repo.hermes.redemptions(channelId).collect { if (repo.settings.settings.value.chat.showRedemptions) incoming.send(RawChat.Redemption(it)) }
+        }
     }
+
+    /** Reward titles by id, for messages sent with a redemption. */
+    private val rewardTitles = HashMap<String, String>()
 
     internal fun stop() {
         repo.cosmetics.releaseChannel(channelId)
@@ -155,7 +162,9 @@ class ChatSession internal constructor(
             when (ev) {
                 is RawChat.Message -> {
                     val raw = if (!ev.msg.isFirstMessage && earlyFirsts.remove(ev.msg.id)) ev.msg.copy(isFirstMessage = true) else ev.msg
-                    repo.pipeline.process(raw, cos.value, settings, self)?.let(::append)
+                    repo.pipeline.process(raw, cos.value, settings, self)
+                        ?.let { m -> m.rewardId?.let(rewardTitles::get)?.let { m.copy(rewardTitle = it) } ?: m }
+                        ?.let(::append)
                     synchronized(knownChatters) {
                         knownChatters.remove(ev.msg.login)
                         knownChatters += ev.msg.login
@@ -173,6 +182,20 @@ class ChatSession internal constructor(
                     while (earlyFirsts.size > 100) earlyFirsts.remove(earlyFirsts.first())
                     mutate { list ->
                     list.map { if (it is ChatItem.Message && it.id == ev.messageId && !it.isFirstMessage) it.copy(isFirstMessage = true, highlight = if (it.highlight == HighlightKind.NONE) HighlightKind.FIRST_MESSAGE else it.highlight).also { _ -> earlyFirsts.remove(ev.messageId) } else it }
+                    }
+                }
+                is RawChat.Redemption -> {
+                    val r = ev.r
+                    if (r.needsInput) {
+                        // The viewer's message carries it; label that message instead of adding a line.
+                        rewardTitles[r.rewardId] = r.rewardTitle
+                        mutate { list ->
+                            list.map {
+                                if (it is ChatItem.Message && it.rewardId == r.rewardId && it.rewardTitle == null && it.user.login.equals(r.userLogin, true)) it.copy(rewardTitle = r.rewardTitle) else it
+                            }
+                        }
+                    } else {
+                        append(ChatItem.Notice("rd-" + r.id, r.timestamp, NoticeKind.REDEMPTION, "${r.userName} redeemed ${r.rewardTitle}" + if (r.cost > 0) " · ${r.cost}" else "", null))
                     }
                 }
                 is RawChat.Deleted -> mutate { list -> list.map { if (it is ChatItem.Message && it.id == ev.messageId) it.copy(isDeleted = true) else it } }
@@ -372,6 +395,7 @@ class ChatRepository @Inject constructor(
     internal val accounts: AccountRepository,
     internal val eventSub: EventSubChatClient,
     internal val irc: IrcChatClient,
+    internal val hermes: lol.sinist3r.yip.core.network.chat.HermesClient,
     internal val bttvFfz: BttvFfzApi,
     internal val helix: HelixApi,
     internal val mentions: MentionNotifier,
