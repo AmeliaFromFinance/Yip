@@ -383,32 +383,46 @@ class TwitchRepository @Inject constructor(
         else -> "Couldn't pin (${code.lowercase()})"
     }
 
-    data class VodClip(val slug: String, val published: Boolean)
+    /** [published] false: Twitch kept its own default clip; [note] says what happened. */
+    data class VodClip(val slug: String, val published: Boolean, val note: String? = null)
 
     /**
-     * Clips [startSeconds]..[endSeconds] of a VOD with a title. Twitch makes a draft covering the moments
-     * before [endSeconds]; the last part of it, the length you picked, gets published.
+     * Clips [startSeconds]..[endSeconds] of a VOD with a title. Twitch makes a draft of the moments
+     * leading up to [endSeconds]; the last part of it, the length you picked, gets published.
      */
     suspend fun createVodClip(broadcasterId: String, videoId: String, startSeconds: Double, endSeconds: Double, title: String): VodClip {
         val r = withIntegrityRetry { gql.createClip(broadcasterId, endSeconds, videoId, it) }.obj("createClip")
         r?.obj("error")?.str("__typename")?.let { throw AppException(AppException.Kind.UNKNOWN, clipError(it)) }
         val slug = r?.obj("clip")?.str("slug") ?: throw AppException(AppException.Kind.UNKNOWN, "Twitch didn't return a clip")
         val length = (endSeconds - startSeconds).coerceIn(5.0, 60.0)
-        // The draft takes a few seconds to be ready to publish.
-        repeat(10) {
-            kotlinx.coroutines.delay(2000)
-            val raw = attempt { gql.clipDraft(slug).obj("clip")?.str("durationSeconds")?.toDoubleOrNull() }.getOrNull()
-            val window = raw?.takeIf { it > length } ?: RAW_CLIP_SECONDS
-            val published = attempt { publishClip(slug, title, (window - length).coerceAtLeast(0.0), length) }.isSuccess
-            if (published) return VodClip(slug, true)
+        var lastError: String? = null
+        // The draft takes a few seconds before Twitch accepts edits.
+        repeat(8) { attemptNo ->
+            kotlinx.coroutines.delay(if (attemptNo == 0) 2000 else 3000)
+            val draft = attempt { gql.clipDraft(slug).obj("clip") }.getOrNull()
+            val window = draft?.str("durationSeconds")?.toDoubleOrNull()?.takeIf { it >= length } ?: RAW_CLIP_SECONDS
+            val result = attempt { publishClip(slug, title, (window - length).coerceAtLeast(0.0), length) }
+            if (result.isSuccess) return VodClip(slug, true)
+            lastError = result.exceptionOrNull()?.message
+            timber.log.Timber.w("Clip publish try ${attemptNo + 1} for $slug failed: $lastError (window $window)")
         }
-        return VodClip(slug, false)
+        // Couldn't trim. At least set the title.
+        val titled = attempt { withIntegrityRetry { gql.updateClipTitle(slug, title, it) } }.isSuccess
+        return VodClip(
+            slug, false,
+            buildString {
+                append("Twitch didn't accept the trim")
+                lastError?.let { append(" ($it)") }
+                append(if (titled) ". The title is set; the length is Twitch's default." else ". It kept Twitch's default length and title.")
+            },
+        )
     }
 
     suspend fun publishClip(slug: String, title: String, startSeconds: Double, lengthSeconds: Double): String {
         val r = withIntegrityRetry { gql.publishClip(slug, title, startSeconds, lengthSeconds, it) }.obj("publishClip")
-        r?.obj("error")?.str("__typename")?.let { throw AppException(AppException.Kind.UNKNOWN, clipError(it)) }
-        return r?.obj("clip")?.str("slug") ?: slug
+            ?: throw AppException(AppException.Kind.UNKNOWN, "no answer from Twitch")
+        r.obj("error")?.str("__typename")?.let { throw AppException(AppException.Kind.UNKNOWN, clipError(it)) }
+        return r.obj("clip")?.str("slug") ?: throw AppException(AppException.Kind.UNKNOWN, "Twitch didn't confirm the clip")
     }
 
     private fun clipError(type: String) = when {

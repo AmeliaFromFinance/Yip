@@ -123,7 +123,9 @@ class GqlApi @Inject constructor(
         val root = json.parseToJsonElement(text).jsonObject
         root["errors"]?.let { errs ->
             val msg = (errs as? JsonArray)?.firstOrNull()?.jsonObject?.get("message")?.str() ?: errs.toString()
-            if (root["data"] == null || root["data"] is JsonNull) {
+            val data = root["data"] as? JsonObject
+            // Every field came back null: that's a failure, not an empty answer (e.g. a mutation that was refused).
+            if (data == null || data.values.all { it is JsonNull }) {
                 val kind = when {
                     "PersistedQueryNotFound" in msg -> AppException.Kind.CONFIG
                     "integrity" in msg.lowercase() -> AppException.Kind.PLAYBACK_BLOCKED
@@ -355,6 +357,9 @@ class GqlApi @Inject constructor(
                 put("segments", JsonArray(listOf(buildJsonObject { put("offsetSeconds", offsetSeconds); put("durationSeconds", durationSeconds); put("speed", 1.0) })))
             }
         }, integrity)
+
+    suspend fun updateClipTitle(slug: String, title: String, integrity: Boolean = false): JsonObject =
+        queryAuthed(GqlQueries.UPDATE_CLIP, buildJsonObject { putJsonObject("input") { put("slug", slug); put("title", title) } }, integrity)
 
     suspend fun clipPreview(slug: String) = query(GqlQueries.CLIP_PREVIEW, buildJsonObject { put("slug", slug) })
     suspend fun videoPreview(id: String) = query(GqlQueries.VIDEO_PREVIEW, buildJsonObject { put("id", id) })

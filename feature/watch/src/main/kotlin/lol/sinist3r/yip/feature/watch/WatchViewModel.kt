@@ -230,7 +230,7 @@ class WatchViewModel @Inject constructor(
         previewJob?.cancel()
         _clip.value = ClipState.Creating
         attempt { twitch.createVodClip(ch, vod.videoId, start.toDouble(), end.toDouble(), title.ifBlank { _info.value.title }) }
-            .onSuccess { r -> _clip.value = ClipState.Ready(r.slug, draft = !r.published) }
+            .onSuccess { r -> _clip.value = ClipState.Ready(r.slug, note = r.note) }
             .onFailure { e -> _clip.value = setup?.copy(error = e.message ?: "Couldn't clip this VOD.") ?: ClipState.Failed(e.message ?: "Couldn't clip this VOD.") }
     }
 

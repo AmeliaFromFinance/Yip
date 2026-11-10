@@ -53,8 +53,8 @@ sealed interface ClipState {
         val error: String? = null,
     ) : ClipState
     data object Creating : ClipState
-    /** [draft]: made, but needs finishing on Twitch (trim, title, publish). */
-    data class Ready(val id: String, val draft: Boolean = false) : ClipState {
+    /** [note]: made, but not quite as asked (e.g. Twitch kept its default length). */
+    data class Ready(val id: String, val note: String? = null) : ClipState {
         val url get() = "https://clips.twitch.tv/$id"
         val editUrl get() = "https://clips.twitch.tv/$id/edit"
     }
@@ -89,13 +89,12 @@ fun ClipSheet(
                     Text("Couldn't make a clip", style = MaterialTheme.typography.titleMedium)
                     Text(state.reason, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                is ClipState.Ready -> if (state.draft) {
-                    Text("Clip saved as a draft", style = MaterialTheme.typography.titleMedium)
-                    Text("Twitch didn't publish it straight away. Open it on Twitch to finish.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    FilledTonalButton(onClick = { uri.openUri(state.editUrl) }) { Icon(Icons.Outlined.Edit, null); Text(" Open on Twitch") }
-                } else {
+                is ClipState.Ready -> {
                     Text("Clip made", style = MaterialTheme.typography.titleMedium)
-                    Text("It can take a few seconds before the link plays.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    state.note?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error)
+                        FilledTonalButton(onClick = { uri.openUri(state.editUrl) }) { Icon(Icons.Outlined.Edit, null); Text(" Trim on Twitch") }
+                    } ?: Text("It can take a few seconds before the link plays.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilledTonalButton(onClick = {
                             context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, state.url), null))

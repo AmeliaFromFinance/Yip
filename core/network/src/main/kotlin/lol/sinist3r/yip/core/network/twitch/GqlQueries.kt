@@ -218,4 +218,8 @@ internal object GqlQueries {
     val PUBLISH_CLIP = """
         mutation PublishClip(${'$'}input: PublishClipInput!) { publishClip(input: ${'$'}input) { clip { slug title } error { __typename } } }
     """.trimIndent()
+
+    val UPDATE_CLIP = """
+        mutation UpdateClip(${'$'}input: UpdateClipInput!) { updateClip(input: ${'$'}input) { clip { slug title } error { __typename } } }
+    """.trimIndent()
 }
