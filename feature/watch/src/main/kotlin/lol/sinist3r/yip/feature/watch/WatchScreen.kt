@@ -93,6 +93,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val chat by viewModel.chat.collectAsStateWithLifecycle()
     val room by viewModel.room.collectAsStateWithLifecycle()
     val raid by viewModel.raid.collectAsStateWithLifecycle()
+    val commands by viewModel.commands.collectAsStateWithLifecycle()
     val emoteUses by viewModel.emoteUses.collectAsStateWithLifecycle()
     val events by viewModel.events.collectAsStateWithLifecycle()
     val connection by viewModel.connection.collectAsStateWithLifecycle()
@@ -129,6 +130,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             override fun onEmote(emote: Emote) { insert = emote.code }
             override fun onEmoteLongPress(emote: Emote) { emoteCard = emote }
             override fun onMessageLongPress(message: ChatItem.Message) { menuFor = message }
+            override fun onThread(message: ChatItem.Message) = viewModel.openThread(message)
             override fun onLink(url: String) = nav.openLink(url)
             override fun onAutoMod(item: ChatItem.AutoMod, allow: Boolean) { viewModel.resolveAutoMod(item, allow) }
         }
@@ -231,6 +233,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
                     onSignIn = { host?.openSignIn() },
                     insert = insert,
                     onInserted = { insert = null },
+                    commands = commands,
+                    quickReplies = settings.chat.quickReplies,
                 )
             }
         }
@@ -333,6 +337,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     rewards?.let { r ->
         RewardsSheet(r, onRedeem = { reward, text -> viewModel.redeem(reward, text) }, onConnect = { viewModel.closeRewards(); nav.openConnectWeb() }, onDismiss = viewModel::closeRewards)
     }
+    val thread by viewModel.thread.collectAsStateWithLifecycle()
+    thread?.let { t -> ThreadSheet(t, options, actions, onReply = { viewModel.setReply(t.last()); viewModel.closeThread() }, onDismiss = viewModel::closeThread) }
     if (showSearch) ChatSearchSheet(chat, options, actions, onDismiss = { showSearch = false })
     if (showFilters) ChatFiltersSheet(settings.filters, viewModel::updateFilters, onDismiss = { showFilters = false })
     if (showQuality) QualitySheet(
@@ -401,6 +407,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onHideUser = { viewModel.updateFilters { f -> f.copy(hiddenUsers = (f.hiddenUsers + m.user.login.lowercase()).distinct()) } },
             onMarkBot = { viewModel.updateFilters { f -> f.copy(botNames = (f.botNames + m.user.login.lowercase()).distinct(), hideBots = true) } },
             onTranslate = if (viewModel.canTranslate) ({ viewModel.translate(m) }) else null,
+            onThread = if (m.threadId != null) ({ viewModel.openThread(m) }) else null,
         )
     }
 }

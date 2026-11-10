@@ -24,6 +24,8 @@ data class RawMessage(
     val isAction: Boolean = false,
     val isFirstMessage: Boolean = false,
     val replyParentId: String? = null,
+    /** First message of the reply thread. */
+    val replyThreadId: String? = null,
     val replyParentLogin: String? = null,
     val replyParentText: String? = null,
     val bits: Int = 0,

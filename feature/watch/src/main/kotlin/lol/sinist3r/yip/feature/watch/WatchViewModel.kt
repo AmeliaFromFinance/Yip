@@ -97,6 +97,7 @@ class WatchViewModel @Inject constructor(
     private val downloads: lol.sinist3r.yip.core.playback.Downloads,
     private val translator: ChatTranslator,
     private val emoteStats: lol.sinist3r.yip.core.data.chat.EmoteStats,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val appContext: android.content.Context,
 ) : ViewModel() {
 
     val canTranslate get() = translator.available
@@ -291,6 +292,10 @@ class WatchViewModel @Inject constructor(
 
     private val _isModerator = MutableStateFlow(false)
     val isModerator = _isModerator.asStateFlow()
+    private val _isBroadcaster = MutableStateFlow(false)
+    /** Slash commands you can use here. */
+    val commands = kotlinx.coroutines.flow.combine(_isModerator, _isBroadcaster) { mod, owner -> lol.sinist3r.yip.core.data.chat.ChatCommands.available(mod, owner) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, lol.sinist3r.yip.core.data.chat.ChatCommands.available(false, false))
 
     private val _points = MutableStateFlow<Int?>(null)
     val pointsBalance = _points.asStateFlow()
@@ -310,6 +315,12 @@ class WatchViewModel @Inject constructor(
 
     init {
         load()
+        // Buzz on mentions in the chat being watched (setting).
+        viewModelScope.launch {
+            session.flatMapLatest { it?.mentionsHere ?: kotlinx.coroutines.flow.emptyFlow() }.collect {
+                if (settingsRepo.settings.value.chat.mentionVibration) vibrate()
+            }
+        }
         // Chat waits for the stream: hold live messages by the player's delay, minus a little for chat's own lag.
         if (kind == WatchKind.LIVE) viewModelScope.launch {
             kotlinx.coroutines.flow.combine(session, playback.state.map { it.liveLatencyMs }, settingsRepo.settings.map { it.chat.syncWithStream }) { ses, latency, sync ->
@@ -382,6 +393,7 @@ class WatchViewModel @Inject constructor(
         viewModelScope.launch { _twitchEmotes.value = cosmetics.userTwitchEmotes(user.id) }
         viewModelScope.launch {
             val me = accounts.userId() ?: return@launch
+            _isBroadcaster.value = me == user.id
             _isModerator.value = me == user.id || attempt { helix.moderatedChannels(me) }.getOrDefault(emptyList()).contains(user.id)
         }
         if (kind == WatchKind.LIVE) startPoints(user.login)
@@ -445,6 +457,18 @@ class WatchViewModel @Inject constructor(
     }
 
     fun closeUser() { _userCard.value = null }
+
+    /** Reply thread shown in a sheet. */
+    private val _thread = MutableStateFlow<List<ChatItem.Message>?>(null)
+    val thread = _thread.asStateFlow()
+    fun openThread(m: ChatItem.Message) { _thread.value = session.value?.thread(m)?.ifEmpty { listOf(m) } ?: listOf(m) }
+    fun closeThread() { _thread.value = null }
+
+    private fun vibrate() {
+        val v = if (android.os.Build.VERSION.SDK_INT >= 31) appContext.getSystemService(android.os.VibratorManager::class.java)?.defaultVibrator
+            else @Suppress("DEPRECATION") appContext.getSystemService(android.os.Vibrator::class.java)
+        v?.vibrate(android.os.VibrationEffect.createOneShot(60, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+    }
 
     fun loadUserLogs() {
         val card = _userCard.value ?: return

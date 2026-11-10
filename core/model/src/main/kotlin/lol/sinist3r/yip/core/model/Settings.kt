@@ -146,6 +146,15 @@ data class ChatSettings(
     val userNotes: Map<String, UserNote> = emptyMap(),
     /** Show channel emotes you haven't unlocked (greyed out) in the picker. */
     val showLockedEmotes: Boolean = true,
+    /** Saved messages, one tap from an empty chat box. */
+    val quickReplies: List<String> = emptyList(),
+    /** Identical messages in a row show once with a count. */
+    val collapseRepeats: Boolean = true,
+    /** Short vibration when someone @'s you in the chat you're watching. */
+    val mentionVibration: Boolean = false,
+    val font: ChatFont = ChatFont.DEFAULT,
+    /** Extra letter spacing in sp. */
+    val letterSpacing: Float = 0f,
     val fontSizeSp: Float = 13.5f,
     val lineSpacing: Float = 1.35f,
     val emoteScale: Float = 1f,
@@ -320,3 +329,6 @@ data class DataSettings(
 }
 
 // endregion
+
+@Serializable
+enum class ChatFont { DEFAULT, HYPERLEGIBLE, DYSLEXIC, SERIF, MONO }

@@ -167,6 +167,9 @@ class TwitchAuthApi @Inject constructor(
             "moderator:read:chatters",
             "moderator:manage:shoutouts",
             "user:read:moderated_channels",
+            "channel:manage:moderators",
+            "channel:manage:vips",
+            "channel:manage:raids",
             "clips:edit",
             // Stream manager
             "channel:manage:broadcast",

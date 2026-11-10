@@ -67,3 +67,26 @@ fun ChatSearchSheet(items: ImmutableList<ChatItem>, options: ChatRenderOptions, 
         }
     }
 }
+
+/** A reply thread, oldest first. The first message is missing when it scrolled out of chat. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ThreadSheet(messages: List<ChatItem.Message>, options: ChatRenderOptions, actions: ChatActions, onReply: (() -> Unit)?, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.heightIn(max = 600.dp).padding(bottom = 16.dp)) {
+            Text("Thread · ${messages.size} message${if (messages.size == 1) "" else "s"}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            val first = messages.first()
+            if (first.replyParentLogin != null && messages.none { it.id == first.threadId }) {
+                Text(
+                    "Started by @${first.replyParentLogin}: ${first.replyParentText.orEmpty()}",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+            LazyColumn(Modifier.weight(1f, fill = false)) {
+                items(messages, key = { it.id }) { m -> ChatRow(m, options.copy(chat = options.chat.copy(showReplies = false)), actions, alternate = false, modifier = Modifier.padding(horizontal = 4.dp)) }
+            }
+            onReply?.let { androidx.compose.material3.TextButton(onClick = it, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Reply in thread") } }
+        }
+    }
+}

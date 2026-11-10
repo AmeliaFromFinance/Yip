@@ -21,6 +21,7 @@ import lol.sinist3r.yip.core.model.AppSettings
 import lol.sinist3r.yip.core.model.BufferProfile
 import lol.sinist3r.yip.core.model.CardLayout
 import lol.sinist3r.yip.core.model.DeletedMessages
+import lol.sinist3r.yip.core.model.ChatFont
 import lol.sinist3r.yip.core.model.LandscapeChat
 import lol.sinist3r.yip.core.model.LinkOpening
 import lol.sinist3r.yip.core.model.PaintMode
@@ -211,6 +212,9 @@ object SettingsSpec {
         listOf(
             Row.Header("Text"),
             Row.Slider("Font size", null, 10f..22f, 23, { "%.1f".format(it) }, get = { it.chat.fontSizeSp }, set = { s, v -> s.copy(chat = s.chat.copy(fontSizeSp = v)) }),
+            Row.Choice("Font", options = opts(ChatFont.DEFAULT to "System", ChatFont.HYPERLEGIBLE to "Atkinson Hyperlegible (easy to read)", ChatFont.DYSLEXIC to "OpenDyslexic", ChatFont.SERIF to "Serif", ChatFont.MONO to "Monospace"),
+                get = { it.chat.font.name }, set = { s, v -> s.copy(chat = s.chat.copy(font = ChatFont.valueOf(v))) }),
+            Row.Slider("Letter spacing", null, 0f..2f, 9, { if (it == 0f) "Normal" else "+%.2f".format(it) }, get = { it.chat.letterSpacing }, set = { s, v -> s.copy(chat = s.chat.copy(letterSpacing = v)) }),
             Row.Slider("Line spacing", null, 1f..2f, 9, { "%.1fx".format(it) }, get = { it.chat.lineSpacing }, set = { s, v -> s.copy(chat = s.chat.copy(lineSpacing = v)) }),
             Row.Choice("Timestamps", options = opts(TimestampStyle.OFF to "Off", TimestampStyle.H24 to "24-hour", TimestampStyle.H12 to "12-hour", TimestampStyle.RELATIVE to "Relative (2m)"),
                 get = { it.chat.timestamps.name }, set = { s, v -> s.copy(chat = s.chat.copy(timestamps = TimestampStyle.valueOf(v))) }),
@@ -224,6 +228,8 @@ object SettingsSpec {
             Row.Toggle("Alternate row shading", get = { it.chat.alternateRows }, set = { s, v -> s.copy(chat = s.chat.copy(alternateRows = v)) }),
             Row.Toggle("Separator lines", get = { it.chat.separators }, set = { s, v -> s.copy(chat = s.chat.copy(separators = v)) }),
             Row.Header("Messages"),
+            Row.Toggle("Collapse repeats", "The same message several times in a row shows once, with ×count", get = { it.chat.collapseRepeats }, set = { s, v -> s.copy(chat = s.chat.copy(collapseRepeats = v)) }),
+            Row.Toggle("Vibrate on mention", "A short buzz when someone @'s you in the chat you're watching", get = { it.chat.mentionVibration }, set = { s, v -> s.copy(chat = s.chat.copy(mentionVibration = v)) }),
             Row.Toggle("Sync chat with stream", "Holds new messages until the video reaches them", get = { it.chat.syncWithStream }, set = { s, v -> s.copy(chat = s.chat.copy(syncWithStream = v)) }),
             Row.Slider("Messages kept", "More uses more memory", 100f..2000f, 18, { it.toInt().toString() }, get = { it.chat.messageLimit.toFloat() }, set = { s, v -> s.copy(chat = s.chat.copy(messageLimit = v.toInt())) }),
             Row.Toggle("Load recent chat on open", "Shows the last messages instantly using the community recent-messages service", get = { it.chat.loadRecentHistory }, set = { s, v -> s.copy(chat = s.chat.copy(loadRecentHistory = v)) }),
@@ -244,6 +250,8 @@ object SettingsSpec {
             Row.Toggle("Highlight mentions of you", get = { it.chat.highlightMentions }, set = { s, v -> s.copy(chat = s.chat.copy(highlightMentions = v)) }),
             Row.Toggle("Vibrate on mention", get = { it.chat.mentionVibrate }, set = { s, v -> s.copy(chat = s.chat.copy(mentionVibrate = v)) }),
             Row.Header("Composer"),
+            Row.Words("Quick replies", "Saved messages shown above an empty chat box. Tap one to put it in the box.", "Message",
+                get = { it.chat.quickReplies }, set = { s, v -> s.copy(chat = s.chat.copy(quickReplies = v)) }, lowercase = false),
             Row.Toggle("Show locked emotes", "Greyed out in the picker, with how to unlock them", get = { it.chat.showLockedEmotes }, set = { s, v -> s.copy(chat = s.chat.copy(showLockedEmotes = v)) }),
             Row.Toggle("Send with Enter", get = { it.chat.sendOnEnter }, set = { s, v -> s.copy(chat = s.chat.copy(sendOnEnter = v)) }),
             Row.Toggle("Emote suggestions while typing", get = { it.chat.autocompleteEmotes }, set = { s, v -> s.copy(chat = s.chat.copy(autocompleteEmotes = v)) }),

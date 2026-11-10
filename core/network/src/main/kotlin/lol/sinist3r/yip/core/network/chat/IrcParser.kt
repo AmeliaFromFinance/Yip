@@ -112,6 +112,7 @@ object IrcParser {
             isFirstMessage = t["first-msg"] == "1",
             sourceChannelId = t["source-room-id"]?.takeIf { it.isNotBlank() && it != t["room-id"] },
             replyParentId = t["reply-parent-msg-id"],
+            replyThreadId = t["reply-thread-parent-msg-id"],
             replyParentLogin = t["reply-parent-display-name"] ?: t["reply-parent-user-login"],
             replyParentText = t["reply-parent-msg-body"],
             bits = t["bits"]?.toIntOrNull() ?: 0,

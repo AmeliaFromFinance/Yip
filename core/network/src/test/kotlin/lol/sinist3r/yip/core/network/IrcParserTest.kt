@@ -56,3 +56,12 @@ class SharedChatIrcTest {
         org.junit.Assert.assertNull(msg.sourceChannelId)
     }
 }
+
+class ReplyThreadIrcTest {
+    @Test fun threadAndParentIds() {
+        val line = "@badges=;display-name=B;id=m3;reply-parent-msg-id=m2;reply-parent-display-name=A;reply-parent-msg-body=hi;reply-thread-parent-msg-id=m1;room-id=1;tmi-sent-ts=1700000000000;user-id=2 :b!b@b.tmi.twitch.tv PRIVMSG #c :@A yo"
+        val msg = (IrcParser.toRawChat(IrcParser.parseLine(line)!!) as RawChat.Message).msg
+        org.junit.Assert.assertEquals("m2", msg.replyParentId)
+        org.junit.Assert.assertEquals("m1", msg.replyThreadId)
+    }
+}

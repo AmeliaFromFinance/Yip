@@ -338,6 +338,8 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
                             onSignIn = { host?.openSignIn() },
                             insert = insert,
                             onInserted = { insert = null },
+                            commands = lol.sinist3r.yip.core.data.chat.ChatCommands.available(false, false),
+                            quickReplies = settings.chat.quickReplies,
                             modifier = Modifier.imePadding(),
                         )
                     }

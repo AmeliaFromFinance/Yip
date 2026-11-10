@@ -47,6 +47,8 @@ class ChatPipeline(private val cosmetics: CosmeticsRepository, private val prono
             paint = paint,
             pronouns = if (settings.chat.showPronouns) pronouns?.cached(raw.login) else null,
             isAction = raw.isAction,
+            replyParentId = raw.replyParentId,
+            threadId = raw.replyThreadId ?: raw.replyParentId,
             replyParentLogin = raw.replyParentLogin,
             replyParentText = raw.replyParentText,
             highlight = highlight(raw, selfLogin, settings),

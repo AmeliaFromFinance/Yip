@@ -32,6 +32,7 @@ import lol.sinist3r.yip.core.data.account.AccountRepository
 import lol.sinist3r.yip.core.data.cosmetics.CosmeticsRepository
 import lol.sinist3r.yip.core.data.settings.SettingsRepository
 import lol.sinist3r.yip.core.model.ChatItem
+import lol.sinist3r.yip.core.model.HighlightKind
 import lol.sinist3r.yip.core.model.NoticeKind
 import lol.sinist3r.yip.core.model.RoomState
 import lol.sinist3r.yip.core.network.chat.EventSubChatClient
@@ -214,6 +215,18 @@ class ChatSession internal constructor(
         RawNoticeKind.OTHER -> NoticeKind.OTHER
     }
 
+    /** The thread [m] belongs to (or starts), oldest first. */
+    fun thread(m: ChatItem.Message): List<ChatItem.Message> {
+        val root = m.threadId ?: m.id
+        return synchronized(buffer) {
+            buffer.filterIsInstance<ChatItem.Message>().filter { it.id == root || it.threadId == root }
+        }
+    }
+
+    /** Live mentions of you in this chat, for the vibration. */
+    private val _mentionsHere = kotlinx.coroutines.flow.MutableSharedFlow<ChatItem.Message>(extraBufferCapacity = 4)
+    val mentionsHere: kotlinx.coroutines.flow.SharedFlow<ChatItem.Message> = _mentionsHere
+
     /** This user's messages loaded in this chat, newest first. */
     fun messagesFrom(login: String): List<ChatItem.Message> = synchronized(buffer) {
         buffer.filterIsInstance<ChatItem.Message>().filter { it.user.login.equals(login, true) }
@@ -239,8 +252,19 @@ class ChatSession internal constructor(
 
     /** Drops duplicates (history and live overlap); list keys must be unique. */
     private fun append(item: ChatItem) = synchronized(buffer) {
+        // Same message again straight after: bump the count on the one already shown.
+        if (item is ChatItem.Message && !item.isHistory && repo.settings.settings.value.chat.collapseRepeats) {
+            val last = buffer.lastOrNull() as? ChatItem.Message
+            if (last != null && isRepeat(last, item)) {
+                buffer.removeLast()
+                buffer.addLast(last.copy(repeats = last.repeats + 1))
+                dirty = true
+                return@synchronized
+            }
+        }
         if (!ids.add(item.id)) return@synchronized
         buffer.addLast(item)
+        if (item is ChatItem.Message && item.highlight == HighlightKind.MENTION && !item.isHistory && !item.isSelf) _mentionsHere.tryEmit(item)
         val delayable = when (item) {
             is ChatItem.Message -> !item.isHistory && !item.isSelf
             is ChatItem.Notice -> item.message?.isHistory != true
@@ -381,6 +405,11 @@ class ChatRepository @Inject constructor(
         val args = line.split(' ').filter { it.isNotBlank() }
         val cmd = args[0].lowercase()
         val ch = s.channelId
+        // Missing a required argument: show how to use it rather than a cryptic error.
+        ChatCommands.find(cmd)?.takeIf { it.args.startsWith("<") && args.size < 2 }?.let {
+            s.system("Usage: ${it.name} ${it.args}")
+            return
+        }
         when (cmd) {
             "/me" -> helix.sendMessage(ch, me, args.drop(1).joinToString(" ")) // Helix has no /me; send as plain text
             "/ban" -> helix.ban(ch, me, userId(args[1]), null, args.drop(2).joinToString(" ").ifBlank { null })
@@ -402,14 +431,22 @@ class ChatRepository @Inject constructor(
             "/color" -> helix.setChatColor(me, args.getOrNull(1) ?: "blue")
             "/block" -> helix.block(userId(args[1]))
             "/unblock" -> helix.unblock(userId(args[1]))
+            "/vip" -> helix.setVip(ch, userId(args[1]), true)
+            "/unvip" -> helix.setVip(ch, userId(args[1]), false)
+            "/mod" -> helix.setModerator(ch, userId(args[1]), true)
+            "/unmod" -> helix.setModerator(ch, userId(args[1]), false)
+            "/raid" -> helix.startRaid(ch, userId(args[1]))
+            "/unraid" -> helix.cancelRaid(ch)
+            "/marker" -> helix.createMarker(ch, args.drop(1).joinToString(" ").ifBlank { null })
+            "/commercial" -> helix.startCommercial(ch, args.getOrNull(1)?.toIntOrNull() ?: 30)
+            "/w" -> helix.sendWhisper(me, userId(args[1]), args.drop(2).joinToString(" "))
             "/help" -> s.system(HELP)
             else -> s.system("Unknown command $cmd. Type /help for the list.")
         }
     }
 
     companion object {
-        const val HELP = "Commands: /me, /ban, /timeout, /unban, /clear, /slow, /slowoff, /followers, /followersoff, " +
-            "/emoteonly, /emoteonlyoff, /subscribers, /subscribersoff, /uniquechat, /uniquechatoff, /announce, /shoutout, /color, /block, /unblock"
+        val HELP = "Commands: " + ChatCommands.all.joinToString(", ") { it.name }
     }
 }
 
@@ -421,3 +458,8 @@ internal fun visibleItems(buffer: Collection<ChatItem>, arrivedAt: Map<String, L
     val cutoff = now - delayMs
     return buffer.filter { (arrivedAt[it.id] ?: Long.MIN_VALUE) <= cutoff }
 }
+
+/** Same text (ignoring case and spacing), and not a reply. Different senders count: that's what spam waves look like. */
+internal fun isRepeat(last: ChatItem.Message, next: ChatItem.Message): Boolean =
+    last.replyParentLogin == null && next.replyParentLogin == null && last.raw.isNotBlank() &&
+        last.raw.trim().replace(Regex("\\s+"), " ").equals(next.raw.trim().replace(Regex("\\s+"), " "), ignoreCase = true)

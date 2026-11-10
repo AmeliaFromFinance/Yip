@@ -44,6 +44,7 @@ import androidx.compose.material.icons.outlined.MailOutline
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Reply
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -461,6 +462,7 @@ fun MessageMenuSheet(
     onHideUser: (() -> Unit)? = null,
     onMarkBot: (() -> Unit)? = null,
     onTranslate: (() -> Unit)? = null,
+    onThread: (() -> Unit)? = null,
 ) {
     val clipboard = LocalClipboardManager.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -470,6 +472,7 @@ fun MessageMenuSheet(
             ListItem(headlineContent = { Text("Copy message") }, leadingContent = { Icon(Icons.Outlined.ContentCopy, null) }, modifier = Modifier.clickable { clipboard.setText(AnnotatedString(message.raw)); onDismiss() })
             ListItem(headlineContent = { Text("View ${message.user.displayName}") }, leadingContent = { Icon(Icons.Outlined.Person, null) }, modifier = Modifier.clickable { onUser(); onDismiss() })
             onHideUser?.let { hide -> ListItem(headlineContent = { Text("Hide messages from ${message.user.displayName}") }, leadingContent = { Icon(Icons.Outlined.VisibilityOff, null) }, modifier = Modifier.clickable { hide(); onDismiss() }) }
+            onThread?.let { th -> ListItem(headlineContent = { Text("View thread") }, leadingContent = { Icon(Icons.Outlined.Forum, null) }, modifier = Modifier.clickable { th(); onDismiss() }) }
             onTranslate?.let { tr -> ListItem(headlineContent = { Text("Translate") }, leadingContent = { Icon(Icons.Outlined.Translate, null) }, modifier = Modifier.clickable { tr(); onDismiss() }) }
             onMarkBot?.let { mark -> ListItem(headlineContent = { Text("Mark ${message.user.displayName} as a bot") }, leadingContent = { Icon(Icons.Outlined.SmartToy, null) }, modifier = Modifier.clickable { mark(); onDismiss() }) }
             if (isModerator) {

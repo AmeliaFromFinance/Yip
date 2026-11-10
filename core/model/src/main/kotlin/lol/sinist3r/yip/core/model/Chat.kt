@@ -36,7 +36,12 @@ sealed interface ChatItem {
         val pronouns: String? = null,
         /** Shared chat: name of the channel it was sent in, when not this one. */
         val sharedFrom: String? = null,
+        /** How many times this exact message arrived in a row (collapse repeats). */
+        val repeats: Int = 1,
         val isAction: Boolean = false,
+        val replyParentId: String? = null,
+        /** First message of the reply thread this belongs to. */
+        val threadId: String? = null,
         val replyParentLogin: String? = null,
         val replyParentText: String? = null,
         val highlight: HighlightKind = HighlightKind.NONE,

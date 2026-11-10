@@ -48,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.input.key.Key
@@ -203,6 +204,8 @@ fun Composer(
     insert: String?,
     onInserted: () -> Unit,
     modifier: Modifier = Modifier,
+    commands: List<lol.sinist3r.yip.core.data.chat.ChatCommand> = emptyList(),
+    quickReplies: List<String> = emptyList(),
 ) {
     var value by remember { mutableStateOf(TextFieldValue("")) }
     var tabState by remember { mutableStateOf<Pair<String, Int>?>(null) }
@@ -217,7 +220,22 @@ fun Composer(
     }
 
     val currentWord = value.text.substring(0, value.selection.start.coerceIn(0, value.text.length)).substringAfterLast(' ')
-    val suggestions = remember(currentWord) { completions(currentWord) }
+    // Slash commands: pick one while typing the name, then see its arguments.
+    val typingCommand = commands.isNotEmpty() && value.text.startsWith("/") && ' ' !in value.text
+    val commandMatches = remember(value.text, commands) { if (typingCommand) commands.filter { it.name.startsWith(value.text, true) }.take(6) else emptyList() }
+    val activeCommand = remember(value.text, commands) {
+        if (commands.isEmpty() || !value.text.startsWith("/") || ' ' !in value.text) null
+        else commands.firstOrNull { it.name.equals(value.text.substringBefore(' '), true) }
+    }
+    val onUserArg = activeCommand?.userArg == true && value.text.substringBefore(' ').length + 1 + currentWord.length == value.selection.start &&
+        value.text.trimEnd().count { it == ' ' } <= 1
+    val suggestions = remember(currentWord, onUserArg) {
+        when {
+            typingCommand -> emptyList()
+            onUserArg -> completions("@$currentWord").map { it.removePrefix("@") }
+            else -> completions(currentWord)
+        }
+    }
 
     fun applyCompletion(word: String) {
         val cursor = value.selection.start
@@ -246,6 +264,35 @@ fun Composer(
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Replying to ${it.user.displayName}: ${it.raw}", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 IconButton(onClick = onCancelReply) { Icon(Icons.Outlined.Close, "Cancel reply") }
+            }
+        }
+        if (commandMatches.isNotEmpty()) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                commandMatches.forEach { c ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(MaterialTheme.shapes.small).clickable(onClickLabel = "Use ${c.name}") {
+                            val text = c.name + " "
+                            value = TextFieldValue(text, TextRange(text.length))
+                        }.padding(vertical = 6.dp, horizontal = 4.dp),
+                    ) {
+                        Text(c.name, style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        Text(" ${c.args}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                        Text("  ${c.description}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+        activeCommand?.takeIf { it.args.isNotEmpty() }?.let { c ->
+            Text("${c.name} ${c.args} · ${c.description}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
+        }
+        if (quickReplies.isNotEmpty() && value.text.isEmpty()) {
+            LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(quickReplies) { q ->
+                    androidx.compose.material3.SuggestionChip(
+                        onClick = { value = TextFieldValue(q, TextRange(q.length)) },
+                        label = { Text(q, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    )
+                }
             }
         }
         if (suggestions.isNotEmpty()) {

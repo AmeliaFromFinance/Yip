@@ -314,6 +314,7 @@ class EventSubChatClient @Inject constructor(
             sourceChannelId = e.str("source_broadcaster_user_id")?.takeIf { it.isNotBlank() && it != e.str("broadcaster_user_id") },
             sourceChannelName = e.str("source_broadcaster_user_name") ?: e.str("source_broadcaster_user_login"),
             replyParentId = reply?.str("parent_message_id"),
+            replyThreadId = reply?.str("thread_message_id"),
             replyParentLogin = reply?.str("parent_user_name"),
             replyParentText = reply?.str("parent_message_body"),
             bits = e.obj("cheer")?.int("bits") ?: 0,

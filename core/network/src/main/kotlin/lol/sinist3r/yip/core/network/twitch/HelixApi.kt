@@ -198,6 +198,17 @@ class HelixApi @Inject constructor(
         return call<HelixPage<HelixSendResult>>("POST", "/chat/messages", body = body).data.firstOrNull() ?: HelixSendResult()
     }
 
+    suspend fun setModerator(broadcasterId: String, userId: String, mod: Boolean) =
+        callUnit(if (mod) "POST" else "DELETE", "/moderation/moderators") { parameter("broadcaster_id", broadcasterId); parameter("user_id", userId) }
+
+    suspend fun setVip(broadcasterId: String, userId: String, vip: Boolean) =
+        callUnit(if (vip) "POST" else "DELETE", "/channels/vips") { parameter("broadcaster_id", broadcasterId); parameter("user_id", userId) }
+
+    suspend fun startRaid(fromId: String, toId: String) =
+        callUnit("POST", "/raids") { parameter("from_broadcaster_id", fromId); parameter("to_broadcaster_id", toId) }
+
+    suspend fun cancelRaid(broadcasterId: String) = callUnit("DELETE", "/raids") { parameter("broadcaster_id", broadcasterId) }
+
     /** Twitch needs a verified phone number on the sender's account. */
     suspend fun sendWhisper(fromUserId: String, toUserId: String, message: String) {
         callUnit("POST", "/whispers", buildJsonObject { put("message", message) }.toString()) {

@@ -38,6 +38,8 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Shared chat: messages from other channels in a shared session show where they came from
 - Inbox: every mention from chats you opened, plus whispers (read and reply)
 - Search a chat by word or `from:name`
+- Slash commands with suggestions, quick replies, reply threads, repeats collapsed as ×count
+- Chat fonts including Atkinson Hyperlegible and OpenDyslexic, letter spacing, vibrate on mention
 - Translate a message with the phone's built-in translator (Android 12+, on-device)
 - Private nicknames and notes on chatters
 - Older messages on user cards, from logs.ivr.fi

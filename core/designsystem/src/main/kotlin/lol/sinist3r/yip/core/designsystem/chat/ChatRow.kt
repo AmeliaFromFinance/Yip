@@ -71,6 +71,8 @@ interface ChatActions {
     fun onMessageLongPress(message: ChatItem.Message) {}
     fun onLink(url: String) {}
     fun onAutoMod(item: ChatItem.AutoMod, allow: Boolean) {}
+    /** Tapped the "replying to" line. */
+    fun onThread(message: ChatItem.Message) {}
 }
 
 /** Names and mentions are tappable but shouldn't look like web links. */
@@ -147,7 +149,10 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
     val fontSize = chat.fontSizeSp.sp
     val emoteHeight = (chat.fontSizeSp * 2f * chat.emoteScale)
     val badgeSize = chat.fontSizeSp * 1.3f
-    val baseStyle = TextStyle(fontSize = fontSize, lineHeight = (chat.fontSizeSp * chat.lineSpacing).sp, color = onSurface)
+    val baseStyle = TextStyle(
+        fontSize = fontSize, lineHeight = (chat.fontSizeSp * chat.lineSpacing).sp, color = onSurface,
+        fontFamily = chatFontFamily(chat.font), letterSpacing = chat.letterSpacing.sp,
+    )
     val nameColor = if (chat.showNameColors) {
         val c = if (chat.readableColors || chat.highContrast) readableColor(m.user.colorArgb, dark, primary) else m.user.colorArgb?.let { Color(it) } ?: primary
         if (chat.highContrast) withContrast(c, MaterialTheme.colorScheme.background) else c
@@ -186,8 +191,11 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
 
         val annotated = buildAnnotatedString {
             if (m.replyParentLogin != null && chat.showReplies) {
-                withStyle(SpanStyle(color = muted, fontSize = (chat.fontSizeSp - 2).sp)) {
-                    append("↪ @${m.replyParentLogin}: ${m.replyParentText?.take(60).orEmpty()}\n")
+                // Tap to see the whole thread.
+                withLink(LinkAnnotation.Clickable("thread:${m.id}", plainLink) { actions.onThread(m) }) {
+                    withStyle(SpanStyle(color = muted, fontSize = (chat.fontSizeSp - 2).sp)) {
+                        append("↪ @${m.replyParentLogin}: ${m.replyParentText?.take(60).orEmpty()}\n")
+                    }
                 }
             }
             if (m.isFirstMessage && chat.showFirstMessageTag) {
@@ -251,6 +259,7 @@ private fun MessageText(m: ChatItem.Message, options: ChatRenderOptions, actions
                     }
                 }
             }
+            if (m.repeats > 1) withStyle(SpanStyle(color = primary, fontWeight = FontWeight.Bold, fontSize = (chat.fontSizeSp - 1).sp)) { append("  ×${m.repeats}") }
         }
         annotated to inline
     }
@@ -301,4 +310,21 @@ private fun AutoModRow(item: ChatItem.AutoMod, fontSizeSp: Float, actions: ChatA
             )
         }
     }
+}
+
+private val hyperlegible = androidx.compose.ui.text.font.FontFamily(
+    androidx.compose.ui.text.font.Font(lol.sinist3r.yip.core.designsystem.R.font.atkinson_hyperlegible_regular, FontWeight.Normal),
+    androidx.compose.ui.text.font.Font(lol.sinist3r.yip.core.designsystem.R.font.atkinson_hyperlegible_bold, FontWeight.Bold),
+)
+private val dyslexic = androidx.compose.ui.text.font.FontFamily(
+    androidx.compose.ui.text.font.Font(lol.sinist3r.yip.core.designsystem.R.font.opendyslexic_regular, FontWeight.Normal),
+    androidx.compose.ui.text.font.Font(lol.sinist3r.yip.core.designsystem.R.font.opendyslexic_bold, FontWeight.Bold),
+)
+
+fun chatFontFamily(font: lol.sinist3r.yip.core.model.ChatFont): androidx.compose.ui.text.font.FontFamily? = when (font) {
+    lol.sinist3r.yip.core.model.ChatFont.DEFAULT -> null
+    lol.sinist3r.yip.core.model.ChatFont.HYPERLEGIBLE -> hyperlegible
+    lol.sinist3r.yip.core.model.ChatFont.DYSLEXIC -> dyslexic
+    lol.sinist3r.yip.core.model.ChatFont.SERIF -> androidx.compose.ui.text.font.FontFamily.Serif
+    lol.sinist3r.yip.core.model.ChatFont.MONO -> androidx.compose.ui.text.font.FontFamily.Monospace
 }
