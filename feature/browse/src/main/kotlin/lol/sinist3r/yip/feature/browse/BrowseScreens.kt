@@ -8,6 +8,8 @@ import androidx.compose.material.icons.outlined.History
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -109,6 +111,7 @@ interface BrowseNavigator {
     fun openInbox() {}
     fun openLibrary() {}
     fun openManageFollows() {}
+    fun openFollowsClips() {}
 }
 
 internal fun gridCells(appearance: AppearanceSettings): GridCells = when {
@@ -142,6 +145,9 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
                             Icon(Icons.Outlined.Inbox, if (unread > 0) "Inbox, $unread unread" else "Inbox")
                         }
                     }
+                    if (settings.general.incognito) IconButton(onClick = { viewModel.setIncognito(false) }) {
+                        Icon(Icons.Outlined.VisibilityOff, "Incognito on. Tap to turn off.", tint = MaterialTheme.colorScheme.primary)
+                    }
                     IconButton(onClick = nav::openSearch) { Icon(Icons.Outlined.Search, "Search") }
                     IconButton(onClick = nav::openLibrary) { Icon(Icons.Outlined.VideoLibrary, "History and downloads") }
                     Box {
@@ -155,6 +161,12 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
                                 )
                             }
                             androidx.compose.material3.HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Incognito") },
+                                onClick = { viewModel.setIncognito(!settings.general.incognito); sortMenu = false },
+                                trailingIcon = { androidx.compose.material3.Checkbox(settings.general.incognito, null) },
+                            )
+                            DropdownMenuItem(text = { Text("Top clips this week") }, onClick = { sortMenu = false; nav.openFollowsClips() })
                             DropdownMenuItem(text = { Text("Manage follows") }, onClick = { sortMenu = false; nav.openManageFollows() })
                         }
                     }
@@ -298,12 +310,13 @@ fun BrowseScreen(nav: BrowseNavigator, viewModel: BrowseViewModel = hiltViewMode
                 Tab(tab == 0, { tab = 0 }, text = { Text("Live channels") })
                 Tab(tab == 1, { tab = 1 }, text = { Text("Categories") })
             }
-            LanguageChips(settings.general.streamLanguages, viewModel::setLanguages)
+            if (tab == 0) LanguageChips(settings.general.streamLanguages, viewModel::setLanguages, filter = settings.general.browseFilter, onFilter = viewModel::setFilter)
+            else LanguageChips(settings.general.streamLanguages, viewModel::setLanguages)
         }
     }) { padding ->
         Box(Modifier.padding(padding)) {
             if (tab == 0) {
-                StreamGrid(streams, settings.appearance, viewModel::refreshStreams, viewModel::moreStreams, nav)
+                StreamGrid(streams, settings.appearance, viewModel::refreshStreams, viewModel::moreStreams, nav, filtered = settings.general.browseFilter.active)
             } else {
                 CategoryGrid(categories, viewModel::refreshCategories, viewModel::moreCategories, onLongClick = { hideCategory = it.name }) { nav.openCategory(it.id, it.name) }
             }
@@ -328,12 +341,26 @@ private val LANGUAGES = listOf(
 
 /** Quick language filter for Browse; same setting as Settings → General → Stream languages. */
 @Composable
-private fun LanguageChips(selected: List<String>, onChange: (List<String>) -> Unit) {
+private fun LanguageChips(
+    selected: List<String>,
+    onChange: (List<String>) -> Unit,
+    filter: lol.sinist3r.yip.core.model.BrowseFilter? = null,
+    onFilter: (lol.sinist3r.yip.core.model.BrowseFilter) -> Unit = {},
+) {
     val extra = selected.filter { code -> LANGUAGES.none { it.first == code } }.map { it to it.uppercase() }
+    var sheet by remember { mutableStateOf(false) }
+    if (sheet && filter != null) BrowseFilterSheet(filter, onFilter, onDismiss = { sheet = false })
     androidx.compose.foundation.lazy.LazyRow(
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        if (filter != null) item(key = "filters") {
+            androidx.compose.material3.FilterChip(
+                selected = filter.active, onClick = { sheet = true },
+                label = { Text(if (filter.active) "Filters on" else "Filters") },
+                leadingIcon = { Icon(Icons.Outlined.FilterList, null, Modifier.size(18.dp)) },
+            )
+        }
         item(key = "all") { androidx.compose.material3.FilterChip(selected = selected.isEmpty(), onClick = { onChange(emptyList()) }, label = { Text("All languages") }) }
         items((extra + LANGUAGES).size, key = { (extra + LANGUAGES)[it].first }) { i ->
             val (code, name) = (extra + LANGUAGES)[i]
@@ -353,15 +380,22 @@ internal fun StreamGrid(
     nav: BrowseNavigator,
     header: (LazyGridScope.() -> Unit)? = null,
     allowHideCategory: Boolean = true,
+    /** Filters hide some of what's loaded; keep loading a few pages so the screen isn't empty. */
+    filtered: Boolean = false,
 ) {
     val grid = rememberLazyGridState()
+    var autoPages by remember(filtered) { mutableIntStateOf(0) }
+    LaunchedEffect(filtered, paged.items.size, paged.loading, paged.endReached) {
+        if (filtered && paged.initialized && !paged.loading && !paged.endReached && paged.items.size < 24 && autoPages < 8) { autoPages++; onMore() }
+    }
     var quick by remember { mutableStateOf<QuickTarget?>(null) }
     quick?.let { t -> QuickActionsSheet(t, onAddToMultiView = nav::addToMultiView, onDismiss = { quick = null }, onWatch = nav::openStream) }
     grid.OnNearEnd(onLoadMore = onMore)
     when {
         !paged.initialized -> LoadingState()
         paged.error != null && paged.items.isEmpty() -> ErrorState(paged.error!!, onRefresh)
-        paged.items.isEmpty() -> MessageState("No live channels", "Try a different language filter in settings.")
+        paged.items.isEmpty() && filtered && paged.loading -> LoadingState()
+        paged.items.isEmpty() -> MessageState("No live channels", if (filtered) "Nothing loaded matches your filters." else "Try a different language filter in settings.")
         else -> PullToRefreshBox(isRefreshing = false, onRefresh = onRefresh) {
             LazyVerticalGrid(
                 columns = gridCells(appearance),
@@ -420,6 +454,11 @@ fun CategoryScreen(nav: BrowseNavigator, onBack: () -> Unit, viewModel: Category
             title = { Text(viewModel.categoryName, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
             actions = {
+                var sheet by remember { mutableStateOf(false) }
+                if (sheet) BrowseFilterSheet(settings.general.browseFilter, viewModel::setFilter, onDismiss = { sheet = false })
+                IconButton(onClick = { sheet = true }) {
+                    Icon(Icons.Outlined.FilterList, if (settings.general.browseFilter.active) "Filters (on)" else "Filters", tint = if (settings.general.browseFilter.active) MaterialTheme.colorScheme.primary else androidx.compose.material3.LocalContentColor.current)
+                }
                 IconButton(onClick = viewModel::toggleAlert) {
                     Icon(if (alert) Icons.Filled.NotificationsActive else Icons.Outlined.NotificationsNone, if (alert) "Turn off alerts for this category" else "Alert me when someone I follow streams this")
                 }
@@ -429,7 +468,7 @@ fun CategoryScreen(nav: BrowseNavigator, onBack: () -> Unit, viewModel: Category
             },
         )
     }, snackbarHost = { androidx.compose.material3.SnackbarHost(snackbar) }) { padding ->
-        Box(Modifier.padding(padding)) { StreamGrid(streams, settings.appearance, viewModel::refresh, viewModel::more, nav, allowHideCategory = false) }
+        Box(Modifier.padding(padding)) { StreamGrid(streams, settings.appearance, viewModel::refresh, viewModel::more, nav, allowHideCategory = false, filtered = settings.general.browseFilter.active) }
     }
 }
 
@@ -550,4 +589,41 @@ internal fun FilterRow(options: List<Pair<String, Boolean>>, onSelect: (Int) -> 
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
         items(options.size) { i -> FilterChip(selected = options[i].second, onClick = { onSelect(i) }, label = { Text(options[i].first) }) }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BrowseFilterSheet(filter: lol.sinist3r.yip.core.model.BrowseFilter, onChange: (lol.sinist3r.yip.core.model.BrowseFilter) -> Unit, onDismiss: () -> Unit) {
+    androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Viewers", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 16.dp))
+            val viewers = lol.sinist3r.yip.core.model.ViewerRange.entries
+            FilterRow(viewers.map { it.label() to (filter.viewers == it) }) { onChange(filter.copy(viewers = viewers[it])) }
+            Text("Live for", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 16.dp))
+            val uptimes = lol.sinist3r.yip.core.model.UptimeRange.entries
+            FilterRow(uptimes.map { it.label() to (filter.uptime == it) }) { onChange(filter.copy(uptime = uptimes[it])) }
+            androidx.compose.material3.ListItem(
+                headlineContent = { Text("Hide reruns") },
+                trailingContent = { androidx.compose.material3.Switch(filter.hideReruns, { onChange(filter.copy(hideReruns = it)) }) },
+                modifier = Modifier.clickable { onChange(filter.copy(hideReruns = !filter.hideReruns)) },
+            )
+            if (filter.active) androidx.compose.material3.TextButton(onClick = { onChange(lol.sinist3r.yip.core.model.BrowseFilter()) }, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Clear filters") }
+            Text("Applies to Browse and category pages.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
+        }
+    }
+}
+
+private fun lol.sinist3r.yip.core.model.ViewerRange.label() = when (this) {
+    lol.sinist3r.yip.core.model.ViewerRange.ANY -> "Any"
+    lol.sinist3r.yip.core.model.ViewerRange.UNDER_50 -> "Under 50"
+    lol.sinist3r.yip.core.model.ViewerRange.SMALL -> "50–500"
+    lol.sinist3r.yip.core.model.ViewerRange.MEDIUM -> "500–5K"
+    lol.sinist3r.yip.core.model.ViewerRange.LARGE -> "5K+"
+}
+
+private fun lol.sinist3r.yip.core.model.UptimeRange.label() = when (this) {
+    lol.sinist3r.yip.core.model.UptimeRange.ANY -> "Any"
+    lol.sinist3r.yip.core.model.UptimeRange.JUST_STARTED -> "Under 1h"
+    lol.sinist3r.yip.core.model.UptimeRange.MID -> "1–4h"
+    lol.sinist3r.yip.core.model.UptimeRange.LONG -> "4h+"
 }

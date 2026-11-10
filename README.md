@@ -10,6 +10,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 
 **Watching**
 - Live, VODs (with chapters and resume), clips
+- VOD seek bar with scrub thumbnails; muted parts marked, with an option to skip them
 - Download VODs and clips to watch offline
 - Library: full watch history and downloads
 - Continue watching: unfinished VODs only, resumes where you stopped, drops deleted VODs
@@ -33,7 +34,10 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - 7TV, BTTV and FFZ emotes with live 7TV updates, personal emotes and zero-width overlays
 - 7TV name paints (incl. animated) and badges, FFZ custom mod/VIP badges
 - Badges from BTTV, FFZ, FFZ:AP, Chatterino, Chatterino Homies (incl. custom) and Moltorino
-- Recent messages on open, replies, mentions, first-message tags, sub/raid/redemption notices
+- Recent messages on open, replies, mentions, sub/raid/redemption notices
+- First-time chatters tagged and highlighted
+- Link previews for Twitch clips, VODs, channels and YouTube (Wi-Fi only by default)
+- Mods: pin messages for everyone (timed or until removed), one-tap quick buttons like "10m Spam"
 - Filters sheet in chat: hide bots in one tap, block words or /patterns/, hide users
 - Highlights for keywords and users
 - Emote card: long-press an emote to see it large, its source and creator, and favourite it
@@ -73,6 +77,9 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Battery saver: follows the system saver with lower quality, still emotes and no previews
 - Unread count on mentions and whispers, shown on the app icon badge where the launcher supports it
 - Manage follows: sort by last live, bulk unfollow
+- Top clips this week from everyone you follow
+- Browse filters: viewer count, how long they've been live, hide reruns
+- Incognito mode: nothing saved to history or recent searches
 - "What's new" after each update
 
 **Opt-in and experimental** (all off by default)

@@ -238,7 +238,8 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
     var chatTab by rememberSaveable { mutableIntStateOf(0) }
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val animate = rememberAnimate(settings.chat.animateEmotes, settings.appearance.reduceMotion, settings.data.dataSaver, settings.data.batterySaver)
-    val options = remember(settings.chat, settings.thirdParty, animate) { ChatRenderOptions(settings.chat, settings.thirdParty, animate) }
+    val linkPreviews = rememberLinkPreviews(settings.chat.linkPreviews, settings.data.dataSaver)
+    val options = remember(settings.chat, settings.thirdParty, animate, linkPreviews) { ChatRenderOptions(settings.chat, settings.thirdParty, animate, linkPreviews) }
     val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
     val allTwitchEmotes by viewModel.twitchEmotes.collectAsStateWithLifecycle()
     val recent by RecentEmotes.list.collectAsStateWithLifecycle()

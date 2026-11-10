@@ -32,7 +32,13 @@ data class LiveStream(
     val tags: List<String> = emptyList(),
     val isMature: Boolean = false,
     val profileImageUrl: String? = null,
+    /** Twitch's own rerun flag; also guessed from a "Rerun" tag or title. */
+    val streamType: String? = null,
 ) {
+    val isRerun: Boolean
+        get() = streamType.equals("rerun", true) || tags.any { it.equals("rerun", true) } ||
+            title.trimStart().startsWith("[rerun", true) || title.trimStart().startsWith("rerun:", true)
+
     fun thumbnail(width: Int = 640, height: Int = 360): String =
         thumbnailTemplate.replace("{width}", width.toString()).replace("{height}", height.toString())
 }

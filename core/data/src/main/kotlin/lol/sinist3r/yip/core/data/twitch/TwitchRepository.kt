@@ -315,6 +315,115 @@ class TwitchRepository @Inject constructor(
         )
     }
 
+    /** Scrub thumbnails and muted parts for a VOD. */
+    suspend fun videoExtras(videoId: String): lol.sinist3r.yip.core.model.VideoExtras {
+        val v = attempt { gql.videoExtras(videoId).obj("video") }.getOrNull() ?: return lol.sinist3r.yip.core.model.VideoExtras()
+        val muted = v.obj("muteInfo")?.obj("mutedSegmentConnection")?.arr("nodes").orEmpty().mapNotNull { n ->
+            val o = n as? JsonObject ?: return@mapNotNull null
+            lol.sinist3r.yip.core.model.MutedSegment(o.int("offset") ?: return@mapNotNull null, o.int("duration") ?: return@mapNotNull null)
+        }.sortedBy { it.offsetSeconds }
+        val storyboard = v.str("seekPreviewsURL")?.let { url -> storyboard(url) }
+        return lol.sinist3r.yip.core.model.VideoExtras(storyboard, muted)
+    }
+
+    private suspend fun storyboard(infoUrl: String): lol.sinist3r.yip.core.model.Storyboard? {
+        val text = gql.getText(infoUrl) ?: return null
+        val levels = runCatching { kotlinx.serialization.json.Json.parseToJsonElement(text) as kotlinx.serialization.json.JsonArray }.getOrNull() ?: return null
+        // "low" is one small sprite; "high" is sharper but several images.
+        val level = levels.mapNotNull { it as? JsonObject }.let { l -> l.firstOrNull { it.str("quality") == "low" } ?: l.firstOrNull() } ?: return null
+        val base = infoUrl.substringBeforeLast('/') + "/"
+        return lol.sinist3r.yip.core.model.Storyboard(
+            images = level.arr("images").mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.content?.let { name -> base + name } },
+            count = level.int("count") ?: 0,
+            intervalSeconds = level.int("interval") ?: 0,
+            cols = level.int("cols") ?: 0,
+            rows = level.int("rows") ?: 0,
+            width = level.int("width") ?: 0,
+            height = level.int("height") ?: 0,
+        )
+    }
+
+    suspend fun pinnedMessage(channelLogin: String): lol.sinist3r.yip.core.model.PinnedMessage? {
+        val n = gql.pinnedMessage(channelLogin).edges("channel", "pinnedChatMessages").firstOrNull()?.obj("node") ?: return null
+        val m = n.obj("pinnedMessage") ?: return null
+        val sender = m.obj("sender")
+        return lol.sinist3r.yip.core.model.PinnedMessage(
+            id = n.str("id") ?: return null,
+            messageId = m.str("id").orEmpty(),
+            text = m.obj("content")?.str("text").orEmpty(),
+            senderLogin = sender?.str("login").orEmpty(),
+            senderName = sender?.str("displayName") ?: sender?.str("login").orEmpty(),
+            senderColor = sender?.str("chatColor"),
+            pinnedBy = n.obj("pinnedBy")?.str("displayName"),
+            endsAt = n.str("endsAt")?.let(::parseInstant),
+        )
+    }
+
+    /** Pins for everyone; needs mod and the twitch.tv connection. [durationSeconds] null keeps it until unpinned. */
+    suspend fun pinMessage(channelId: String, messageId: String, durationSeconds: Int?) {
+        val r = withIntegrityRetry { gql.pinMessage(channelId, messageId, durationSeconds, it) }
+        r.obj("pinChatMessage")?.obj("error")?.str("code")?.let { throw AppException(AppException.Kind.UNKNOWN, pinError(it)) }
+    }
+
+    suspend fun unpinMessage(pinId: String) {
+        val r = withIntegrityRetry { gql.unpinMessage(pinId, it) }
+        r.obj("unpinChatMessage")?.obj("error")?.str("code")?.let { throw AppException(AppException.Kind.UNKNOWN, pinError(it)) }
+    }
+
+    /** Some mutations want an integrity token; try without first since it's slow. */
+    private suspend fun withIntegrityRetry(call: suspend (Boolean) -> JsonObject): JsonObject = try {
+        call(false)
+    } catch (e: AppException) {
+        if (e.message?.contains("integrity", ignoreCase = true) == true) call(true) else throw e
+    }
+
+    private fun pinError(code: String) = when (code) {
+        "FORBIDDEN", "NOT_AUTHORIZED", "UNAUTHORIZED" -> "Only mods can pin messages"
+        "MESSAGE_NOT_FOUND", "NOT_FOUND" -> "That message can't be pinned"
+        else -> "Couldn't pin (${code.lowercase()})"
+    }
+
+    private var clipsCache: Pair<Long, List<Clip>>? = null
+
+    /** Top clips of the last week from channels you follow, most viewed first. */
+    suspend fun followsClips(force: Boolean = false): List<Clip> = coroutineScope {
+        clipsCache?.takeIf { !force && System.currentTimeMillis() - it.first < 15 * 60_000 }?.let { return@coroutineScope it.second }
+        val uid = signedInUserId() ?: return@coroutineScope emptyList()
+        val ids = mutableListOf<String>()
+        var cursor: String? = null
+        do {
+            val page = helix.followedChannels(uid, cursor)
+            ids += page.data.map { it.broadcasterId }
+            cursor = page.pagination?.cursor
+        } while (cursor != null && ids.size < 300)
+        val clips = ids.chunked(50).map { chunk ->
+            async {
+                attempt { gql.followsClips(chunk, 3) }.getOrNull()?.arr("users").orEmpty().flatMap { u ->
+                    val user = u as? JsonObject ?: return@flatMap emptyList()
+                    user.edges("clips").mapNotNull { e ->
+                        val n = e.obj("node") ?: return@mapNotNull null
+                        Clip(
+                            id = n.str("slug") ?: return@mapNotNull null,
+                            url = n.str("url").orEmpty(),
+                            broadcasterId = user.str("id").orEmpty(),
+                            broadcasterName = user.str("displayName").orEmpty(),
+                            creatorName = n.obj("curator")?.str("displayName").orEmpty(),
+                            title = n.str("title").orEmpty(),
+                            viewCount = n.long("viewCount") ?: 0,
+                            createdAt = n.str("createdAt")?.let(::parseInstant) ?: Clock.System.now(),
+                            thumbnailUrl = n.str("thumbnailURL").orEmpty(),
+                            durationSeconds = n.str("durationSeconds")?.toDoubleOrNull() ?: 0.0,
+                            videoId = n.obj("video")?.str("id"),
+                            vodOffset = n.int("videoOffsetSeconds"),
+                        )
+                    }
+                }
+            }
+        }.flatMap { it.await() }.sortedByDescending { it.viewCount }.take(150)
+        clipsCache = System.currentTimeMillis() to clips
+        clips
+    }
+
     suspend fun schedule(channelId: String): List<ScheduleSegment> {
         if (signedInUserId() == null) return emptyList()
         return helix.schedule(channelId).data?.segments.orEmpty().map {
@@ -375,6 +484,7 @@ class TwitchRepository @Inject constructor(
             thumbnailTemplate = templatize(preview),
             tags = n.arr("freeformTags").mapNotNull { (it as? JsonObject)?.str("name") },
             profileImageUrl = b.str("profileImageURL"),
+            streamType = n.str("type"),
         )
     }
 

@@ -40,7 +40,7 @@ class HistoryRepository @Inject constructor(private val dao: HistoryDao, private
         title: String, thumbnailUrl: String?, positionSeconds: Long, durationSeconds: Long,
     ) {
         val s = settings.current()
-        if (!s.data.keepWatchHistory || !s.general.continueWatching) return
+        if (!s.data.keepWatchHistory || !s.general.continueWatching || s.general.incognito) return
         dao.upsert(HistoryEntity("${kind.name}:$contentId", kind, contentId, channelId, channelLogin, channelName, title, thumbnailUrl, positionSeconds, durationSeconds, System.currentTimeMillis()))
         dao.prune(System.currentTimeMillis() - s.data.historyDays * 86_400_000L)
     }

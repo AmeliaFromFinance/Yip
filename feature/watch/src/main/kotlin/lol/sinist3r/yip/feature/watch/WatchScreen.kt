@@ -70,6 +70,19 @@ interface WatchNavigator {
     fun openConnectWeb() {}
 }
 
+@Composable
+internal fun rememberLinkPreviews(mode: lol.sinist3r.yip.core.model.LinkPreviewMode, dataSaver: Boolean): Boolean {
+    val context = LocalContext.current
+    return remember(mode, dataSaver) {
+        val metered = context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered != false
+        when (mode) {
+            lol.sinist3r.yip.core.model.LinkPreviewMode.OFF -> false
+            lol.sinist3r.yip.core.model.LinkPreviewMode.WIFI -> !metered
+            lol.sinist3r.yip.core.model.LinkPreviewMode.ALWAYS -> !(dataSaver && metered)
+        }
+    }
+}
+
 /** Window brightness while bedtime dims the player. */
 private const val BEDTIME_BRIGHTNESS = 0.08f
 
@@ -106,6 +119,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val twitchEmotes by viewModel.twitchEmotes.collectAsStateWithLifecycle()
     val recent by viewModel.recentEmotes.collectAsStateWithLifecycle()
     val isMod by viewModel.isModerator.collectAsStateWithLifecycle()
+    val macros = remember(settings.chat.modMacros) { settings.chat.modMacros.mapNotNull(lol.sinist3r.yip.core.model.ModMacro::parse) }
     val points by viewModel.pointsBalance.collectAsStateWithLifecycle()
     val userCard by viewModel.userCard.collectAsStateWithLifecycle()
     val replyTo by viewModel.replyTo.collectAsStateWithLifecycle()
@@ -126,7 +140,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val twoPane = LocalConfiguration.current.let { isTablet(it) && it.screenWidthDp >= 840 }
     val animate = rememberAnimate(settings.chat.animateEmotes, settings.appearance.reduceMotion, settings.data.dataSaver, settings.data.batterySaver)
-    val options = remember(settings.chat, settings.thirdParty, animate) { ChatRenderOptions(settings.chat, settings.thirdParty, animate) }
+    val linkPreviews = rememberLinkPreviews(settings.chat.linkPreviews, settings.data.dataSaver)
+    val options = remember(settings.chat, settings.thirdParty, animate, linkPreviews) { ChatRenderOptions(settings.chat, settings.thirdParty, animate, linkPreviews) }
     val actions = remember {
         object : ChatActions {
             override fun onUser(login: String, userId: String?) {
@@ -204,6 +219,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             isLive = isLive,
             durationSeconds = duration,
             chapters = info.chapters,
+            extras = info.extras,
             inPip = inPip,
             showAdBanner = settings.adBlock.showAdBreakBanner,
             onBack = nav::back,
@@ -233,6 +249,11 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
                     events,
                     actions = if (connected) EventActions(voted, points, viewModel::votePoll, { pr, o, n -> viewModel.predict(pr, o, n) }) else null,
                 )
+            }
+            val pin by viewModel.pinned.collectAsStateWithLifecycle()
+            var hiddenPin by rememberSaveable { mutableStateOf<String?>(null) }
+            pin?.takeIf { it.id != hiddenPin }?.let { p ->
+                PinnedBanner(p, canUnpin = isMod, onUnpin = { viewModel.unpin(p) }, onHide = { hiddenPin = p.id }, onUser = viewModel::openUser)
             }
             raid?.let { r -> RaidBanner(r, onGo = { viewModel.dismissRaid(); nav.openLive(r.login) }, onDismiss = viewModel::dismissRaid) }
             val translations by viewModel.translations.collectAsStateWithLifecycle()
@@ -420,6 +441,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onModWithReason = { a, id, r -> viewModel.moderate(a, id, reason = r) },
             onLoadLogs = if (isLive || chatOnly) viewModel::loadUserLogs else null,
             onWhisper = if (signedIn) ({ viewModel.closeUser(); nav.openWhisper(it) }) else null,
+            macros = macros,
+            onMacro = { m, id -> viewModel.moderate(m, id) },
         )
     }
     menuFor?.let { m ->
@@ -433,6 +456,9 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onMarkBot = { viewModel.updateFilters { f -> f.copy(botNames = (f.botNames + m.user.login.lowercase()).distinct(), hideBots = true) } },
             onTranslate = if (viewModel.canTranslate) ({ viewModel.translate(m) }) else null,
             onThread = if (m.threadId != null) ({ viewModel.openThread(m) }) else null,
+            macros = macros,
+            onMacro = { mac -> viewModel.moderate(mac, m.user.id) },
+            onPin = if (isMod && (isLive || chatOnly) && !m.isHistory) ({ secs -> viewModel.pin(m, secs) }) else null,
         )
     }
 }

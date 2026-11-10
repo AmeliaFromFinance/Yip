@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Savings
 import androidx.compose.material3.Icon
@@ -238,4 +239,30 @@ internal fun compact(n: Long): String = when {
     n >= 1_000_000 -> "%.1fM".format(n / 1_000_000.0)
     n >= 1_000 -> "%.1fK".format(n / 1_000.0)
     else -> n.toString()
+}
+
+/** The channel's pinned message. Mods get Unpin; everyone else can hide it on this device. */
+@Composable
+fun PinnedBanner(pin: lol.sinist3r.yip.core.model.PinnedMessage, canUnpin: Boolean, onUnpin: () -> Unit, onHide: () -> Unit, onUser: (String) -> Unit) {
+    val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(1000) } }
+    val ends = pin.endsAt?.toEpochMilliseconds()
+    if (ends != null && ends <= now) return
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp).semantics { liveRegion = LiveRegionMode.Polite },
+    ) {
+        Row(Modifier.padding(start = 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.PushPin, null, Modifier.padding(end = 8.dp), tint = MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f)) {
+                val color = pin.senderColor?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() } ?: MaterialTheme.colorScheme.primary
+                Text(pin.senderName, style = MaterialTheme.typography.labelLarge, color = color, modifier = Modifier.clickable { onUser(pin.senderLogin) })
+                Text(pin.text, style = MaterialTheme.typography.bodyMedium, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                val meta = listOfNotNull(pin.pinnedBy?.let { "Pinned by $it" }, ends?.let { timeLeft(it, now) })
+                if (meta.isNotEmpty()) Text(meta.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (canUnpin) androidx.compose.material3.TextButton(onClick = onUnpin) { Text("Unpin") }
+            IconButton(onClick = onHide) { Icon(Icons.Outlined.Close, "Hide") }
+        }
+    }
 }

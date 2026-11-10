@@ -53,6 +53,7 @@ data class WatchInfo(
     val stream: LiveStream? = null,
     val title: String = "",
     val chapters: List<VideoChapter> = emptyList(),
+    val extras: lol.sinist3r.yip.core.model.VideoExtras = lol.sinist3r.yip.core.model.VideoExtras(),
     val clipVodId: String? = null,
     val clipVodOffset: Int? = null,
     val error: String? = null,
@@ -273,6 +274,38 @@ class WatchViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), lol.sinist3r.yip.core.model.ChannelEvents())
 
 
+    private val pinRefresh = MutableStateFlow(0)
+
+    /** The channel's pinned chat message, checked every 30s and right after pinning. */
+    val pinned: StateFlow<lol.sinist3r.yip.core.model.PinnedMessage?> = _info
+        .map { if (kind == WatchKind.LIVE || kind == WatchKind.CHAT) it.user?.login else null }
+        .distinctUntilChanged()
+        .flatMapLatest { login ->
+            if (login == null) flowOf<lol.sinist3r.yip.core.model.PinnedMessage?>(null) else pinRefresh.flatMapLatest {
+                kotlinx.coroutines.flow.flow<lol.sinist3r.yip.core.model.PinnedMessage?> {
+                    while (true) {
+                        attempt { twitch.pinnedMessage(login) }.onSuccess { emit(it) }
+                        kotlinx.coroutines.delay(30_000)
+                    }
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** [seconds] null pins until it's removed or the stream ends. */
+    fun pin(message: ChatItem.Message, seconds: Int?) = viewModelScope.launch {
+        val ch = channelIdFlow.value ?: return@launch
+        attempt { twitch.pinMessage(ch, message.id, seconds) }
+            .onSuccess { pinRefresh.value++ }
+            .onFailure { session.value?.system(if (it is lol.sinist3r.yip.core.common.AppException && it.kind == lol.sinist3r.yip.core.common.AppException.Kind.AUTH) "Connect twitch.tv in Accounts to pin messages" else "Pin failed: ${it.message}") }
+    }
+
+    fun unpin(p: lol.sinist3r.yip.core.model.PinnedMessage) = viewModelScope.launch {
+        attempt { twitch.unpinMessage(p.id) }
+            .onSuccess { pinRefresh.value++ }
+            .onFailure { session.value?.system("Unpin failed: ${it.message}") }
+    }
+
     private val session = MutableStateFlow<ChatSession?>(null)
     val chat: StateFlow<ImmutableList<ChatItem>> = session.flatMapLatest { it?.items ?: if (kind == WatchKind.VOD) replay.items else flowOf(persistentListOf()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), persistentListOf())
@@ -360,12 +393,19 @@ class WatchViewModel @Inject constructor(
                 _info.value = WatchInfo(user, null, v.title)
                 playback.play(PlaybackSource.Vod(v.id, v.userId, v.userLogin, v.userName, v.title, v.thumbnail(640, 360), v.durationSeconds, offset?.toLong()))
                 launch { _info.update { it.copy(chapters = twitch.chapters(v.id)) } }
+                launch { val extras = twitch.videoExtras(v.id); _info.update { it.copy(extras = extras) } }
                 channelIdFlow.value = v.userId
                 replay.start(v.id, v.userId)
                 replayJob = launch {
                     while (isActive) {
                         val pos = (playback.player.currentPosition / 1000).toInt()
                         if (settings.value.chat.messageLimit > 0) replay.seekTo(pos)
+                        // Skip muted parts (setting): jump to the end of the segment once.
+                        if (settings.value.player.skipMutedParts && playback.player.isPlaying) {
+                            _info.value.extras.muted.firstOrNull { pos in it.offsetSeconds until it.endSeconds - 1 }?.let { m ->
+                                playback.player.seekTo(m.endSeconds * 1000L)
+                            }
+                        }
                         delay(1000)
                     }
                 }
@@ -496,6 +536,14 @@ class WatchViewModel @Inject constructor(
                 ModAction.UNBAN -> helix.unban(ch, me, userId)
             }
         }.onFailure { session.value?.system("Moderation failed: ${it.message}") }
+    }
+
+    /** A quick button from settings: timeout for [ModMacro.seconds], or ban when null. */
+    fun moderate(macro: lol.sinist3r.yip.core.model.ModMacro, userId: String) = viewModelScope.launch {
+        val me = accounts.userId() ?: return@launch
+        val ch = channelIdFlow.value ?: return@launch
+        attempt { helix.ban(ch, me, userId, macro.seconds, macro.reason) }
+            .onFailure { session.value?.system("Moderation failed: ${it.message}") }
     }
 
     fun block(userId: String) = viewModelScope.launch {

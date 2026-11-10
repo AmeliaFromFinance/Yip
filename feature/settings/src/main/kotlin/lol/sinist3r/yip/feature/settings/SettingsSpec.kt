@@ -14,6 +14,7 @@ import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.ui.graphics.vector.ImageVector
+import lol.sinist3r.yip.core.model.LinkPreviewMode
 import lol.sinist3r.yip.core.model.AccentColor
 import lol.sinist3r.yip.core.model.AdMethod
 import lol.sinist3r.yip.core.model.AnimateEmotes
@@ -109,6 +110,8 @@ object SettingsSpec {
                 get = { it.general.showOfflineFollowed }, set = { s, v -> s.copy(general = s.general.copy(showOfflineFollowed = v)) }),
             Row.Toggle("Hide mature streams", "Streams marked for mature audiences (signed in only)",
                 get = { it.general.hideMatureStreams }, set = { s, v -> s.copy(general = s.general.copy(hideMatureStreams = v)) }),
+            Row.Toggle("Incognito", "Nothing is added to watch history, continue watching or recent searches. Also in the Following menu.",
+                get = { it.general.incognito }, set = { s, v -> s.copy(general = s.general.copy(incognito = v)) }),
             Row.Toggle("Continue watching", "Show recently watched streams and VODs on Following",
                 get = { it.general.continueWatching }, set = { s, v -> s.copy(general = s.general.copy(continueWatching = v)) }),
             Row.Toggle("Confirm before exit", get = { it.general.confirmBeforeExit }, set = { s, v -> s.copy(general = s.general.copy(confirmBeforeExit = v)) }),
@@ -199,6 +202,7 @@ object SettingsSpec {
                 get = { it.player.doubleTapSeekSeconds.toFloat() }, set = { s, v -> s.copy(player = s.player.copy(doubleTapSeekSeconds = v.toInt())) }),
             Row.Toggle("Resume VODs where you left off", get = { it.player.resumeVods }, set = { s, v -> s.copy(player = s.player.copy(resumeVods = v)) }),
             Row.Toggle("Audio only on mobile data", "Starts streams without video when you're not on Wi-Fi", get = { it.player.audioOnlyOnMobile }, set = { s, v -> s.copy(player = s.player.copy(audioOnlyOnMobile = v)) }),
+            Row.Toggle("Skip muted parts", "Jumps past parts of VODs Twitch muted for music. They show in amber on the seek bar.", get = { it.player.skipMutedParts }, set = { s, v -> s.copy(player = s.player.copy(skipMutedParts = v)) }),
             Row.Toggle("Auto catch-up", "Jumps back to live if the stream falls well behind", get = { it.player.autoCatchUp }, set = { s, v -> s.copy(player = s.player.copy(autoCatchUp = v)) }),
             Row.Header("Landscape"),
             Row.Choice("Chat in landscape", "Tap the chat button on the player to show or hide it", options = opts(LandscapeChat.SIDE to "Beside video", LandscapeChat.OVERLAY to "Over video", LandscapeChat.HIDDEN to "Hidden at first"),
@@ -246,8 +250,13 @@ object SettingsSpec {
             Row.Toggle("Show timeouts and bans", "Also \"chat was cleared\" notices", get = { it.chat.showModActions }, set = { s, v -> s.copy(chat = s.chat.copy(showModActions = v)) }),
             Row.Words("Timeout reasons", "Quick reasons on user cards, sent with timeouts and bans", "Reason",
                 get = { it.chat.modReasons }, set = { s, v -> s.copy(chat = s.chat.copy(modReasons = v)) }, lowercase = false),
+            Row.Words("Mod quick buttons", "One tap on user cards and the message menu. Write a length and reason, like 10m Spam, 1h Being rude or ban Bot.", "e.g. 10m Spam",
+                get = { it.chat.modMacros }, set = { s, v -> s.copy(chat = s.chat.copy(modMacros = v)) }, lowercase = false,
+                validate = { if (lol.sinist3r.yip.core.model.ModMacro.parse(it) != null) null else "Start with a length (30s, 10m, 1h, 1d) or ban" }),
             Row.Toggle("Replies", "Show what a reply is answering", get = { it.chat.showReplies }, set = { s, v -> s.copy(chat = s.chat.copy(showReplies = v)) }),
-            Row.Toggle("First-message tag", get = { it.chat.showFirstMessageTag }, set = { s, v -> s.copy(chat = s.chat.copy(showFirstMessageTag = v)) }),
+            Row.Choice("Link previews", "Cards for Twitch clips, VODs, channels and YouTube links", opts(LinkPreviewMode.OFF to "Off", LinkPreviewMode.WIFI to "On Wi-Fi", LinkPreviewMode.ALWAYS to "Always"),
+                get = { it.chat.linkPreviews.name }, set = { s, v -> s.copy(chat = s.chat.copy(linkPreviews = LinkPreviewMode.valueOf(v))) }),
+            Row.Toggle("First-time chatters", "Tag and highlight someone's first message in a channel", get = { it.chat.showFirstMessageTag }, set = { s, v -> s.copy(chat = s.chat.copy(showFirstMessageTag = v)) }),
             Row.Toggle("Subs and gifts", get = { it.chat.showSubNotices }, set = { s, v -> s.copy(chat = s.chat.copy(showSubNotices = v)) }),
             Row.Toggle("Raids", get = { it.chat.showRaids }, set = { s, v -> s.copy(chat = s.chat.copy(showRaids = v)) }),
             Row.Toggle("Channel point redemptions", get = { it.chat.showRedemptions }, set = { s, v -> s.copy(chat = s.chat.copy(showRedemptions = v)) }),

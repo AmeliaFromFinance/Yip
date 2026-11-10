@@ -161,13 +161,13 @@ fun VideoCard(video: Video, progress: Float?, onClick: () -> Unit, modifier: Mod
 }
 
 @Composable
-fun ClipCard(clip: Clip, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun ClipCard(clip: Clip, onClick: () -> Unit, modifier: Modifier = Modifier, showChannel: Boolean = false) {
     Column(modifier.clip(MaterialTheme.shapes.medium).combinedClickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Thumb(clip.thumbnailUrl) {
             Pill(clip.durationSeconds.toLong().secondsClock(), Modifier.align(Alignment.BottomEnd).padding(8.dp))
             Pill("${clip.viewCount.compactCount()} views", Modifier.align(Alignment.BottomStart).padding(8.dp))
         }
         Text(clip.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text("Clipped by ${clip.creatorName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(if (showChannel) "${clip.broadcasterName} · clipped by ${clip.creatorName}" else "Clipped by ${clip.creatorName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

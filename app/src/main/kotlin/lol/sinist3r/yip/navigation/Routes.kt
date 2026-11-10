@@ -24,6 +24,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class LibraryRoute(val tab: Int = 0)
 @Serializable data object DataUsageRoute
 @Serializable data object ManageFollowsRoute
+@Serializable data object FollowsClipsRoute
 @Serializable data object InboxRoute
 @Serializable data class WhisperRoute(val login: String)
 @Serializable data object LoginRoute

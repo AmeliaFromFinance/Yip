@@ -47,6 +47,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Translate
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -378,6 +379,8 @@ fun UserCardSheet(
     onLoadLogs: (() -> Unit)? = null,
     onSaveNote: ((lol.sinist3r.yip.core.model.UserNote) -> Unit)? = null,
     onWhisper: ((String) -> Unit)? = null,
+    macros: List<lol.sinist3r.yip.core.model.ModMacro> = emptyList(),
+    onMacro: ((lol.sinist3r.yip.core.model.ModMacro, String) -> Unit)? = null,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         if (card.loading) {
@@ -405,6 +408,11 @@ fun UserCardSheet(
                 var reason by rememberSaveable(card.login) { mutableStateOf<String?>(null) }
                 val mod: (ModAction, String) -> Unit = { a, id -> onModWithReason?.invoke(a, id, reason) ?: onMod(a, id) }
                 Text("Moderation", style = MaterialTheme.typography.labelLarge)
+                if (macros.isNotEmpty() && onMacro != null) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        macros.forEach { m -> FilledTonalButton(onClick = { onMacro(m, user.id) }) { Text(m.label) } }
+                    }
+                }
                 if (reasons.isNotEmpty() && onModWithReason != null) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         reasons.forEach { r ->
@@ -473,8 +481,16 @@ fun MessageMenuSheet(
     onMarkBot: (() -> Unit)? = null,
     onTranslate: (() -> Unit)? = null,
     onThread: (() -> Unit)? = null,
+    macros: List<lol.sinist3r.yip.core.model.ModMacro> = emptyList(),
+    onMacro: ((lol.sinist3r.yip.core.model.ModMacro) -> Unit)? = null,
+    /** Pins for everyone; [Int] is seconds, null until removed. Null hides the option. */
+    onPin: ((Int?) -> Unit)? = null,
 ) {
     val clipboard = LocalClipboardManager.current
+    var pinPicker by remember { mutableStateOf(false) }
+    if (pinPicker && onPin != null) {
+        PinDurationDialog(onPick = { onPin(it); pinPicker = false; onDismiss() }, onDismiss = { pinPicker = false })
+    }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(bottom = 24.dp)) {
             Text(message.raw, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp), maxLines = 4)
@@ -485,13 +501,37 @@ fun MessageMenuSheet(
             onThread?.let { th -> ListItem(headlineContent = { Text("View thread") }, leadingContent = { Icon(Icons.Outlined.Forum, null) }, modifier = Modifier.clickable { th(); onDismiss() }) }
             onTranslate?.let { tr -> ListItem(headlineContent = { Text("Translate") }, leadingContent = { Icon(Icons.Outlined.Translate, null) }, modifier = Modifier.clickable { tr(); onDismiss() }) }
             onMarkBot?.let { mark -> ListItem(headlineContent = { Text("Mark ${message.user.displayName} as a bot") }, leadingContent = { Icon(Icons.Outlined.SmartToy, null) }, modifier = Modifier.clickable { mark(); onDismiss() }) }
+            onPin?.let { ListItem(headlineContent = { Text("Pin message") }, supportingContent = { Text("Shows above chat for everyone") }, leadingContent = { Icon(Icons.Outlined.PushPin, null) }, modifier = Modifier.clickable { pinPicker = true }) }
             if (isModerator) {
+                if (macros.isNotEmpty() && onMacro != null) {
+                    FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        macros.forEach { m -> FilledTonalButton(onClick = { onMacro(m); onDismiss() }) { Text(m.label) } }
+                    }
+                }
                 ListItem(headlineContent = { Text("Delete message") }, leadingContent = { Icon(Icons.Outlined.Delete, null) }, modifier = Modifier.clickable { onMod(ModAction.DELETE); onDismiss() })
                 ListItem(headlineContent = { Text("Timeout 10 minutes") }, leadingContent = { Icon(Icons.Outlined.Timer, null) }, modifier = Modifier.clickable { onMod(ModAction.TIMEOUT_10M); onDismiss() })
                 ListItem(headlineContent = { Text("Ban") }, leadingContent = { Icon(Icons.Outlined.Gavel, null) }, modifier = Modifier.clickable { onMod(ModAction.BAN); onDismiss() })
             }
         }
     }
+}
+
+private val pinDurations = listOf(30 to "30 seconds", 60 to "1 minute", 120 to "2 minutes", 300 to "5 minutes", 600 to "10 minutes", 1800 to "30 minutes", 3600 to "1 hour")
+
+@Composable
+private fun PinDurationDialog(onPick: (Int?) -> Unit, onDismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pin for") },
+        text = {
+            Column {
+                pinDurations.forEach { (s, label) -> ListItem(headlineContent = { Text(label) }, modifier = Modifier.clickable { onPick(s) }) }
+                ListItem(headlineContent = { Text("Until removed or the stream ends") }, modifier = Modifier.clickable { onPick(null) })
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 internal val emptyChat = persistentListOf<ChatItem>()

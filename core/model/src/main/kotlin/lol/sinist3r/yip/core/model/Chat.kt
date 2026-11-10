@@ -99,3 +99,45 @@ sealed interface ChatEvent {
     data class Room(val state: RoomState) : ChatEvent
     data class Connection(val connected: Boolean, val readOnly: Boolean) : ChatEvent
 }
+
+/** A Twitch pinned chat message. [endsAt] null means until unpinned or the stream ends. */
+data class PinnedMessage(
+    val id: String,
+    val messageId: String,
+    val text: String,
+    val senderLogin: String,
+    val senderName: String,
+    val senderColor: String?,
+    val pinnedBy: String?,
+    val endsAt: kotlin.time.Instant?,
+)
+
+/** Small card for a link in chat. */
+data class LinkPreview(val url: String, val title: String, val subtitle: String?, val imageUrl: String?)
+
+/** A one-tap mod action written as "10m Spam", "1h", "ban Bot account". [seconds] null means ban. */
+data class ModMacro(val seconds: Int?, val reason: String?) {
+    val label: String get() = (seconds?.let(::shortDuration) ?: "Ban") + (reason?.let { " · $it" } ?: "")
+
+    companion object {
+        private val FORMAT = Regex("""^\s*(ban|\d+\s*[smhd])\s*(.*)$""", RegexOption.IGNORE_CASE)
+
+        fun parse(line: String): ModMacro? {
+            val m = FORMAT.find(line) ?: return null
+            val head = m.groupValues[1].lowercase().replace(" ", "")
+            val reason = m.groupValues[2].trim().ifBlank { null }
+            if (head == "ban") return ModMacro(null, reason)
+            val n = head.dropLast(1).toIntOrNull() ?: return null
+            val seconds = n * when (head.last()) { 's' -> 1; 'm' -> 60; 'h' -> 3600; else -> 86_400 }
+            // Twitch allows 1 second to 2 weeks.
+            return if (seconds in 1..1_209_600) ModMacro(seconds, reason) else null
+        }
+
+        fun shortDuration(s: Int): String = when {
+            s % 86_400 == 0 -> "${s / 86_400}d"
+            s % 3600 == 0 -> "${s / 3600}h"
+            s % 60 == 0 -> "${s / 60}m"
+            else -> "${s}s"
+        }
+    }
+}

@@ -170,6 +170,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
             override fun openInbox() = nav.navigate(InboxRoute)
             override fun openLibrary() = nav.navigate(LibraryRoute())
             override fun openManageFollows() = nav.navigate(ManageFollowsRoute)
+            override fun openFollowsClips() = nav.navigate(FollowsClipsRoute)
             override fun addToMultiView(login: String) {
                 if (login !in multiQueue) multiQueue += login
                 scope.launch {
@@ -279,6 +280,7 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
                 composable<WatchRoute>(deepLinks = emptyList()) { WatchScreen(watchNav, inPip) }
                 composable<MultiViewRoute> { MultiViewScreen(watchNav) }
                 composable<LibraryRoute> { e -> lol.sinist3r.yip.feature.watch.LibraryScreen(libraryNav, startTab = e.toRoute<LibraryRoute>().tab) }
+                composable<FollowsClipsRoute> { lol.sinist3r.yip.feature.browse.FollowsClipsScreen(onBack = { nav.popBackStack() }, onOpenClip = browseNav::openClip) }
                 composable<ManageFollowsRoute> { lol.sinist3r.yip.feature.browse.ManageFollowsScreen(onBack = { nav.popBackStack() }, onOpenChannel = { nav.navigate(ChannelRoute(it)) }) }
                 composable<DataUsageRoute> { lol.sinist3r.yip.feature.settings.DataUsageScreen(onBack = { nav.popBackStack() }) }
                 composable<InboxRoute> { lol.sinist3r.yip.feature.watch.InboxScreen(inboxNav) }

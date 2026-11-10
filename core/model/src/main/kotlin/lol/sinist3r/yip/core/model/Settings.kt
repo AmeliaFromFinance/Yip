@@ -39,6 +39,9 @@ enum class LinkOpening { IN_APP, BROWSER, ASK }
 @Serializable
 data class GeneralSettings(
     val bedtime: BedtimeSettings = BedtimeSettings(),
+    val browseFilter: BrowseFilter = BrowseFilter(),
+    /** Nothing goes into watch history or continue watching. */
+    val incognito: Boolean = false,
     val startScreen: StartScreen = StartScreen.FOLLOWING,
     val openLinks: LinkOpening = LinkOpening.IN_APP,
     val confirmBeforeExit: Boolean = false,
@@ -104,6 +107,8 @@ data class PlayerSettings(
     val audioOnlyOnMobile: Boolean = false,
     /** Remember volume, mute and audio-only for each channel. */
     val perChannelMemory: Boolean = false,
+    /** Jump past parts of VODs Twitch muted. */
+    val skipMutedParts: Boolean = false,
     val backgroundAudio: Boolean = true,
     val autoPip: Boolean = true,
     val pauseOnHeadphonesUnplugged: Boolean = true,
@@ -153,6 +158,7 @@ data class ChatSettings(
     val quickReplies: List<String> = emptyList(),
     /** Identical messages in a row show once with a count. */
     val collapseRepeats: Boolean = true,
+    val linkPreviews: LinkPreviewMode = LinkPreviewMode.WIFI,
     val font: ChatFont = ChatFont.DEFAULT,
     /** Extra letter spacing in sp. */
     val letterSpacing: Float = 0f,
@@ -178,6 +184,8 @@ data class ChatSettings(
     val showModActions: Boolean = false,
     /** Quick reasons for timeouts and bans. */
     val modReasons: List<String> = listOf("Spam", "Being rude", "Spoilers", "Self-promotion", "Off-topic"),
+    /** One-tap actions on user cards, e.g. "10m Spam" or "ban Bot". See [ModMacro]. */
+    val modMacros: List<String> = listOf("10m Spam", "1h Being rude", "ban Bot account"),
     val showFirstMessageTag: Boolean = true,
     val showReplies: Boolean = true,
     val showSubNotices: Boolean = true,
@@ -334,9 +342,30 @@ data class DataSettings(
 // endregion
 
 @Serializable
+enum class LinkPreviewMode { OFF, WIFI, ALWAYS }
 enum class ChatFont { DEFAULT, HYPERLEGIBLE, DYSLEXIC, SERIF, MONO }
 
 /** Night-time: OLED theme, dimmer player, automatic sleep timer. Times are minutes after midnight. */
+enum class ViewerRange(val min: Int, val max: Int) { ANY(0, Int.MAX_VALUE), UNDER_50(0, 49), SMALL(50, 499), MEDIUM(500, 4_999), LARGE(5_000, Int.MAX_VALUE) }
+enum class UptimeRange(val minMinutes: Int, val maxMinutes: Int) { ANY(0, Int.MAX_VALUE), JUST_STARTED(0, 59), MID(60, 239), LONG(240, Int.MAX_VALUE) }
+
+/** Browse and category filters, applied to what's loaded. */
+@Serializable
+data class BrowseFilter(
+    val viewers: ViewerRange = ViewerRange.ANY,
+    val uptime: UptimeRange = UptimeRange.ANY,
+    val hideReruns: Boolean = false,
+) {
+    val active: Boolean get() = viewers != ViewerRange.ANY || uptime != UptimeRange.ANY || hideReruns
+
+    fun matches(s: LiveStream, nowMillis: Long): Boolean {
+        if (s.viewerCount !in viewers.min..viewers.max) return false
+        val minutes = ((nowMillis - s.startedAt.toEpochMilliseconds()) / 60_000).toInt().coerceAtLeast(0)
+        if (minutes !in uptime.minMinutes..uptime.maxMinutes) return false
+        return !(hideReruns && s.isRerun)
+    }
+}
+
 @Serializable
 data class BedtimeSettings(
     val enabled: Boolean = false,

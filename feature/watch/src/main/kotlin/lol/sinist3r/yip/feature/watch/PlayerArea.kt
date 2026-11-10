@@ -118,6 +118,7 @@ fun PlayerArea(
     chatOpen: Boolean = false,
     /** Keeps the controls clear of a chat panel drawn over the right side. */
     controlsEndInset: androidx.compose.ui.unit.Dp = 0.dp,
+    extras: lol.sinist3r.yip.core.model.VideoExtras = lol.sinist3r.yip.core.model.VideoExtras(),
 ) {
     val host = LocalWatchHost.current
     val context = LocalContext.current
@@ -266,15 +267,7 @@ fun PlayerArea(
                 }
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 8.dp)) {
                     if (!isLive && durationSeconds > 0) {
-                        var dragging by remember { mutableStateOf(false) }
-                        var dragValue by remember { mutableFloatStateOf(0f) }
-                        val fraction = if (dragging) dragValue else (position / 1000f / durationSeconds).coerceIn(0f, 1f)
-                        Slider(
-                            value = fraction,
-                            onValueChange = { dragging = true; dragValue = it },
-                            onValueChangeFinished = { player.seekTo((dragValue * durationSeconds * 1000).toLong()); dragging = false },
-                            colors = SliderDefaults.colors(thumbColor = Color.White, activeTrackColor = Color.White, inactiveTrackColor = Color.White.copy(alpha = 0.3f)),
-                        )
+                        VodSeekBar(position, durationSeconds, extras, onSeek = { player.seekTo(it) })
                         val chapter = chapters.lastOrNull { it.startSeconds <= position / 1000 }
                         chapter?.let { Text(it.title.ifBlank { it.gameName.orEmpty() }, color = Color.White, fontSize = 11.sp) }
                     }

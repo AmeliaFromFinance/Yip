@@ -4,7 +4,7 @@ package lol.sinist3r.yip.core.network.twitch
 internal object GqlQueries {
     private const val STREAM_NODE = """
         broadcaster { broadcastSettings { title } displayName id login profileImageURL(width: 300) }
-        createdAt freeformTags { name } game { displayName id slug } id previewImageURL viewersCount
+        createdAt freeformTags { name } game { displayName id slug } id previewImageURL viewersCount type
     """
 
     val TOP_STREAMS = """
@@ -151,6 +151,59 @@ internal object GqlQueries {
     val VIDEO_INFO = """
         query VideoInfo(${'$'}id: ID) {
           video(id: ${'$'}id) { id title createdAt lengthSeconds viewCount previewThumbnailURL broadcastType owner { id login displayName } }
+        }
+    """.trimIndent()
+
+    val VIDEO_EXTRAS = """
+        query VideoExtras(${'$'}id: ID) {
+          video(id: ${'$'}id) { seekPreviewsURL muteInfo { mutedSegmentConnection { nodes { duration offset } } } }
+        }
+    """.trimIndent()
+
+    val PINNED_MESSAGE = """
+        query Pinned(${'$'}login: String) {
+          channel(name: ${'$'}login) {
+            pinnedChatMessages(first: 1) {
+              edges { node { id startsAt endsAt pinnedBy { login displayName } pinnedMessage { id content { text } sender { login displayName chatColor } } } }
+            }
+          }
+        }
+    """.trimIndent()
+
+    val PIN_MESSAGE = """
+        mutation Pin(${'$'}input: PinChatMessageInput!) { pinChatMessage(input: ${'$'}input) { pinnedChatMessage { id } error { code } } }
+    """.trimIndent()
+
+    val UNPIN_MESSAGE = """
+        mutation Unpin(${'$'}input: UnpinChatMessageInput!) { unpinChatMessage(input: ${'$'}input) { error { code } } }
+    """.trimIndent()
+
+    val FOLLOWS_CLIPS = """
+        query FollowsClips(${'$'}ids: [ID!], ${'$'}first: Int) {
+          users(ids: ${'$'}ids) {
+            id login displayName profileImageURL(width: 70)
+            clips(first: ${'$'}first, criteria: { period: LAST_WEEK, sort: VIEWS_DESC }) {
+              edges { node { createdAt durationSeconds slug thumbnailURL title url viewCount curator { displayName } video { id } videoOffsetSeconds } }
+            }
+          }
+        }
+    """.trimIndent()
+
+    val CLIP_PREVIEW = """
+        query ClipPreview(${'$'}slug: ID!) {
+          clip(slug: ${'$'}slug) { title thumbnailURL viewCount durationSeconds broadcaster { displayName } }
+        }
+    """.trimIndent()
+
+    val VIDEO_PREVIEW = """
+        query VideoPreview(${'$'}id: ID) {
+          video(id: ${'$'}id) { title previewThumbnailURL(width: 320, height: 180) lengthSeconds owner { displayName } }
+        }
+    """.trimIndent()
+
+    val USER_PREVIEW = """
+        query UserPreview(${'$'}login: String) {
+          user(login: ${'$'}login) { displayName profileImageURL(width: 150) description stream { viewersCount game { displayName } } }
         }
     """.trimIndent()
 }

@@ -62,6 +62,8 @@ data class ChatRenderOptions(
     val chat: ChatSettings,
     val thirdParty: ThirdPartySettings,
     val animate: Boolean,
+    /** Show cards under messages with Twitch or YouTube links. */
+    val linkPreviews: Boolean = false,
 )
 
 interface ChatActions {
@@ -109,6 +111,7 @@ fun ChatRow(item: ChatItem, options: ChatRenderOptions, actions: ChatActions, al
         item is ChatItem.Message && item.highlight == HighlightKind.KEYWORD -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f)
         item is ChatItem.Message && item.highlight == HighlightKind.USER -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
         item is ChatItem.Message && item.highlight == HighlightKind.REDEMPTION -> MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+        item is ChatItem.Message && item.highlight == HighlightKind.FIRST_MESSAGE -> Color(0xFF43A047).copy(alpha = 0.16f)
         item is ChatItem.Notice -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
         item is ChatItem.AutoMod && item.status == null -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f)
         alternate && chat.alternateRows -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f)
@@ -120,7 +123,11 @@ fun ChatRow(item: ChatItem, options: ChatRenderOptions, actions: ChatActions, al
             .padding(horizontal = 6.dp, vertical = vertical),
     ) {
         when (item) {
-            is ChatItem.Message -> MessageText(item, options, actions)
+            is ChatItem.Message -> if (options.linkPreviews && !item.isDeleted) {
+                val link = item.tokens.firstNotNullOfOrNull { it as? ChatToken.Link }
+                if (link != null) Column { MessageText(item, options, actions); LinkPreviewCard(link.url, actions::onLink) }
+                else MessageText(item, options, actions)
+            } else MessageText(item, options, actions)
             is ChatItem.Notice -> Column {
                 Text(item.text, style = MaterialTheme.typography.bodySmall.copy(fontSize = (chat.fontSizeSp - 0.5f).sp), fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                 item.message?.let { MessageText(it, options, actions) }

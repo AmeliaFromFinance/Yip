@@ -20,7 +20,8 @@ class RecentSearchRepository @Inject constructor(
     }
 
     suspend fun add(item: RecentSearch) {
-        if (!settings.settings.value.data.keepRecentSearches || item.key.isBlank()) return
+        val s = settings.settings.value
+        if (!s.data.keepRecentSearches || s.general.incognito || item.key.isBlank()) return
         store.updateData { s ->
             val rest = s.items.filterNot { it.kind == item.kind && it.key.equals(item.key, ignoreCase = true) }
             RecentSearches((listOf(item) + rest).take(MAX))

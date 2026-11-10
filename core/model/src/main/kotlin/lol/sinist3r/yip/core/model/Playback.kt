@@ -64,3 +64,32 @@ data class RemoteConfig(
 }
 
 data class VideoChapter(val title: String, val startSeconds: Int, val durationSeconds: Int, val gameName: String?)
+
+/** VOD scrub thumbnails: [count] frames, one every [intervalSeconds], laid out [cols] x [rows] per sprite image. */
+data class Storyboard(
+    val images: List<String>,
+    val count: Int,
+    val intervalSeconds: Int,
+    val cols: Int,
+    val rows: Int,
+    val width: Int,
+    val height: Int,
+) {
+    data class Frame(val imageUrl: String, val x: Int, val y: Int)
+
+    fun frameAt(seconds: Long): Frame? {
+        if (images.isEmpty() || count <= 0 || intervalSeconds <= 0 || cols <= 0 || rows <= 0) return null
+        val index = (seconds / intervalSeconds).toInt().coerceIn(0, count - 1)
+        val perImage = cols * rows
+        val image = images.getOrNull(index / perImage) ?: return null
+        val cell = index % perImage
+        return Frame(image, (cell % cols) * width, (cell / cols) * height)
+    }
+}
+
+/** Part of a VOD Twitch muted for copyrighted audio. */
+data class MutedSegment(val offsetSeconds: Int, val durationSeconds: Int) {
+    val endSeconds: Int get() = offsetSeconds + durationSeconds
+}
+
+data class VideoExtras(val storyboard: Storyboard? = null, val muted: List<MutedSegment> = emptyList())

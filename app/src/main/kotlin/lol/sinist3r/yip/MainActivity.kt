@@ -44,6 +44,13 @@ class MainActivity : ComponentActivity(), WatchHost {
     @Inject lateinit var accounts: AccountRepository
     @Inject lateinit var playback: PlaybackController
     @Inject lateinit var follows: lol.sinist3r.yip.core.data.follow.FollowRepository
+    @Inject lateinit var linkPreviews: lol.sinist3r.yip.core.data.chat.LinkPreviews
+    private val linkPreviewLoader by lazy {
+        object : lol.sinist3r.yip.core.designsystem.chat.LinkPreviewLoader {
+            override fun cached(url: String) = linkPreviews.cached(url)
+            override suspend fun load(url: String) = linkPreviews.load(url)
+        }
+    }
 
     /** Deep links handed to the nav graph (twitch.tv URLs, notification taps). */
     val deepLinks = MutableSharedFlow<android.net.Uri>(replay = 1, extraBufferCapacity = 4)
@@ -66,7 +73,10 @@ class MainActivity : ComponentActivity(), WatchHost {
             val bedtime = lol.sinist3r.yip.core.designsystem.util.rememberBedtimeActive(s.general.bedtime)
             val appearance = if (bedtime && s.general.bedtime.oledTheme) s.appearance.copy(theme = lol.sinist3r.yip.core.model.ThemeMode.BLACK) else s.appearance
             YipTheme(appearance) {
-                CompositionLocalProvider(LocalWatchHost provides this) {
+                CompositionLocalProvider(
+                    LocalWatchHost provides this,
+                    lol.sinist3r.yip.core.designsystem.chat.LocalLinkPreviews provides linkPreviewLoader,
+                ) {
                     YipApp(activity = this, settings = s, inPip = inPip)
                     pendingImport?.let { incoming ->
                         androidx.compose.material3.AlertDialog(

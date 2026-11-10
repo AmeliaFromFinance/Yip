@@ -2,6 +2,7 @@ package lol.sinist3r.yip.core.network.twitch
 
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.expectSuccess
+import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -305,6 +306,38 @@ class GqlApi @Inject constructor(
     suspend fun channelBadges(channelId: String) = query(GqlQueries.CHANNEL_BADGES, buildJsonObject { put("id", channelId) })
 
     suspend fun videoInfo(id: String) = query(GqlQueries.VIDEO_INFO, buildJsonObject { put("id", id) })
+
+    suspend fun videoExtras(id: String) = query(GqlQueries.VIDEO_EXTRAS, buildJsonObject { put("id", id) })
+
+    /** Raw GET for small JSON files (storyboard info, oEmbed). */
+    suspend fun getText(url: String): String? = runCatching {
+        val r = http.get(url) { expectSuccess = false }
+        if (r.status.isSuccess()) r.bodyAsText() else null
+    }.getOrNull()
+
+    suspend fun pinnedMessage(login: String) = query(GqlQueries.PINNED_MESSAGE, buildJsonObject { put("login", login) })
+
+    suspend fun pinMessage(channelId: String, messageId: String, durationSeconds: Int?, integrity: Boolean = false): JsonObject =
+        queryAuthed(GqlQueries.PIN_MESSAGE, buildJsonObject {
+            putJsonObject("input") {
+                put("channelID", channelId)
+                put("messageID", messageId)
+                put("type", "MOD")
+                if (durationSeconds != null) put("durationSeconds", durationSeconds)
+            }
+        }, integrity)
+
+    suspend fun unpinMessage(pinId: String, integrity: Boolean = false): JsonObject =
+        queryAuthed(GqlQueries.UNPIN_MESSAGE, buildJsonObject { putJsonObject("input") { put("id", pinId); put("reason", "UNPIN") } }, integrity)
+
+    suspend fun followsClips(ids: List<String>, perChannel: Int) = query(GqlQueries.FOLLOWS_CLIPS, buildJsonObject {
+        put("ids", JsonArray(ids.map(::JsonPrimitive)))
+        put("first", perChannel)
+    })
+
+    suspend fun clipPreview(slug: String) = query(GqlQueries.CLIP_PREVIEW, buildJsonObject { put("slug", slug) })
+    suspend fun videoPreview(id: String) = query(GqlQueries.VIDEO_PREVIEW, buildJsonObject { put("id", id) })
+    suspend fun userPreview(login: String) = query(GqlQueries.USER_PREVIEW, buildJsonObject { put("login", login) })
 
     private inline fun vars(first: Int, after: String?, extra: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit = {}) = buildJsonObject {
         put("first", first)

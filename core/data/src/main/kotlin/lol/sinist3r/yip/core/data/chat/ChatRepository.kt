@@ -121,10 +121,17 @@ class ChatSession internal constructor(
         attempt { repo.helix.chatSettings(channelId) }.getOrNull()?.let { s ->
             incoming.trySend(RawChat.Room(s.emoteMode, s.followerModeDuration, s.followerMode, if (s.slowMode) s.slowModeWaitTime else 0, s.subscriberMode, s.uniqueChatMode))
         }
+        // EventSub doesn't say who's chatting for the first time; anonymous IRC does. Only the flag is used.
+        val firstMessages = if (settings.chat.showFirstMessageTag) scope.launch {
+            repo.irc.join(channelLogin).collect { ev ->
+                if (ev is RawChat.Message && ev.msg.isFirstMessage && !ev.msg.isHistory) incoming.send(RawChat.FirstMessage(ev.msg.id))
+            }
+        } else null
         var failure: RawChat.JoinFailed? = null
         repo.eventSub.join(channelId, userId).transformWhile { ev ->
             if (ev is RawChat.JoinFailed) { failure = ev; false } else { emit(ev); true }
         }.collect { incoming.send(it) }
+        firstMessages?.cancel()
         val f = failure ?: return
         // EventSub refused: read chat over IRC instead of reconnecting forever. Sending still goes through Helix.
         incoming.send(RawChat.ServerNotice(
@@ -136,6 +143,8 @@ class ChatSession internal constructor(
             .collect { incoming.send(it) }
     }
 
+    private val earlyFirsts = LinkedHashSet<String>()
+
     private suspend fun consume() {
         // Wait briefly for emotes so the first screen of messages renders with images.
         val cos = repo.cosmetics.channel(channelId)
@@ -145,7 +154,8 @@ class ChatSession internal constructor(
             val self = repo.accounts.state.value.active?.login
             when (ev) {
                 is RawChat.Message -> {
-                    repo.pipeline.process(ev.msg, cos.value, settings, self)?.let(::append)
+                    val raw = if (!ev.msg.isFirstMessage && earlyFirsts.remove(ev.msg.id)) ev.msg.copy(isFirstMessage = true) else ev.msg
+                    repo.pipeline.process(raw, cos.value, settings, self)?.let(::append)
                     synchronized(knownChatters) {
                         knownChatters.remove(ev.msg.login)
                         knownChatters += ev.msg.login
@@ -156,6 +166,14 @@ class ChatSession internal constructor(
                     if (!noticeAllowed(ev.kind, settings)) continue
                     val msg = ev.msg?.let { repo.pipeline.process(it, cos.value, settings, self) }
                     append(ChatItem.Notice(ev.id, ev.timestamp, ev.kind.toModel(), ev.systemText, msg))
+                }
+                is RawChat.FirstMessage -> if (settings.chat.showFirstMessageTag) {
+                    // IRC can beat EventSub; remember the id for when the message lands.
+                    earlyFirsts += ev.messageId
+                    while (earlyFirsts.size > 100) earlyFirsts.remove(earlyFirsts.first())
+                    mutate { list ->
+                    list.map { if (it is ChatItem.Message && it.id == ev.messageId && !it.isFirstMessage) it.copy(isFirstMessage = true, highlight = if (it.highlight == HighlightKind.NONE) HighlightKind.FIRST_MESSAGE else it.highlight).also { _ -> earlyFirsts.remove(ev.messageId) } else it }
+                    }
                 }
                 is RawChat.Deleted -> mutate { list -> list.map { if (it is ChatItem.Message && it.id == ev.messageId) it.copy(isDeleted = true) else it } }
                 is RawChat.ClearUser -> {

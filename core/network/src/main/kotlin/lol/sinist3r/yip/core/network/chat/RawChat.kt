@@ -47,6 +47,8 @@ sealed interface RawChat {
     data class JoinFailed(val reason: String, val notAllowed: Boolean) : RawChat
     data class Notice(val id: String, val kind: RawNoticeKind, val systemText: String, val msg: RawMessage?, val timestamp: Instant) : RawChat
     data class Deleted(val messageId: String) : RawChat
+    /** Marks an already-received message as someone's first in the channel. */
+    data class FirstMessage(val messageId: String) : RawChat
     data class ClearUser(val userId: String, val durationSeconds: Int?) : RawChat
     data object Clear : RawChat
     data class Room(

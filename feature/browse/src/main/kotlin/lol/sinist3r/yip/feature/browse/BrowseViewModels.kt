@@ -173,6 +173,10 @@ class FollowingViewModel @Inject constructor(
 
     fun removeHistory(key: String) = viewModelScope.launch { history.remove(key) }
 
+    fun setIncognito(on: Boolean) = viewModelScope.launch {
+        settingsRepo.update { it.copy(general = it.general.copy(incognito = on)) }
+    }
+
     fun setSort(sort: FollowingSort) = viewModelScope.launch {
         settingsRepo.update { it.copy(general = it.general.copy(followingSort = sort)) }
     }
@@ -190,7 +194,10 @@ class BrowseViewModel @Inject constructor(twitch: TwitchRepository, private val 
     val settings = settingsRepo.settings
     private val streamsPager = Pager(viewModelScope) { twitch.topStreams(it) }
     private val categoriesPager = Pager(viewModelScope) { twitch.topCategories(it) }
-    val streams = combine(streamsPager.state, settings) { p, s -> p.copy(items = p.items.filterNot { st -> s.isHiddenChannel(st.userLogin) || s.isHiddenCategory(st.gameName) }) }
+    val streams = combine(streamsPager.state, settings) { p, s ->
+        val now = System.currentTimeMillis()
+        p.copy(items = p.items.filter { st -> !s.isHiddenChannel(st.userLogin) && !s.isHiddenCategory(st.gameName) && s.general.browseFilter.matches(st, now) })
+    }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Paged())
     val categories = combine(categoriesPager.state, settings) { p, s -> p.copy(items = p.items.filterNot { c -> s.isHiddenCategory(c.name) }) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Paged())
@@ -201,6 +208,10 @@ class BrowseViewModel @Inject constructor(twitch: TwitchRepository, private val 
     }
 
     /** Empty means every language. Reloads both lists. */
+    fun setFilter(f: lol.sinist3r.yip.core.model.BrowseFilter) = viewModelScope.launch {
+        settingsRepo.update { it.copy(general = it.general.copy(browseFilter = f)) }
+    }
+
     fun setLanguages(codes: List<String>) = viewModelScope.launch {
         settingsRepo.update { it.copy(general = it.general.copy(streamLanguages = codes.distinct())) }
         streamsPager.refresh()
@@ -256,8 +267,14 @@ class CategoryViewModel @Inject constructor(
 
     init { viewModelScope.launch { if (web.followedCategories.value.isEmpty()) web.refreshCategories() } }
     private val pager = Pager(viewModelScope) { twitch.categoryStreams(categoryId, it) }
-    val streams = combine(pager.state, settings) { p, s -> p.copy(items = p.items.filterNot { st -> s.isHiddenChannel(st.userLogin) }) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, Paged())
+    val streams = combine(pager.state, settings) { p, s ->
+        val now = System.currentTimeMillis()
+        p.copy(items = p.items.filter { st -> !s.isHiddenChannel(st.userLogin) && s.general.browseFilter.matches(st, now) })
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, Paged())
+
+    fun setFilter(f: lol.sinist3r.yip.core.model.BrowseFilter) = viewModelScope.launch {
+        settingsRepo.update { it.copy(general = it.general.copy(browseFilter = f)) }
+    }
 
     init { pager.refresh() }
     fun refresh() = pager.refresh()
