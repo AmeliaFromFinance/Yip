@@ -60,9 +60,6 @@ class HistoryRepository @Inject constructor(private val dao: HistoryDao, private
         }
     }
 
-    /** Keys ("VOD:id", "CLIP:slug") of everything watched to the end. */
-    suspend fun finishedKeys(): Set<String> = all.first().filter { it.finished }.mapTo(HashSet()) { it.key }
-
     suspend fun resumePosition(videoId: String): Long? = dao.get("VOD:$videoId")?.positionSeconds?.takeIf { it > 30 }
     suspend fun remove(key: String) = dao.delete(key)
     suspend fun clear() = dao.clear()

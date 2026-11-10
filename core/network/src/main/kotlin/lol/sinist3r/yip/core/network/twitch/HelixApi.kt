@@ -140,9 +140,13 @@ class HelixApi @Inject constructor(
         cursor?.let { parameter("after", it) }
     }
 
-    suspend fun createClip(broadcasterId: String): String? =
-        post<HelixPage<RawJson>>("/clips") { parameter("broadcaster_id", broadcasterId) }
-            .data.firstOrNull()?.get("id")?.toString()?.trim('"')
+    /** Clips the last [durationSeconds] (5-60, default 30) of the live stream. */
+    suspend fun createClip(broadcasterId: String, title: String? = null, durationSeconds: Int? = null): String? =
+        post<HelixPage<RawJson>>("/clips") {
+            parameter("broadcaster_id", broadcasterId)
+            title?.let { parameter("title", it) }
+            durationSeconds?.let { parameter("duration", it.coerceIn(5, 60)) }
+        }.data.firstOrNull()?.get("id")?.toString()?.trim('"')
 
     suspend fun schedule(broadcasterId: String): HelixSchedule = getOrNull("/schedule") {
         parameter("broadcaster_id", broadcasterId)

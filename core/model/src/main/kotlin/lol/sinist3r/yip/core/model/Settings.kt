@@ -109,8 +109,6 @@ data class PlayerSettings(
     val perChannelMemory: Boolean = false,
     /** Jump past parts of VODs Twitch muted. */
     val skipMutedParts: Boolean = false,
-    /** When a VOD or clip ends: next Watch later item, else the channel's next VOD. */
-    val autoPlayNext: Boolean = true,
     val backgroundAudio: Boolean = true,
     val autoPip: Boolean = true,
     val pauseOnHeadphonesUnplugged: Boolean = true,

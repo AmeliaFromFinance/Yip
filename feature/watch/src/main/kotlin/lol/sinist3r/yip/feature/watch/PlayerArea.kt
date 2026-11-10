@@ -129,8 +129,6 @@ fun PlayerArea(
     /** Null hides the Watch later button. */
     inWatchLater: Boolean? = null,
     onWatchLater: () -> Unit = {},
-    /** Drawn over the video, e.g. the Up next card. */
-    overlay: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit = {},
 ) {
     val host = LocalWatchHost.current
     val context = LocalContext.current
@@ -260,7 +258,6 @@ fun PlayerArea(
         gestureHint?.let { Pill(it, Modifier.align(Alignment.Center)) }
 
         if (inPip) return@Box
-        overlay()
 
         AnimatedVisibility(controls, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize().padding(end = controlsEndInset)) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.38f))) {

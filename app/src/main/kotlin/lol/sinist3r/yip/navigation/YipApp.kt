@@ -212,10 +212,6 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
                 nav.popBackStack()
                 nav.navigate(WatchRoute("LIVE", login))
             }
-            override fun openNext(kind: String, id: String, title: String?, vodId: String?, vodOffset: Int?) {
-                nav.popBackStack()
-                nav.navigate(if (kind == "CLIP") WatchRoute("CLIP", id, vodOffset ?: -1, null, title, vodId) else WatchRoute("VOD", id, 0))
-            }
             override fun openMultiView(logins: List<String>) {
                 nav.popBackStack()
                 nav.navigate(MultiViewRoute(logins.joinToString(",")))

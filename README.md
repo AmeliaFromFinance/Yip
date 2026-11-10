@@ -26,9 +26,9 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Bedtime mode: black theme, dimmer player and an automatic sleep timer at set hours
 - Clip the last 30 seconds and share the link
 - Share streams, VODs (at the current time) and clips
-- Clip editor: trim up to 60 seconds and set the title before publishing; clip VODs too
+- Clips: pick the length and title before making one; on VODs pick the exact range with a preview
 - Speed button on VODs and clips (down to 0.25x on clips)
-- Watch later queue in Library; auto-play next (queue, then the channel's next VOD)
+- Watch later queue in Library
 - Watched videos and clips are dimmed and marked
 - Notification controls: play, pause and mute without opening the app
 - Swipe for brightness and volume, double-tap to seek, pinch to fill

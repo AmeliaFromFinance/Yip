@@ -72,31 +72,6 @@ interface WatchNavigator {
     fun openLive(login: String) {}
     fun openWhisper(login: String) {}
     fun openConnectWeb() {}
-    /** Replaces this screen with the next VOD or clip. [kind] is VOD or CLIP. */
-    fun openNext(kind: String, id: String, title: String?, vodId: String?, vodOffset: Int?) {}
-}
-
-/** Counts down, then plays [next]. */
-@Composable
-private fun UpNextCard(next: WatchViewModel.UpNext, modifier: Modifier, onPlay: () -> Unit, onCancel: () -> Unit) {
-    var left by remember(next.id) { androidx.compose.runtime.mutableIntStateOf(8) }
-    LaunchedEffect(next.id) {
-        while (left > 0) { kotlinx.coroutines.delay(1000); left-- }
-        onPlay()
-    }
-    androidx.compose.material3.Surface(color = Color.Black.copy(alpha = 0.8f), shape = MaterialTheme.shapes.medium, modifier = modifier.widthIn(max = 320.dp)) {
-        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            coil3.compose.AsyncImage(next.thumbnailUrl, null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.size(96.dp, 54.dp).clip(MaterialTheme.shapes.small))
-            Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                Text("Up next in ${left}s", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
-                Text(next.title, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                Row {
-                    TextButton(onClick = onPlay) { Text("Play now") }
-                    TextButton(onClick = onCancel) { Text("Cancel") }
-                }
-            }
-        }
-    }
 }
 
 /** Share link for what's playing; VOD links start at the current time. */
@@ -163,7 +138,6 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val recent by viewModel.recentEmotes.collectAsStateWithLifecycle()
     val isMod by viewModel.isModerator.collectAsStateWithLifecycle()
     val inLater by viewModel.inWatchLater.collectAsStateWithLifecycle()
-    val upNext by viewModel.upNext.collectAsStateWithLifecycle()
     val macros = remember(settings.chat.modMacros) { settings.chat.modMacros.mapNotNull(lol.sinist3r.yip.core.model.ModMacro::parse) }
     val points by viewModel.pointsBalance.collectAsStateWithLifecycle()
     val userCard by viewModel.userCard.collectAsStateWithLifecycle()
@@ -274,11 +248,6 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onSpeed = viewModel.playback::setSpeed,
             inWatchLater = if (viewModel.kind == WatchKind.VOD || viewModel.kind == WatchKind.CLIP) inLater else null,
             onWatchLater = viewModel::toggleWatchLater,
-            overlay = {
-                upNext?.let { n ->
-                    UpNextCard(n, Modifier.align(Alignment.BottomEnd).padding(12.dp), onPlay = { viewModel.cancelUpNext(); nav.openNext(n.kind, n.id, n.title, n.vodId, n.vodOffset) }, onCancel = viewModel::cancelUpNext)
-                }
-            },
             inPip = inPip,
             showAdBanner = settings.adBlock.showAdBreakBanner,
             onBack = nav::back,
@@ -425,7 +394,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     }
 
     val clip by viewModel.clip.collectAsStateWithLifecycle()
-    clip?.let { ClipSheet(it, onDismiss = viewModel::dismissClip, onPublish = viewModel::publishClip) }
+    clip?.let { ClipSheet(it, onDismiss = viewModel::dismissClip, onCreateLive = viewModel::createLiveClip, onCreateVod = viewModel::createVodClip, onPreviewVod = viewModel::previewVodClip) }
     if (showAddStream) info.user?.let { u ->
         AddStreamSheet(exclude = setOf(u.login.lowercase()), onPick = { showAddStream = false; nav.openMultiView(listOf(u.login, it)) }, onDismiss = { showAddStream = false })
     }
