@@ -112,6 +112,7 @@ class PlaybackController @Inject constructor(
     private var tickJob: Job? = null
     private var volumeBeforeAd = 1f
     private var suppressMemory = false
+    private var forceAudioOnly = false
 
     private val _state = MutableStateFlow(PlaybackUiState())
     val state: StateFlow<PlaybackUiState> = _state.asStateFlow()
@@ -174,7 +175,9 @@ class PlaybackController @Inject constructor(
         }
     }
 
-    fun play(source: PlaybackSource) {
+    /** Start [source]; [audioOnly] forces the audio-only rendition (used by Android Auto). */
+    fun play(source: PlaybackSource, audioOnly: Boolean = false) {
+        forceAudioOnly = audioOnly
         val current = _state.value.source
         if (current == source && hasMedia && _state.value.error == null) {
             player.play()
@@ -226,6 +229,7 @@ class PlaybackController @Inject constructor(
 
     private suspend fun pickInitial(channelId: String, qualities: List<StreamQuality>): StreamQuality? {
         val s = settings.current().player
+        if (forceAudioOnly) qualities.firstOrNull { it.isAudioOnly }?.let { return it }
         if (s.audioOnlyOnMobile && !isOnWifi()) qualities.firstOrNull { it.isAudioOnly }?.let { return it }
         if (s.perChannelMemory && memory.get(channelId)?.audioOnly == true) qualities.firstOrNull { it.isAudioOnly }?.let { return it }
         if (s.rememberQualityPerChannel) {

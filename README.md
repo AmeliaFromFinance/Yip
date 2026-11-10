@@ -21,6 +21,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Background audio, audio-only mode, picture-in-picture, mini-player
 - Sleep timer: fixed times or when the stream ends
 - Per-channel memory (optional): volume, mute and audio-only kept for each channel
+- Android Auto: favourites and followed channels that are live, played audio-only, with voice search
 - Bedtime mode: black theme, dimmer player and an automatic sleep timer at set hours
 - Clip the last 30 seconds and share the link
 - Notification controls: play, pause and mute without opening the app
