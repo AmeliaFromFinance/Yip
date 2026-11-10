@@ -212,6 +212,10 @@ fun YipApp(activity: MainActivity, settings: AppSettings, inPip: Boolean) {
                 nav.popBackStack()
                 nav.navigate(WatchRoute("LIVE", login))
             }
+            override fun openRewind(videoId: String, offsetSeconds: Int) {
+                nav.popBackStack()
+                nav.navigate(WatchRoute("VOD", videoId, offsetSeconds))
+            }
             override fun openMultiView(logins: List<String>) {
                 nav.popBackStack()
                 nav.navigate(MultiViewRoute(logins.joinToString(",")))

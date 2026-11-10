@@ -70,6 +70,8 @@ interface WatchNavigator {
     fun openMultiView(logins: List<String>) {}
     /** Replaces this screen with another live stream. */
     fun openLive(login: String) {}
+    /** Replaces this live screen with its VOD at [offsetSeconds]. */
+    fun openRewind(videoId: String, offsetSeconds: Int) = openVod(videoId, offsetSeconds)
     fun openWhisper(login: String) {}
     fun openConnectWeb() {}
 }
@@ -138,6 +140,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val recent by viewModel.recentEmotes.collectAsStateWithLifecycle()
     val isMod by viewModel.isModerator.collectAsStateWithLifecycle()
     val inLater by viewModel.inWatchLater.collectAsStateWithLifecycle()
+    val toastContext = LocalContext.current
+    LaunchedEffect(Unit) { viewModel.rewindError.collect { android.widget.Toast.makeText(toastContext, it, android.widget.Toast.LENGTH_LONG).show() } }
     val macros = remember(settings.chat.modMacros) { settings.chat.modMacros.mapNotNull(lol.sinist3r.yip.core.model.ModMacro::parse) }
     val points by viewModel.pointsBalance.collectAsStateWithLifecycle()
     val userCard by viewModel.userCard.collectAsStateWithLifecycle()
@@ -248,6 +252,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onSpeed = viewModel.playback::setSpeed,
             inWatchLater = if (viewModel.kind == WatchKind.VOD || viewModel.kind == WatchKind.CLIP) inLater else null,
             onWatchLater = viewModel::toggleWatchLater,
+            onRewind = if (isLive && info.stream != null) ({ back -> viewModel.rewind(back) { id, off -> nav.openRewind(id, off) } }) else null,
+            onGoLive = info.extras.liveLogin?.let { login -> { nav.openLive(login) } },
             inPip = inPip,
             showAdBanner = settings.adBlock.showAdBreakBanner,
             onBack = nav::back,
@@ -471,6 +477,10 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onWhisper = if (signedIn) ({ viewModel.closeUser(); nav.openWhisper(it) }) else null,
             macros = macros,
             onMacro = { m, id -> viewModel.moderate(m, id) },
+            hidden = card.login.lowercase() in settings.filters.hiddenUsers,
+            onHidden = { hide ->
+                viewModel.updateFilters { f -> f.copy(hiddenUsers = if (hide) (f.hiddenUsers + card.login.lowercase()).distinct() else f.hiddenUsers - card.login.lowercase()) }
+            },
         )
     }
     menuFor?.let { m ->

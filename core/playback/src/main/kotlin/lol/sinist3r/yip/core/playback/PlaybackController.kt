@@ -1,5 +1,7 @@
 package lol.sinist3r.yip.core.playback
 
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
@@ -116,7 +118,17 @@ class PlaybackController @Inject constructor(
     private var suppressMemory = false
     private var forceAudioOnly = false
 
+    private val leveller = VolumeLeveller()
     private val _state = MutableStateFlow(PlaybackUiState())
+
+    init {
+        // Turning levelling on or off applies straight away to whatever's playing.
+        scope.launch {
+            settings.settings.map { it.player.volumeLevelling }.distinctUntilChanged().collect { on ->
+                _player?.let { leveller.apply(it.audioSessionId, on) }
+            }
+        }
+    }
     val state: StateFlow<PlaybackUiState> = _state.asStateFlow()
 
     val player: ExoPlayer
@@ -124,6 +136,7 @@ class PlaybackController @Inject constructor(
             _player = it
             it.addListener(listener)
             it.addAnalyticsListener(stats)
+            leveller.apply(it.audioSessionId, settings.settings.value.player.volumeLevelling)
             playerWatchers.forEach { w -> w(it) }
         }
 
@@ -154,6 +167,9 @@ class PlaybackController @Inject constructor(
     val stats = PlaybackStats()
 
     private val listener = object : Player.Listener {
+        override fun onAudioSessionIdChanged(audioSessionId: Int) =
+            leveller.apply(audioSessionId, settings.settings.value.player.volumeLevelling)
+
         override fun onIsPlayingChanged(isPlaying: Boolean) = _state.update { it.copy(playing = isPlaying) }
         override fun onVolumeChanged(volume: Float) {
             _state.update { it.copy(muted = volume == 0f, volume = volume) }

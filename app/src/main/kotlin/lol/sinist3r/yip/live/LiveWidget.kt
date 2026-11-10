@@ -32,7 +32,7 @@ import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.padding
-import androidx.glance.layout.width
+import androidx.glance.layout.height
 import androidx.glance.semantics.contentDescription
 import androidx.glance.semantics.semantics
 import androidx.glance.text.FontWeight
@@ -88,11 +88,12 @@ class LiveWidget : GlanceAppWidget() {
                     modifier = GlanceModifier.clickable(actionRunCallback<RefreshAction>()).padding(4.dp),
                 )
             }
-            Spacer(GlanceModifier.width(4.dp))
+            Spacer(GlanceModifier.height(4.dp))
             when {
                 !data.signedIn -> Hint("Sign in to Yip to see who's live")
                 data.entries.isEmpty() -> Hint(if (data.updatedAt == 0L) "Open Yip once to load your follows" else "No one you follow is live")
-                else -> LazyColumn {
+                // The list needs the remaining height; left to wrap its content, launchers drew it with no height at all.
+                else -> LazyColumn(GlanceModifier.fillMaxWidth().defaultWeight()) {
                     items(data.entries.take(12), itemId = { it.login.hashCode().toLong() }) { e ->
                         Column(
                             GlanceModifier.fillMaxWidth().padding(vertical = 4.dp).clickable(actionStartActivity(openStream(context, e.login)))

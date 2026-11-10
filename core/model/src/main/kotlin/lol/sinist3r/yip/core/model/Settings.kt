@@ -40,6 +40,8 @@ enum class LinkOpening { IN_APP, BROWSER, ASK }
 data class GeneralSettings(
     val bedtime: BedtimeSettings = BedtimeSettings(),
     val browseFilter: BrowseFilter = BrowseFilter(),
+    /** Shown as chips at the top of Browse. */
+    val pinnedCategories: List<PinnedCategory> = emptyList(),
     /** Nothing goes into watch history or continue watching. */
     val incognito: Boolean = false,
     val startScreen: StartScreen = StartScreen.FOLLOWING,
@@ -109,6 +111,8 @@ data class PlayerSettings(
     val perChannelMemory: Boolean = false,
     /** Jump past parts of VODs Twitch muted. */
     val skipMutedParts: Boolean = false,
+    /** Evens out loudness between streams. */
+    val volumeLevelling: Boolean = false,
     val backgroundAudio: Boolean = true,
     val autoPip: Boolean = true,
     val pauseOnHeadphonesUnplugged: Boolean = true,
@@ -159,6 +163,10 @@ data class ChatSettings(
     /** Identical messages in a row show once with a count. */
     val collapseRepeats: Boolean = true,
     val linkPreviews: LinkPreviewMode = LinkPreviewMode.WIFI,
+    /** Messages from the channel owner stand out. */
+    val highlightBroadcaster: Boolean = true,
+    /** Short buzz when the streamer types in the chat you're watching. */
+    val broadcasterVibrate: Boolean = false,
     val font: ChatFont = ChatFont.DEFAULT,
     /** Extra letter spacing in sp. */
     val letterSpacing: Float = 0f,
@@ -348,6 +356,9 @@ enum class ChatFont { DEFAULT, HYPERLEGIBLE, DYSLEXIC, SERIF, MONO }
 /** Night-time: OLED theme, dimmer player, automatic sleep timer. Times are minutes after midnight. */
 enum class ViewerRange(val min: Int, val max: Int) { ANY(0, Int.MAX_VALUE), UNDER_50(0, 49), SMALL(50, 499), MEDIUM(500, 4_999), LARGE(5_000, Int.MAX_VALUE) }
 enum class UptimeRange(val minMinutes: Int, val maxMinutes: Int) { ANY(0, Int.MAX_VALUE), JUST_STARTED(0, 59), MID(60, 239), LONG(240, Int.MAX_VALUE) }
+
+@Serializable
+data class PinnedCategory(val id: String, val name: String, val boxArtUrl: String? = null)
 
 /** Browse and category filters, applied to what's loaded. */
 @Serializable

@@ -361,6 +361,8 @@ class GqlApi @Inject constructor(
     suspend fun updateClipTitle(slug: String, title: String, integrity: Boolean = false): JsonObject =
         queryAuthed(GqlQueries.UPDATE_CLIP, buildJsonObject { putJsonObject("input") { put("slug", slug); put("title", title) } }, integrity)
 
+    suspend fun liveArchive(login: String) = query(GqlQueries.LIVE_ARCHIVE, buildJsonObject { put("login", login) })
+
     suspend fun clipPreview(slug: String) = query(GqlQueries.CLIP_PREVIEW, buildJsonObject { put("slug", slug) })
     suspend fun videoPreview(id: String) = query(GqlQueries.VIDEO_PREVIEW, buildJsonObject { put("id", id) })
     suspend fun userPreview(login: String) = query(GqlQueries.USER_PREVIEW, buildJsonObject { put("login", login) })

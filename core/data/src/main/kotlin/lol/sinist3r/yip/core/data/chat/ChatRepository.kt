@@ -244,6 +244,9 @@ class ChatSession internal constructor(
     /** Live mentions of you in this chat, for the vibration. */
     private val _mentionsHere = kotlinx.coroutines.flow.MutableSharedFlow<ChatItem.Message>(extraBufferCapacity = 4)
     val mentionsHere: kotlinx.coroutines.flow.SharedFlow<ChatItem.Message> = _mentionsHere
+    private val _broadcasterHere = kotlinx.coroutines.flow.MutableSharedFlow<ChatItem.Message>(extraBufferCapacity = 4)
+    /** New messages from the channel owner. */
+    val broadcasterHere: kotlinx.coroutines.flow.SharedFlow<ChatItem.Message> = _broadcasterHere
 
     /** This user's messages loaded in this chat, newest first. */
     fun messagesFrom(login: String): List<ChatItem.Message> = synchronized(buffer) {
@@ -283,6 +286,7 @@ class ChatSession internal constructor(
         if (!ids.add(item.id)) return@synchronized
         buffer.addLast(item)
         if (item is ChatItem.Message && item.highlight == HighlightKind.MENTION && !item.isHistory && !item.isSelf) _mentionsHere.tryEmit(item)
+        if (item is ChatItem.Message && item.highlight == HighlightKind.BROADCASTER && !item.isHistory && !item.isSelf) _broadcasterHere.tryEmit(item)
         val delayable = when (item) {
             is ChatItem.Message -> !item.isHistory && !item.isSelf
             is ChatItem.Notice -> item.message?.isHistory != true

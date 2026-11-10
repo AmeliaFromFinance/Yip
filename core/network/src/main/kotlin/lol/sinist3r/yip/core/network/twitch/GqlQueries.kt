@@ -156,7 +156,7 @@ internal object GqlQueries {
 
     val VIDEO_EXTRAS = """
         query VideoExtras(${'$'}id: ID) {
-          video(id: ${'$'}id) { seekPreviewsURL muteInfo { mutedSegmentConnection { nodes { duration offset } } } }
+          video(id: ${'$'}id) { status owner { login } seekPreviewsURL muteInfo { mutedSegmentConnection { nodes { duration offset } } } }
         }
     """.trimIndent()
 
@@ -221,5 +221,9 @@ internal object GqlQueries {
 
     val UPDATE_CLIP = """
         mutation UpdateClip(${'$'}input: UpdateClipInput!) { updateClip(input: ${'$'}input) { clip { slug title } error { __typename } } }
+    """.trimIndent()
+
+    val LIVE_ARCHIVE = """
+        query LiveArchive(${'$'}login: String) { user(login: ${'$'}login) { stream { createdAt archiveVideo { id status } } } }
     """.trimIndent()
 }

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.BookmarkAdd
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.Forum
@@ -129,6 +130,10 @@ fun PlayerArea(
     /** Null hides the Watch later button. */
     inWatchLater: Boolean? = null,
     onWatchLater: () -> Unit = {},
+    /** Live only: jump back [Int] seconds into the VOD being recorded; null means from the start. */
+    onRewind: ((Int?) -> Unit)? = null,
+    /** VOD of a stream that's still live: jump to the live stream. */
+    onGoLive: (() -> Unit)? = null,
 ) {
     val host = LocalWatchHost.current
     val context = LocalContext.current
@@ -269,6 +274,21 @@ fun PlayerArea(
                     }
                     onDownload?.let { IconButton(onClick = it) { Icon(Icons.Outlined.Download, "Download", tint = Color.White) } }
                     onClip?.let { IconButton(onClick = it) { Icon(Icons.Outlined.ContentCut, "Clip", tint = Color.White) } }
+                    onGoLive?.let {
+                        androidx.compose.material3.TextButton(onClick = it) { Text("● Go live", color = Color(0xFFFF5252), fontSize = 13.sp) }
+                    }
+                    onRewind?.let { rw ->
+                        Box {
+                            var menu by remember { mutableStateOf(false) }
+                            IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.History, "Rewind", tint = Color.White) }
+                            androidx.compose.material3.DropdownMenu(menu, onDismissRequest = { menu = false }) {
+                                listOf(30 to "Back 30 seconds", 60 to "Back 1 minute", 300 to "Back 5 minutes", 900 to "Back 15 minutes", 1800 to "Back 30 minutes").forEach { (s, label) ->
+                                    androidx.compose.material3.DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; rw(s) })
+                                }
+                                androidx.compose.material3.DropdownMenuItem(text = { Text("From the start") }, onClick = { menu = false; rw(null) })
+                            }
+                        }
+                    }
                     onShare?.let { IconButton(onClick = it) { Icon(Icons.Outlined.Share, "Share", tint = Color.White) } }
                     inWatchLater?.let { saved ->
                         IconButton(onClick = onWatchLater) {

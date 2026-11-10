@@ -62,6 +62,20 @@ class ChatPipelineTest {
     }
 
     @Test
+    fun `streamer messages get their own highlight`() {
+        val r = raw("welcome in", login = "pixelforge").copy(badges = listOf("broadcaster" to "1"))
+        assertEquals(HighlightKind.BROADCASTER, pipeline.process(r, channel, AppSettings(), "me")!!.highlight)
+        val off = AppSettings().let { it.copy(chat = it.chat.copy(highlightBroadcaster = false)) }
+        assertEquals(HighlightKind.NONE, pipeline.process(r, channel, off, "me")!!.highlight)
+    }
+
+    @Test
+    fun `hidden users are dropped`() {
+        val s = AppSettings(filters = FilterSettings(hiddenUsers = listOf("annoying")))
+        assertNull(pipeline.process(raw("hi", login = "Annoying"), channel, s, "me"))
+    }
+
+    @Test
     fun `parses twitch colors`() {
         assertEquals(0xFF123456, ChatPipeline.parseColor("#123456"))
         assertNull(ChatPipeline.parseColor("blue"))

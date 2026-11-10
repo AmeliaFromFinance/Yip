@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -200,6 +201,24 @@ class WatchViewModel @Inject constructor(
 
     private val _clip = MutableStateFlow<ClipState?>(null)
     val clip = _clip.asStateFlow()
+
+    /**
+     * Rewind a live stream: opens the VOD being recorded, [backSeconds] behind what you see now.
+     * [backSeconds] null starts from the beginning. Calls [onOpen] with the VOD id and offset, or reports why not.
+     */
+    fun rewind(backSeconds: Int?, onOpen: (String, Int) -> Unit) = viewModelScope.launch {
+        val login = _info.value.user?.login ?: return@launch
+        val archive = attempt { twitch.liveArchive(login) }.getOrNull()
+        if (archive == null) { _rewindError.tryEmit("This channel doesn't save VODs, so there's nothing to rewind to."); return@launch }
+        val started = (archive.second ?: _info.value.stream?.startedAt)?.toEpochMilliseconds()
+        val latency = playback.state.value.liveLatencyMs ?: 0L
+        val livePos = started?.let { ((System.currentTimeMillis() - it - latency) / 1000).toInt() } ?: 0
+        val offset = if (backSeconds == null) 0 else (livePos - backSeconds).coerceAtLeast(0)
+        onOpen(archive.first, offset)
+    }
+
+    private val _rewindError = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val rewindError = _rewindError.asSharedFlow()
 
     /** Opens the clip setup: live clips the last N seconds, VODs pick a range around where you are. */
     fun createClip() {
@@ -421,6 +440,11 @@ class WatchViewModel @Inject constructor(
         viewModelScope.launch {
             session.flatMapLatest { it?.mentionsHere ?: kotlinx.coroutines.flow.emptyFlow() }.collect {
                 if (settingsRepo.settings.value.chat.mentionVibrate) vibrate()
+            }
+        }
+        viewModelScope.launch {
+            session.flatMapLatest { it?.broadcasterHere ?: kotlinx.coroutines.flow.emptyFlow() }.collect {
+                if (settingsRepo.settings.value.chat.broadcasterVibrate) vibrate()
             }
         }
         // Chat waits for the stream: hold live messages by the player's delay, minus a little for chat's own lag.

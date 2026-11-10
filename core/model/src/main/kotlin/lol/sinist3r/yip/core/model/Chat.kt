@@ -18,7 +18,7 @@ data class ChatUser(
     val colorArgb: Long?,
 )
 
-enum class HighlightKind { MENTION, KEYWORD, USER, FIRST_MESSAGE, REDEMPTION, SUB, ANNOUNCEMENT, NONE }
+enum class HighlightKind { MENTION, KEYWORD, USER, BROADCASTER, FIRST_MESSAGE, REDEMPTION, SUB, ANNOUNCEMENT, NONE }
 
 sealed interface ChatItem {
     val id: String

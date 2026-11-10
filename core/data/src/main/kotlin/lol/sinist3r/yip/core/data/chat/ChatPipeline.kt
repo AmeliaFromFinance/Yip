@@ -164,6 +164,7 @@ class ChatPipeline(private val cosmetics: CosmeticsRepository, private val prono
             if (raw.replyParentLogin.equals(self, true) || mentionRegex(self).containsMatchIn(text)) return HighlightKind.MENTION
         }
         if (raw.login.lowercase() in s.filters.highlightUsers) return HighlightKind.USER
+        if (s.chat.highlightBroadcaster && raw.badges.any { it.first == "broadcaster" }) return HighlightKind.BROADCASTER
         if (keywords(s.filters.highlightKeywords).matches(text)) return HighlightKind.KEYWORD
         if (raw.isHighlightedRedemption || raw.rewardId != null) return HighlightKind.REDEMPTION
         if (raw.isFirstMessage && s.chat.showFirstMessageTag) return HighlightKind.FIRST_MESSAGE

@@ -21,6 +21,8 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Stats overlay: delay, resolution, bitrate, network speed, buffer and dropped frames
 - Background audio, audio-only mode, picture-in-picture, mini-player
 - Sleep timer: fixed times or when the stream ends
+- Rewind a live stream through its VOD, with Go live to jump back
+- Volume levelling (optional) so quiet and loud streams sound alike
 - Per-channel memory (optional): volume, mute and audio-only kept for each channel
 - Android Auto: favourites and followed channels that are live, played audio-only, with voice search
 - Bedtime mode: black theme, dimmer player and an automatic sleep timer at set hours
@@ -40,7 +42,8 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - 7TV name paints (incl. animated) and badges, FFZ custom mod/VIP badges
 - Badges from BTTV, FFZ, FFZ:AP, Chatterino, Chatterino Homies (incl. custom) and Moltorino
 - Recent messages on open, replies, mentions, sub/raid/redemption notices
-- First-time chatters tagged and highlighted
+- First-time chatters tagged and highlighted; streamer messages highlighted
+- Hide someone in chat on this device without blocking them
 - Link previews for Twitch clips, VODs, channels and YouTube (Wi-Fi only by default)
 - Mods: pin messages for everyone (timed or until removed), one-tap quick buttons like "10m Spam"
 - Filters sheet in chat: hide bots in one tap, block words or /patterns/, hide users
@@ -84,6 +87,7 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Manage follows: sort by last live, bulk unfollow
 - Top clips this week from everyone you follow
 - Browse filters: viewer count, how long they've been live, hide reruns
+- Pin categories to the top of Browse
 - Incognito mode: nothing saved to history or recent searches
 - "What's new" after each update
 

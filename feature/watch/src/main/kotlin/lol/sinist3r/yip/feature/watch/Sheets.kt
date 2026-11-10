@@ -36,6 +36,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
@@ -381,6 +382,9 @@ fun UserCardSheet(
     onWhisper: ((String) -> Unit)? = null,
     macros: List<lol.sinist3r.yip.core.model.ModMacro> = emptyList(),
     onMacro: ((lol.sinist3r.yip.core.model.ModMacro, String) -> Unit)? = null,
+    /** Hide this person's messages on this device only. */
+    hidden: Boolean = false,
+    onHidden: ((Boolean) -> Unit)? = null,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         if (card.loading) {
@@ -401,8 +405,13 @@ fun UserCardSheet(
                 FilledTonalButton(onClick = { onMention(card.login) }) { Text("Mention") }
                 OutlinedButton(onClick = { onOpenChannel(card.login) }) { Icon(Icons.Outlined.Person, null); Text(" Channel") }
                 onWhisper?.let { w -> OutlinedButton(onClick = { w(card.login) }) { Icon(Icons.Outlined.MailOutline, null); Text(" Whisper") } }
+                onHidden?.let { h -> OutlinedButton(onClick = { h(!hidden) }) { Icon(if (hidden) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff, null); Text(if (hidden) " Show in chat" else " Hide in chat") } }
                 user?.let { u -> OutlinedButton(onClick = { onBlock(u.id) }) { Icon(Icons.Outlined.Block, null); Text(" Block") } }
             }
+            if (onHidden != null) Text(
+                if (hidden) "Hidden on this device. They aren't blocked on Twitch." else "Hide in chat only affects Yip on this device; Block applies on Twitch.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             onSaveNote?.let { save -> UserNoteEditor(note ?: lol.sinist3r.yip.core.model.UserNote(), save) }
             if (isModerator && user != null) {
                 var reason by rememberSaveable(card.login) { mutableStateOf<String?>(null) }

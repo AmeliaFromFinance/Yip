@@ -1,5 +1,7 @@
 package lol.sinist3r.yip.feature.browse
 
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.foundation.combinedClickable
 import lol.sinist3r.yip.core.model.RecentKind
@@ -301,7 +303,7 @@ fun BrowseScreen(nav: BrowseNavigator, viewModel: BrowseViewModel = hiltViewMode
     val streams by viewModel.streams.collectAsStateWithLifecycle()
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    var hideCategory by remember { mutableStateOf<String?>(null) }
+    var categoryMenu by remember { mutableStateOf<Category?>(null) }
     val quickVm: QuickActionsViewModel = hiltViewModel()
     Scaffold(topBar = {
         Column {
@@ -310,6 +312,7 @@ fun BrowseScreen(nav: BrowseNavigator, viewModel: BrowseViewModel = hiltViewMode
                 Tab(tab == 0, { tab = 0 }, text = { Text("Live channels") })
                 Tab(tab == 1, { tab = 1 }, text = { Text("Categories") })
             }
+            PinnedCategoryChips(settings.general.pinnedCategories, onOpen = { nav.openCategory(it.id, it.name) }, onUnpin = viewModel::unpinCategory)
             if (tab == 0) LanguageChips(settings.general.streamLanguages, viewModel::setLanguages, filter = settings.general.browseFilter, onFilter = viewModel::setFilter)
             else LanguageChips(settings.general.streamLanguages, viewModel::setLanguages)
         }
@@ -318,17 +321,33 @@ fun BrowseScreen(nav: BrowseNavigator, viewModel: BrowseViewModel = hiltViewMode
             if (tab == 0) {
                 StreamGrid(streams, settings.appearance, viewModel::refreshStreams, viewModel::moreStreams, nav, filtered = settings.general.browseFilter.active)
             } else {
-                CategoryGrid(categories, viewModel::refreshCategories, viewModel::moreCategories, onLongClick = { hideCategory = it.name }) { nav.openCategory(it.id, it.name) }
+                CategoryGrid(categories, viewModel::refreshCategories, viewModel::moreCategories, onLongClick = { categoryMenu = it }) { nav.openCategory(it.id, it.name) }
             }
         }
     }
-    hideCategory?.let { name ->
+    categoryMenu?.let { c ->
+        val isPinned = settings.general.pinnedCategories.any { it.id == c.id }
         androidx.compose.material3.AlertDialog(
-            onDismissRequest = { hideCategory = null },
-            title = { Text("Hide $name?") },
-            text = { Text("It won't show in Browse. Undo under Settings → General → Hidden.") },
-            confirmButton = { androidx.compose.material3.TextButton(onClick = { quickVm.hideCategory(name); hideCategory = null }) { Text("Hide") } },
-            dismissButton = { androidx.compose.material3.TextButton(onClick = { hideCategory = null }) { Text("Cancel") } },
+            onDismissRequest = { categoryMenu = null },
+            title = { Text(c.name) },
+            text = {
+                Column {
+                    androidx.compose.material3.ListItem(
+                        headlineContent = { Text(if (isPinned) "Unpin from Browse" else "Pin to Browse") },
+                        supportingContent = { Text("Pinned categories sit at the top of Browse") },
+                        leadingContent = { Icon(Icons.Outlined.PushPin, null) },
+                        modifier = Modifier.clickable { if (isPinned) viewModel.unpinCategory(c.id) else viewModel.pinCategory(c); categoryMenu = null },
+                    )
+                    androidx.compose.material3.ListItem(
+                        headlineContent = { Text("Hide") },
+                        supportingContent = { Text("Undo under Settings → General → Hidden") },
+                        leadingContent = { Icon(Icons.Outlined.VisibilityOff, null) },
+                        modifier = Modifier.clickable { quickVm.hideCategory(c.name); categoryMenu = null },
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { categoryMenu = null }) { Text("Cancel") } },
         )
     }
 }
@@ -458,6 +477,10 @@ fun CategoryScreen(nav: BrowseNavigator, onBack: () -> Unit, viewModel: Category
                 if (sheet) BrowseFilterSheet(settings.general.browseFilter, viewModel::setFilter, onDismiss = { sheet = false })
                 IconButton(onClick = { sheet = true }) {
                     Icon(Icons.Outlined.FilterList, if (settings.general.browseFilter.active) "Filters (on)" else "Filters", tint = if (settings.general.browseFilter.active) MaterialTheme.colorScheme.primary else androidx.compose.material3.LocalContentColor.current)
+                }
+                val pinnedHere by viewModel.pinned.collectAsStateWithLifecycle()
+                IconButton(onClick = viewModel::togglePin) {
+                    Icon(if (pinnedHere) Icons.Filled.PushPin else Icons.Outlined.PushPin, if (pinnedHere) "Unpin from Browse" else "Pin to Browse")
                 }
                 IconButton(onClick = viewModel::toggleAlert) {
                     Icon(if (alert) Icons.Filled.NotificationsActive else Icons.Outlined.NotificationsNone, if (alert) "Turn off alerts for this category" else "Alert me when someone I follow streams this")
@@ -626,4 +649,34 @@ private fun lol.sinist3r.yip.core.model.UptimeRange.label() = when (this) {
     lol.sinist3r.yip.core.model.UptimeRange.JUST_STARTED -> "Under 1h"
     lol.sinist3r.yip.core.model.UptimeRange.MID -> "1–4h"
     lol.sinist3r.yip.core.model.UptimeRange.LONG -> "4h+"
+}
+
+/** Pinned categories as chips; long-press to unpin. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PinnedCategoryChips(pins: List<lol.sinist3r.yip.core.model.PinnedCategory>, onOpen: (lol.sinist3r.yip.core.model.PinnedCategory) -> Unit, onUnpin: (String) -> Unit) {
+    if (pins.isEmpty()) return
+    androidx.compose.foundation.lazy.LazyRow(
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        items(pins, key = { "pin-" + it.id }) { p ->
+            var menu by remember { mutableStateOf(false) }
+            Box {
+                androidx.compose.material3.Surface(
+                    shape = MaterialTheme.shapes.small,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.clip(MaterialTheme.shapes.small).combinedClickable(onClick = { onOpen(p) }, onLongClick = { menu = true }),
+                ) {
+                    Row(Modifier.padding(end = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        AsyncImage(p.boxArtUrl, null, Modifier.size(width = 24.dp, height = 32.dp))
+                        Text(p.name, style = MaterialTheme.typography.labelLarge, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+                androidx.compose.material3.DropdownMenu(menu, { menu = false }) {
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("Unpin") }, onClick = { onUnpin(p.id); menu = false })
+                }
+            }
+        }
+    }
 }

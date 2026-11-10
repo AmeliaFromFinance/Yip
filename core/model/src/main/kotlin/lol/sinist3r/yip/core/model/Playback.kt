@@ -92,4 +92,5 @@ data class MutedSegment(val offsetSeconds: Int, val durationSeconds: Int) {
     val endSeconds: Int get() = offsetSeconds + durationSeconds
 }
 
-data class VideoExtras(val storyboard: Storyboard? = null, val muted: List<MutedSegment> = emptyList())
+/** [liveLogin]: the VOD of a stream that's still live, so "Go live" can jump back. */
+data class VideoExtras(val storyboard: Storyboard? = null, val muted: List<MutedSegment> = emptyList(), val liveLogin: String? = null)

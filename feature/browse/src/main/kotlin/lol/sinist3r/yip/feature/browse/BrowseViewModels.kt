@@ -212,6 +212,17 @@ class BrowseViewModel @Inject constructor(twitch: TwitchRepository, private val 
         settingsRepo.update { it.copy(general = it.general.copy(browseFilter = f)) }
     }
 
+    fun pinCategory(c: lol.sinist3r.yip.core.model.Category) = viewModelScope.launch {
+        settingsRepo.update { s ->
+            if (s.general.pinnedCategories.any { it.id == c.id }) s
+            else s.copy(general = s.general.copy(pinnedCategories = s.general.pinnedCategories + lol.sinist3r.yip.core.model.PinnedCategory(c.id, c.name, c.boxArt(72, 96))))
+        }
+    }
+
+    fun unpinCategory(id: String) = viewModelScope.launch {
+        settingsRepo.update { s -> s.copy(general = s.general.copy(pinnedCategories = s.general.pinnedCategories.filterNot { it.id == id })) }
+    }
+
     fun setLanguages(codes: List<String>) = viewModelScope.launch {
         settingsRepo.update { it.copy(general = it.general.copy(streamLanguages = codes.distinct())) }
         streamsPager.refresh()
@@ -245,6 +256,17 @@ class CategoryViewModel @Inject constructor(
         val art = "https://static-cdn.jtvnw.net/ttv-boxart/$categoryId-144x192.jpg"
         web.setFollowingCategory(lol.sinist3r.yip.core.model.FollowedCategory(categoryId, categoryName, art), follow)
             ?.let { messages.tryEmit(it) } ?: messages.tryEmit(if (follow) "Following $categoryName" else "Unfollowed $categoryName")
+    }
+
+    val pinned = settingsRepo.settings.map { s -> s.general.pinnedCategories.any { it.id == categoryId } }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun togglePin() = viewModelScope.launch {
+        settingsRepo.update { s ->
+            val list = s.general.pinnedCategories
+            val next = if (list.any { it.id == categoryId }) list.filterNot { it.id == categoryId }
+                else list + lol.sinist3r.yip.core.model.PinnedCategory(categoryId, categoryName, "https://static-cdn.jtvnw.net/ttv-boxart/$categoryId-72x96.jpg")
+            s.copy(general = s.general.copy(pinnedCategories = next))
+        }
     }
 
     fun toggleAlert() = viewModelScope.launch {

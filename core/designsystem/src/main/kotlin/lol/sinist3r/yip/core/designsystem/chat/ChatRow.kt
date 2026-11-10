@@ -110,6 +110,7 @@ fun ChatRow(item: ChatItem, options: ChatRenderOptions, actions: ChatActions, al
         item is ChatItem.Message && item.highlight == HighlightKind.MENTION -> Color(chat.highlightColorArgb).copy(alpha = 0.22f)
         item is ChatItem.Message && item.highlight == HighlightKind.KEYWORD -> MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f)
         item is ChatItem.Message && item.highlight == HighlightKind.USER -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
+        item is ChatItem.Message && item.highlight == HighlightKind.BROADCASTER -> Color(0xFF9146FF).copy(alpha = 0.18f)
         item is ChatItem.Message && item.highlight == HighlightKind.REDEMPTION -> MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
         item is ChatItem.Message && item.highlight == HighlightKind.FIRST_MESSAGE -> Color(0xFF43A047).copy(alpha = 0.16f)
         item is ChatItem.Notice -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)

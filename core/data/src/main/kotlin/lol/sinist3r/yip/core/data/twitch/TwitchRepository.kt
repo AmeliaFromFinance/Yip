@@ -323,7 +323,8 @@ class TwitchRepository @Inject constructor(
             lol.sinist3r.yip.core.model.MutedSegment(o.int("offset") ?: return@mapNotNull null, o.int("duration") ?: return@mapNotNull null)
         }.sortedBy { it.offsetSeconds }
         val storyboard = v.str("seekPreviewsURL")?.let { url -> storyboard(url) }
-        return lol.sinist3r.yip.core.model.VideoExtras(storyboard, muted)
+        val liveLogin = v.obj("owner")?.str("login")?.takeIf { v.str("status") == "RECORDING" }
+        return lol.sinist3r.yip.core.model.VideoExtras(storyboard, muted, liveLogin)
     }
 
     private suspend fun storyboard(infoUrl: String): lol.sinist3r.yip.core.model.Storyboard? {
@@ -341,6 +342,13 @@ class TwitchRepository @Inject constructor(
             width = level.int("width") ?: 0,
             height = level.int("height") ?: 0,
         )
+    }
+
+    /** The VOD being recorded of a live stream, with when the stream started. Null if VODs are off. */
+    suspend fun liveArchive(login: String): Pair<String, kotlin.time.Instant?>? {
+        val st = gql.liveArchive(login).obj("user")?.obj("stream") ?: return null
+        val vod = st.obj("archiveVideo")?.str("id") ?: return null
+        return vod to st.str("createdAt")?.let(::parseInstant)
     }
 
     suspend fun pinnedMessage(channelLogin: String): lol.sinist3r.yip.core.model.PinnedMessage? {
