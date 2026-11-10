@@ -93,6 +93,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
     val chat by viewModel.chat.collectAsStateWithLifecycle()
     val room by viewModel.room.collectAsStateWithLifecycle()
     val raid by viewModel.raid.collectAsStateWithLifecycle()
+    val emoteUses by viewModel.emoteUses.collectAsStateWithLifecycle()
     val events by viewModel.events.collectAsStateWithLifecycle()
     val connection by viewModel.connection.collectAsStateWithLifecycle()
     val cosmetics by viewModel.cosmeticsState.collectAsStateWithLifecycle()
@@ -210,7 +211,8 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             }
             raid?.let { r -> RaidBanner(r, onGo = { viewModel.dismissRaid(); nav.openLive(r.login) }, onDismiss = viewModel::dismissRaid) }
             val translations by viewModel.translations.collectAsStateWithLifecycle()
-            ChatList(chat, options, actions, Modifier.weight(1f), translations, onTranslationFix = { runCatching { it.send() } })
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            ChatList(chat, options, actions, Modifier.weight(1f), translations, onTranslationFix = { openTranslationSettings(ctx, it) })
             if (isLive || chatOnly) {
                 Composer(
                     enabled = connection.connected && !connection.readOnly,
@@ -360,6 +362,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
         favourites = settings.chat.favouriteEmotes,
         onLongPress = { emoteCard = it },
         showLocked = settings.chat.showLockedEmotes,
+        mostUsed = lol.sinist3r.yip.core.data.chat.EmoteStats.top(emoteUses, 24),
         channelName = info.user?.displayName,
     )
     emoteCard?.let { e ->
@@ -369,6 +372,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onToggleFavourite = { viewModel.toggleFavouriteEmote(e) },
             onInsert = if (signedIn) ({ insert = e.code; viewModel.useEmote(e); showEmotes = false }) else null,
             onDismiss = { emoteCard = null },
+            timesUsed = emoteUses[e.favouriteKey]?.count ?: 0,
         )
     }
     userCard?.let { card ->
@@ -383,6 +387,7 @@ fun WatchScreen(nav: WatchNavigator, inPip: Boolean, viewModel: WatchViewModel =
             onSaveNote = { viewModel.saveNote(card.login, it) },
             reasons = settings.chat.modReasons,
             onModWithReason = { a, id, r -> viewModel.moderate(a, id, reason = r) },
+            onLoadLogs = if (isLive || chatOnly) viewModel::loadUserLogs else null,
             onWhisper = if (signedIn) ({ viewModel.closeUser(); nav.openWhisper(it) }) else null,
         )
     }

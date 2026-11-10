@@ -374,6 +374,7 @@ object SettingsSpec {
     val data = Page(
         "data", "Data and storage", "Cache, history, backup, advanced", Icons.Outlined.Storage,
         listOf(
+            Row.Action("Data usage", "How much mobile data and Wi-Fi Yip has used, by channel", "data_usage"),
             Row.Toggle("Data saver", "Lower default quality and pause emote animation on mobile data", get = { it.data.dataSaver }, set = { s, v -> s.copy(data = s.data.copy(dataSaver = v)) }),
             Row.Slider("Image cache size", "Applies after restart", 64f..1024f, 14, { "${it.toInt()} MB" }, get = { it.data.imageCacheMb.toFloat() }, set = { s, v -> s.copy(data = s.data.copy(imageCacheMb = v.toInt())) }),
             Row.Action("Clear image cache", null, "clear_cache"),
@@ -382,6 +383,7 @@ object SettingsSpec {
             Row.Action("Clear watch history", null, "clear_history", destructive = true),
             Row.Toggle("Keep recent searches", "Channels, categories and searches you opened from Search", get = { it.data.keepRecentSearches }, set = { s, v -> s.copy(data = s.data.copy(keepRecentSearches = v)) }),
             Row.Action("Clear recent searches", null, "clear_recent_searches", destructive = true),
+            Row.Action("Reset emote stats", "Clears the Most used emotes list", "reset_emote_stats", destructive = true),
             Row.Header("Backup"),
             Row.Action("Send to another device", "Show a QR code to scan, or send a file. Accounts aren't included.", "transfer"),
             Row.Action("Export settings", "Save every setting and filter to a file. Accounts aren't included.", "export"),

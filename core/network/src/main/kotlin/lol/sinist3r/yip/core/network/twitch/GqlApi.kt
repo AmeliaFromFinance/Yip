@@ -267,6 +267,16 @@ class GqlApi @Inject constructor(
         queryAuthed(if (follow) GqlQueries.FOLLOW_GAME else GqlQueries.UNFOLLOW_GAME, buildJsonObject { put("id", gameId) }, integrity = true)
     }
 
+    /** When each channel last went live (null if never or unknown). Up to 100 ids; no sign-in needed. */
+    suspend fun lastBroadcasts(ids: List<String>): Map<String, java.time.Instant?> {
+        val data = query("query(${'$'}ids: [ID!]) { users(ids: ${'$'}ids) { id lastBroadcast { startedAt } } }", buildJsonObject {
+            put("ids", kotlinx.serialization.json.JsonArray(ids.take(100).map { kotlinx.serialization.json.JsonPrimitive(it) }))
+        })
+        return data.arr("users").mapNotNull { it as? JsonObject }.associate { u ->
+            u.str("id").orEmpty() to u.obj("lastBroadcast")?.str("startedAt")?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() }
+        }
+    }
+
     /** Display name for a user id, without signing in. */
     suspend fun displayName(userId: String): String? =
         query("query(${'$'}id: ID!) { user(id: ${'$'}id) { displayName } }", buildJsonObject { put("id", userId) }).obj("user")?.str("displayName")

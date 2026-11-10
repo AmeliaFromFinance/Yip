@@ -40,6 +40,8 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Search a chat by word or `from:name`
 - Translate a message with the phone's built-in translator (Android 12+, on-device)
 - Private nicknames and notes on chatters
+- Older messages on user cards, from logs.ivr.fi
+- Most used emotes in the picker
 - Raid prompt: jump to the channel being raided in one tap
 - Poll, prediction and Hype Train cards above chat; vote and predict with the twitch.tv connection
 - Pings for mentions, keywords and highlighted users when that chat isn't on screen
@@ -62,6 +64,8 @@ Watch live streams, VODs and clips, chat with every third-party emote, see 7TV n
 - Accessibility: high-contrast chat, screen reader labels, controls stay up with TalkBack
 - Searchable settings with import and export
 - Move settings to another device by QR code or file
+- Data usage: mobile data and Wi-Fi per day and per channel
+- Manage follows: sort by last live, bulk unfollow
 - "What's new" after each update
 
 **Opt-in and experimental** (all off by default)

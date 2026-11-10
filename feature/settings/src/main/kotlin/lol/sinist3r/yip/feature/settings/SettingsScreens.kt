@@ -71,6 +71,7 @@ interface SettingsNavigator {
     fun openLogin()
     fun openConnectWeb()
     fun openLogs()
+    fun openDataUsage() {}
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -146,6 +147,7 @@ fun SettingsPage(key: String, nav: SettingsNavigator, viewModel: SettingsViewMod
             a.id == "export" -> exportLauncher.launch("yip-settings.json")
             a.id == "import" -> importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
             a.id == "logs" -> nav.openLogs()
+            a.id == "data_usage" -> nav.openDataUsage()
             a.id == "system_notifications" -> context.startActivity(
                 Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )

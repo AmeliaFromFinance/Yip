@@ -100,9 +100,10 @@ fun EmotePickerSheet(
     onLongPress: (Emote) -> Unit = {},
     showLocked: Boolean = true,
     channelName: String? = null,
+    mostUsed: List<String> = emptyList(),
 ) {
     val all = cosmetics?.emotes?.values.orEmpty()
-    val tabs = remember(cosmetics, twitchEmotes, recent, favourites, showLocked) { emoteTabs(all, twitchEmotes, recent, favourites, showLocked) }
+    val tabs = remember(cosmetics, twitchEmotes, recent, favourites, showLocked, mostUsed) { emoteTabs(all, twitchEmotes, recent, favourites, showLocked, mostUsed) }
     val lockedCodes = remember(tabs) { tabs.flatMap { it.sections }.filter { it.locked }.flatMap { it.emotes }.associateBy { it.code } }
     val context = androidx.compose.ui.platform.LocalContext.current
     val onTap: (Emote) -> Unit = { e ->
@@ -184,7 +185,7 @@ data class EmoteTab(val name: String, val sections: List<EmoteSection>)
  * Twitch: this channel, then one section per channel you have emotes from, then events (Hype Train, Prime...), then Twitch's own.
  * 3rd Party: 7TV, BTTV, FFZ, channel emotes first.
  */
-fun emoteTabs(all: Collection<Emote>, twitchEmotes: List<Emote>, recent: List<Emote>, favourites: List<String>, showLocked: Boolean = true): List<EmoteTab> {
+fun emoteTabs(all: Collection<Emote>, twitchEmotes: List<Emote>, recent: List<Emote>, favourites: List<String>, showLocked: Boolean = true, mostUsed: List<String> = emptyList()): List<EmoteTab> {
     fun List<Emote>.alpha() = distinctBy { it.code }.sortedBy { it.code.lowercase() }
     val byKey = (all + twitchEmotes).associateBy { it.favouriteKey }
     val twitch = twitchEmotes.filter { it.provider == EmoteProvider.TWITCH }
@@ -209,7 +210,7 @@ fun emoteTabs(all: Collection<Emote>, twitchEmotes: List<Emote>, recent: List<Em
     }
     return listOf(
         EmoteTab("Favourites", listOf(EmoteSection(null, favourites.mapNotNull(byKey::get)))),
-        EmoteTab("Recent", listOf(EmoteSection(null, recent))),
+        EmoteTab("Recent", listOf(EmoteSection(if (mostUsed.isEmpty()) null else "Recent", recent), EmoteSection("Most used", mostUsed.mapNotNull(byKey::get))).filter { it.emotes.isNotEmpty() || it.title == null }),
         EmoteTab("Twitch", twitchSections.filter { it.emotes.isNotEmpty() }),
         EmoteTab("3rd Party", listOf(provider(EmoteProvider.SEVENTV, "7TV"), provider(EmoteProvider.BTTV, "BTTV"), provider(EmoteProvider.FFZ, "FFZ")).filter { it.emotes.isNotEmpty() }),
     )
@@ -363,6 +364,7 @@ fun UserCardSheet(
     /** Preset reasons; the picked one goes with timeouts and bans. */
     reasons: List<String> = emptyList(),
     onModWithReason: ((ModAction, String, String?) -> Unit)? = null,
+    onLoadLogs: (() -> Unit)? = null,
     onSaveNote: ((lol.sinist3r.yip.core.model.UserNote) -> Unit)? = null,
     onWhisper: ((String) -> Unit)? = null,
 ) {
@@ -418,6 +420,29 @@ fun UserCardSheet(
             val state = rememberLazyListState()
             LazyColumn(state = state, modifier = Modifier.heightIn(max = 300.dp), reverseLayout = true) {
                 items(card.messages.reversed(), key = { it.id }) { ChatRow(it, options, object : ChatActions {}, alternate = false) }
+            }
+            // Older history from logs.ivr.fi.
+            onLoadLogs?.let { load ->
+                when (val logs = card.logs) {
+                    LogsState.Idle -> TextButton(onClick = load) { Text("Load older messages") }
+                    LogsState.Loading -> Text("Loading older messages…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    is LogsState.Unavailable -> Text(logs.reason, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    is LogsState.Loaded -> {
+                        val sessionIds = card.messages.map { it.id }.toSet()
+                        val older = logs.messages.filter { it.id !in sessionIds }
+                        Text("Older messages · ${older.size}", style = MaterialTheme.typography.labelLarge)
+                        if (older.isEmpty()) Text("Nothing older in the logs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                            items(older, key = { "log-" + it.id }) { m ->
+                                Column {
+                                    Text(m.timestamp.toString().take(10), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    ChatRow(m, options, object : ChatActions {}, alternate = false)
+                                }
+                            }
+                        }
+                        Text("From logs.ivr.fi", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
         }
     }

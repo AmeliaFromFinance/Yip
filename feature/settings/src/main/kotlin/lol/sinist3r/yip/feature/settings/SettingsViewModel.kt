@@ -38,6 +38,7 @@ class SettingsViewModel @Inject constructor(
     private val cosmetics: CosmeticsRepository,
     private val remoteConfig: RemoteConfigSource,
     private val playback: PlaybackController,
+    private val emoteStats: lol.sinist3r.yip.core.data.chat.EmoteStats,
 ) : ViewModel() {
     val settings: StateFlow<AppSettings> = repo.settings
     val accountsState: StateFlow<AccountsState> = accounts.state
@@ -67,6 +68,7 @@ class SettingsViewModel @Inject constructor(
             }
             "clear_history" -> { history.clear(); _messages.emit("Watch history cleared") }
             "clear_recent_searches" -> { recentSearches.clear(); _messages.emit("Recent searches cleared") }
+            "reset_emote_stats" -> { emoteStats.reset(); _messages.emit("Emote stats reset") }
             "check_updates" -> updates.check(manual = true) // the app-wide dialog shows the result
             "reset" -> { repo.reset(); _messages.emit("Settings reset") }
             "refresh_config" -> {

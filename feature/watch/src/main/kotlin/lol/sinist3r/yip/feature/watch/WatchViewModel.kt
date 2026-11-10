@@ -63,7 +63,16 @@ data class UserCard(
     val user: User? = null,
     val messages: List<ChatItem.Message> = emptyList(),
     val loading: Boolean = true,
+    val logs: LogsState = LogsState.Idle,
 )
+
+sealed interface LogsState {
+    data object Idle : LogsState
+    data object Loading : LogsState
+    /** Newest first. */
+    data class Loaded(val messages: List<ChatItem.Message>) : LogsState
+    data class Unavailable(val reason: String) : LogsState
+}
 
 /** Recently used emotes, shared across screens for this app session. */
 internal object RecentEmotes {
@@ -87,6 +96,7 @@ class WatchViewModel @Inject constructor(
     private val mentions: lol.sinist3r.yip.core.data.chat.MentionNotifier,
     private val downloads: lol.sinist3r.yip.core.playback.Downloads,
     private val translator: ChatTranslator,
+    private val emoteStats: lol.sinist3r.yip.core.data.chat.EmoteStats,
 ) : ViewModel() {
 
     val canTranslate get() = translator.available
@@ -397,7 +407,10 @@ class WatchViewModel @Inject constructor(
         val s = session.value ?: return@launch
         s.send(text, _replyTo.value?.id)
         _replyTo.value = null
+        emoteStats.record(text.split(' ').mapNotNull { w -> w.takeIf { it.isNotBlank() }?.let(::emoteFor) })
     }
+
+    val emoteUses = emoteStats.uses
 
     fun setReply(m: ChatItem.Message?) { _replyTo.value = m }
 
@@ -432,6 +445,19 @@ class WatchViewModel @Inject constructor(
     }
 
     fun closeUser() { _userCard.value = null }
+
+    fun loadUserLogs() {
+        val card = _userCard.value ?: return
+        val ses = session.value ?: return
+        _userCard.value = card.copy(logs = LogsState.Loading)
+        viewModelScope.launch {
+            val state = ses.logsFor(card.login).fold(
+                onSuccess = { list -> if (list == null) LogsState.Unavailable("This channel isn't in the public chat logs") else LogsState.Loaded(list) },
+                onFailure = { LogsState.Unavailable("Couldn't load chat logs") },
+            )
+            _userCard.update { c -> c?.takeIf { it.login == card.login }?.copy(logs = state) ?: c }
+        }
+    }
 
     fun moderate(action: ModAction, userId: String, messageId: String? = null, reason: String? = null) = viewModelScope.launch {
         val me = accounts.userId() ?: return@launch

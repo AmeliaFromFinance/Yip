@@ -44,6 +44,7 @@ class YipApplication : Application(), Configuration.Provider, SingletonImageLoad
     @Inject lateinit var liveSnapshot: dagger.Lazy<lol.sinist3r.yip.core.data.live.LiveSnapshot>
     @Inject lateinit var whispers: dagger.Lazy<lol.sinist3r.yip.core.data.chat.WhisperRepository>
     @Inject lateinit var playback: dagger.Lazy<lol.sinist3r.yip.core.playback.PlaybackController>
+    @Inject lateinit var dataUsage: dagger.Lazy<lol.sinist3r.yip.core.playback.DataUsage>
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder().setWorkerFactory(workerFactory).build()
@@ -70,6 +71,7 @@ class YipApplication : Application(), Configuration.Provider, SingletonImageLoad
                 if (accounts.get().userId() != null) accounts.get().validateActive()
             }
         }
+        scope.launch(kotlinx.coroutines.Dispatchers.Main) { dataUsage.get().start() }
         // Keep the widget and Quick Settings tile in step with what the app last saw.
         scope.launch {
             liveSnapshot.get().data.drop(1).collect { lol.sinist3r.yip.live.refreshLiveSurfaces(this@YipApplication) }

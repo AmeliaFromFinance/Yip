@@ -165,6 +165,8 @@ class TwitchRepository @Inject constructor(
 
     data class ChannelInfo(val user: User, val stream: LiveStream?)
 
+    suspend fun lastLive(ids: List<String>): Map<String, java.time.Instant?> = ids.chunked(100).fold(emptyMap()) { acc, c -> acc + (attempt { gql.lastBroadcasts(c) }.getOrNull().orEmpty()) }
+
     /** True/false once Twitch answers; null if it couldn't be checked (signed out, offline). */
     suspend fun vodExists(id: String): Boolean? {
         if (signedInUserId() == null) return null

@@ -58,6 +58,12 @@ class EmoteTabsTest {
         assertEquals("Follower", lol.sinist3r.yip.core.model.TwitchEmoteGroups.unlockLabel("follower", null))
     }
 
+    @Test fun mostUsedInRecentTab() {
+        val recentTab = emoteTabs(thirdParty, twitch, recent = listOf(e("Kappa", EmoteProvider.TWITCH)), favourites = emptyList(), mostUsed = listOf("SEVENTV:aChan7", "MISSING:x"))[1]
+        assertEquals(listOf("Recent", "Most used"), recentTab.sections.map { it.title })
+        assertEquals(listOf("aChan7"), recentTab.sections[1].emotes.map { it.code })
+    }
+
     @Test fun emptyTabsStayInPlace() {
         val tabs = emoteTabs(emptyList(), emptyList(), emptyList(), emptyList())
         assertEquals(listOf("Favourites", "Recent", "Twitch", "3rd Party"), tabs.map { it.name })

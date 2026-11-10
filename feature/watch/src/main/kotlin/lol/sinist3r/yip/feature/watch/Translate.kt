@@ -90,3 +90,22 @@ class ChatTranslator @Inject constructor(@ApplicationContext private val context
         return top.takeIf { result.getConfidenceScore(it) >= 0.5f }
     }
 }
+
+/**
+ * Opens the system screen for downloading translation languages. Android 14+ drops activity starts
+ * from a PendingIntent unless the sender opts in, which made the button do nothing.
+ */
+fun openTranslationSettings(context: Context, intent: android.app.PendingIntent) {
+    val options = if (Build.VERSION.SDK_INT >= 34) {
+        android.app.ActivityOptions.makeBasic().apply {
+            @Suppress("DEPRECATION")
+            setPendingIntentBackgroundActivityStartMode(android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+        }.toBundle()
+    } else null
+    val sent = runCatching { intent.send(context, 0, null, null, null, null, options) }.isSuccess
+    if (!sent) {
+        // Fallback: language settings, where Pixels keep Live Translate.
+        runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCALE_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        android.widget.Toast.makeText(context, "Open Live Translate in your language settings to download languages", android.widget.Toast.LENGTH_LONG).show()
+    }
+}

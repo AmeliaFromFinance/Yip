@@ -41,6 +41,7 @@ fun EmoteCardSheet(
     onToggleFavourite: () -> Unit,
     onInsert: (() -> Unit)?,
     onDismiss: () -> Unit,
+    timesUsed: Int = 0,
 ) {
     val clipboard = LocalClipboardManager.current
     val uri = LocalUriHandler.current
@@ -61,6 +62,7 @@ fun EmoteCardSheet(
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             emote.ownerName?.let { Text("By $it", style = MaterialTheme.typography.bodyMedium) }
+            if (timesUsed > 0) Text(if (timesUsed == 1) "You've sent this once" else "You've sent this $timesUsed times", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(min = 48.dp)) {
                 FilledTonalButton(onClick = onToggleFavourite) {
                     Icon(if (favourite) Icons.Outlined.Star else Icons.Outlined.StarBorder, null, Modifier.size(18.dp))

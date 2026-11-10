@@ -101,6 +101,7 @@ class MultiViewModel @Inject constructor(
     private val cosmetics: CosmeticsRepository,
     accounts: AccountRepository,
     private val settingsRepo: SettingsRepository,
+    private val emoteStats: lol.sinist3r.yip.core.data.chat.EmoteStats,
 ) : ViewModel() {
     val settings = settingsRepo.settings
     val signedIn = accounts.active.map { it != null }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -183,7 +184,12 @@ class MultiViewModel @Inject constructor(
         }
     }
 
-    fun send(session: ChatSession, text: String) = viewModelScope.launch { session.send(text) }
+    fun send(session: ChatSession, text: String) = viewModelScope.launch {
+        session.send(text)
+        emoteStats.record(text.split(' ').mapNotNull { w -> w.takeIf { it.isNotBlank() }?.let { emoteFor(session.channelId, it) } })
+    }
+
+    val emoteUses = emoteStats.uses
 
     private fun pool(channelId: String) = cosmetics.channel(channelId).value.emotes.keys + _twitchEmotes.value[channelId].orEmpty().map { it.code }
 
@@ -236,6 +242,7 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
     val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
     val allTwitchEmotes by viewModel.twitchEmotes.collectAsStateWithLifecycle()
     val recent by RecentEmotes.list.collectAsStateWithLifecycle()
+    val emoteUses by viewModel.emoteUses.collectAsStateWithLifecycle()
     var insert by remember { mutableStateOf<String?>(null) }
     var showEmotes by remember { mutableStateOf(false) }
     var showAdd by remember { mutableStateOf(false) }
@@ -349,6 +356,7 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
             favourites = settings.chat.favouriteEmotes,
             onLongPress = { emoteCard = it },
             showLocked = settings.chat.showLockedEmotes,
+            mostUsed = lol.sinist3r.yip.core.data.chat.EmoteStats.top(emoteUses, 24),
             channelName = tiles.firstOrNull { it.chat == selected }?.displayName,
         )
     }
@@ -359,6 +367,7 @@ fun MultiViewScreen(nav: WatchNavigator, viewModel: MultiViewModel = hiltViewMod
             onToggleFavourite = { viewModel.toggleFavouriteEmote(e) },
             onInsert = if (signedIn) ({ insert = e.code; RecentEmotes.use(e); showEmotes = false; emoteCard = null }) else null,
             onDismiss = { emoteCard = null },
+            timesUsed = emoteUses[e.favouriteKey]?.count ?: 0,
         )
     }
     if (showAdd) {

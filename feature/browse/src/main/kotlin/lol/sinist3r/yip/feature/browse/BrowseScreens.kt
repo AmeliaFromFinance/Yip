@@ -108,6 +108,7 @@ interface BrowseNavigator {
     fun openStreamManager()
     fun openInbox() {}
     fun openLibrary() {}
+    fun openManageFollows() {}
 }
 
 internal fun gridCells(appearance: AppearanceSettings): GridCells = when {
@@ -153,6 +154,8 @@ fun FollowingScreen(nav: BrowseNavigator, viewModel: FollowingViewModel = hiltVi
                                     trailingIcon = { if (settings.general.followingSort == s) Icon(Icons.Outlined.Favorite, null) },
                                 )
                             }
+                            androidx.compose.material3.HorizontalDivider()
+                            DropdownMenuItem(text = { Text("Manage follows") }, onClick = { sortMenu = false; nav.openManageFollows() })
                         }
                     }
                 },

@@ -214,6 +214,27 @@ class ChatSession internal constructor(
         RawNoticeKind.OTHER -> NoticeKind.OTHER
     }
 
+    /** This user's messages loaded in this chat, newest first. */
+    fun messagesFrom(login: String): List<ChatItem.Message> = synchronized(buffer) {
+        buffer.filterIsInstance<ChatItem.Message>().filter { it.user.login.equals(login, true) }
+    }.asReversed().take(50)
+
+    /** Older messages from logs.ivr.fi, newest first; null if that channel isn't logged there. */
+    suspend fun logsFor(login: String): Result<List<ChatItem.Message>?> = lol.sinist3r.yip.core.common.attempt {
+        when (val r = repo.logs.userLines(channelLogin, login)) {
+            lol.sinist3r.yip.core.network.logs.ChatLogsApi.Result.NotLogged -> null
+            is lol.sinist3r.yip.core.network.logs.ChatLogsApi.Result.Lines -> {
+                val settings = repo.settings.settings.value
+                val self = repo.accounts.state.value.active?.login
+                val cos = repo.cosmetics.channel(channelId).value
+                r.lines.mapNotNull { line ->
+                    val raw = IrcParser.parseLine(line)?.let { IrcParser.toRawChat(it, isHistory = true) } as? RawChat.Message
+                    raw?.let { repo.pipeline.process(it.msg, cos, settings, self) }
+                }
+            }
+        }
+    }
+
     fun system(text: String) = append(ChatItem.System("sys-${System.nanoTime()}", Clock.System.now(), text))
 
     /** Drops duplicates (history and live overlap); list keys must be unique. */
@@ -311,6 +332,7 @@ class ChatRepository @Inject constructor(
     internal val inbox: MentionInbox,
     internal val pronouns: PronounRepository,
     sharedNames: SharedChatNames,
+    internal val logs: lol.sinist3r.yip.core.network.logs.ChatLogsApi,
     @DefaultDispatcher private val dispatcher: CoroutineDispatcher,
 ) {
     internal val pipeline = ChatPipeline(cosmetics, pronouns, sharedNames)
