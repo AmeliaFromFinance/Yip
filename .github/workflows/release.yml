@@ -22,6 +22,25 @@ jobs:
       - uses: android-actions/setup-android@v4
       - uses: gradle/actions/setup-gradle@v6
 
+      - name: Check secrets
+        env:
+          YIP_KEYSTORE_BASE64: ${{ secrets.YIP_KEYSTORE_BASE64 }}
+          YIP_KEYSTORE_PASSWORD: ${{ secrets.YIP_KEYSTORE_PASSWORD }}
+          YIP_KEY_ALIAS: ${{ secrets.YIP_KEY_ALIAS }}
+          YIP_KEY_PASSWORD: ${{ secrets.YIP_KEY_PASSWORD }}
+          YIP_TWITCH_CLIENT_ID: ${{ secrets.YIP_TWITCH_CLIENT_ID }}
+          YIP_CONFIG_PUBLIC_KEY: ${{ secrets.YIP_CONFIG_PUBLIC_KEY }}
+        run: |
+          missing=""
+          for name in YIP_KEYSTORE_BASE64 YIP_KEYSTORE_PASSWORD YIP_KEY_ALIAS YIP_KEY_PASSWORD YIP_TWITCH_CLIENT_ID; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing"
+            exit 1
+          fi
+          [ -n "$YIP_CONFIG_PUBLIC_KEY" ] || echo "::warning::YIP_CONFIG_PUBLIC_KEY is not set, so the app will use its built-in defaults."
+
       - name: Decode keystore
         env:
           KEYSTORE_B64: ${{ secrets.YIP_KEYSTORE_BASE64 }}

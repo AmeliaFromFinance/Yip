@@ -93,35 +93,69 @@ All off by default.
   - Voting in polls and predictions
   - Pinning chat messages and clipping VODs
 
-## Building
+## Install
 
-Requirements: JDK 21 and the Android SDK (API 37).
+You need Android 10 or newer.
 
-1. Register an application at [dev.twitch.tv/console](https://dev.twitch.tv/console/apps):
-   - Client type: **Public**
-   - OAuth redirect URL: `https://yipchat.dev/auth`
-2. Create `local.properties` in the project root:
-   ```properties
-   sdk.dir=/path/to/Android/Sdk
-   twitch.clientId=your_client_id
-   yip.configPublicKey=base64_key_from_the_watcher
-   ```
-3. Build:
-   ```bash
-   ./gradlew assembleDebug        # debug APK
-   ./gradlew testDebugUnitTest    # unit tests
-   ./gradlew assembleRelease      # release APK (needs signing, below)
-   ```
+1. Download the latest `Yip-x.y.z.apk` from [Releases](https://github.com/AmeliaFromFinance/Yip/releases/latest) or [yipchat.dev](https://yipchat.dev).
+2. Open the file. If Android asks, allow your browser or Files app to install apps.
+3. Tap **Install**. If Play Protect warns you, choose **Install anyway**. It does this for any app from outside the Play Store.
+4. Open Yip and sign in with Twitch, either with a short code at twitch.tv/activate or through your browser.
 
-Without `yip.configPublicKey` the app ignores the remote config and uses its built-in defaults.
+After that, Yip updates itself. It checks GitHub for new releases, verifies the download's checksum and asks before installing.
 
-### Releasing
+To check a download yourself, keep the `.sha256` file from the release next to the APK and run:
 
-Push a tag like `v1.0.0`. The release workflow builds a signed APK, attaches it with its checksum to a GitHub release, and installed copies of Yip offer the update.
+```bash
+sha256sum -c Yip-1.0.0.apk.sha256
+```
 
-### Signing releases
+## Build it yourself
 
-Create `keystore.properties` in the project root (never commit it):
+Do these in order. Steps 1 to 3 are enough to run your own debug build.
+
+### 1. Install the tools
+
+JDK 21 and the Android SDK (API 37).
+
+### 2. Register a Twitch app
+
+At [dev.twitch.tv/console](https://dev.twitch.tv/console/apps), register an application with:
+
+- Client type: **Public**
+- OAuth redirect URL: `https://yipchat.dev/auth`
+
+### 3. Add `local.properties` and build
+
+Create `local.properties` in the project root:
+
+```properties
+sdk.dir=/path/to/Android/Sdk
+twitch.clientId=your_client_id
+yip.configPublicKey=base64_key_from_the_watcher
+```
+
+`yip.configPublicKey` comes from the watcher (see [Server setup](#server-setup)). Leave it out and the app uses its built-in defaults.
+
+```bash
+./gradlew assembleDebug        # debug APK
+./gradlew testDebugUnitTest    # unit tests
+```
+
+The APK lands in `app/build/outputs/apk/debug/`.
+
+### 4. Create a signing key
+
+Release builds need your own key. Create it once:
+
+```bash
+keytool -genkeypair -v -keystore yip-release.jks -alias yip \
+  -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Back it up somewhere safe and never commit it. If you lose it, installed copies can't update and you can't register the app with Google.
+
+Then create `keystore.properties` in the project root:
 
 ```properties
 storeFile=/path/to/yip-release.jks
@@ -130,13 +164,39 @@ keyAlias=yip
 keyPassword=...
 ```
 
-Or set `YIP_KEYSTORE_PATH`, `YIP_KEYSTORE_PASSWORD`, `YIP_KEY_ALIAS` and `YIP_KEY_PASSWORD`.
+```bash
+./gradlew assembleRelease
+```
 
-Then put the certificate's SHA-256 fingerprint into `watcher/deploy/web/yipchat.dev/.well-known/assetlinks.json` so browser sign-in can return to the app:
+The APK lands in `app/build/outputs/apk/release/app-release.apk`.
+
+Put the key's SHA-256 fingerprint into `watcher/deploy/web/yipchat.dev/.well-known/assetlinks.json`, so browser sign-in can return to the app:
 
 ```bash
 keytool -list -v -keystore yip-release.jks -alias yip | grep SHA256
 ```
+
+### 5. Publish releases from GitHub
+
+Add these under **Settings > Secrets and variables > Actions** in your repository:
+
+| Secret | Value |
+| --- | --- |
+| `YIP_KEYSTORE_BASE64` | Output of `base64 -w0 yip-release.jks` |
+| `YIP_KEYSTORE_PASSWORD` | The keystore password |
+| `YIP_KEY_ALIAS` | `yip` |
+| `YIP_KEY_PASSWORD` | The key password |
+| `YIP_TWITCH_CLIENT_ID` | Your Twitch client ID |
+| `YIP_CONFIG_PUBLIC_KEY` | The watcher's public key (optional) |
+
+Then push a version tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The release workflow builds a signed APK, attaches it with its checksum to a GitHub release, and installed copies of Yip offer the update. It stops with an error if a required secret is missing.
 
 ## Server setup
 
@@ -179,22 +239,34 @@ Keep `/opt/yip-watcher/keys/config_ed25519.pem` private and backed up. If it lea
 
 ### Apache
 
-Two subdomains, both with HTTPS:
+Two domains, both with HTTPS:
 
-| Subdomain | Serves |
+| Domain | Serves |
 | --- | --- |
 | `config.yipchat.dev` | `/yip/playback.json` from the watcher |
-| `yipchat.dev` | `/auth` (browser sign-in return page) and `/.well-known/assetlinks.json` |
+| `yipchat.dev` | The website, `/auth` (browser sign-in return page), `/import` and `/.well-known/assetlinks.json` |
+
+Get the certificates first. The configs point at them, and Apache won't start if they're missing.
 
 ```bash
-sudo cp watcher/deploy/apache/*.conf /etc/apache2/sites-available/
+sudo apt install certbot python3-certbot-apache
+sudo a2enmod ssl headers
+sudo certbot certonly --apache -d yipchat.dev
+sudo certbot certonly --apache -d config.yipchat.dev
+```
+
+Then add the pages and turn the sites on:
+
+```bash
 sudo mkdir -p /var/www/yipchat.dev
 sudo cp -r watcher/deploy/web/yipchat.dev/. /var/www/yipchat.dev/
-sudo a2enmod ssl headers
+sudo cp watcher/deploy/apache/*.conf /etc/apache2/sites-available/
 sudo a2ensite config.yipchat.dev yipchat.dev
-sudo certbot --apache -d config.yipchat.dev -d yipchat.dev
+sudo apache2ctl configtest
 sudo systemctl reload apache2
 ```
+
+The website is a separate project deployed into the same folder. Never deploy it with a sync that deletes files, or it removes `auth/`, `import/` and `.well-known/`.
 
 If you change the script in `auth/index.html`, update its hash in the Content-Security-Policy line of `yipchat.dev.conf`.
 
